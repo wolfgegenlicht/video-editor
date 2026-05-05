@@ -1,12 +1,16 @@
+import threading
 from pathlib import Path
 from faster_whisper import WhisperModel
 
 _model = None
+_model_lock = threading.Lock()
 
 def get_model() -> WhisperModel:
     global _model
     if _model is None:
-        _model = WhisperModel("base", device="cpu", compute_type="int8")
+        with _model_lock:
+            if _model is None:
+                _model = WhisperModel("base", device="cpu", compute_type="int8")
     return _model
 
 def transcribe(file_path: Path) -> list[dict]:

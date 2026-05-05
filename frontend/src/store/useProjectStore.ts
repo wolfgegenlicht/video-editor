@@ -16,12 +16,23 @@ function makeDefaultProject(): Project {
   };
 }
 
+function isValidProject(p: unknown): p is Project {
+  if (!p || typeof p !== "object") return false;
+  const proj = p as Record<string, unknown>;
+  return typeof proj.id === "string" && Array.isArray(proj.tracks) && Array.isArray(proj.captions);
+}
+
 function loadFromStorage(): Project {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return makeDefaultProject();
+    if (!raw) return makeDefaultProject();
+    const parsed = JSON.parse(raw);
+    if (!isValidProject(parsed)) return makeDefaultProject();
+    return parsed;
+  } catch (e) {
+    console.warn("[store] Failed to load from localStorage, starting fresh:", e);
+    return makeDefaultProject();
+  }
 }
 
 interface ProjectStore {
@@ -67,12 +78,13 @@ function findClip(project: Project, clipId: string): { track: Track; clip: Clip 
   return null;
 }
 
-function withHistory(set: any, get: any, updater: (p: Project) => Project) {
-  const { project, history } = get();
-  const newHistory = [...history.slice(-MAX_HISTORY + 1), project];
-  const newProject = updater(project);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(newProject));
-  set({ project: newProject, history: newHistory, future: [] });
+function withHistory(set: any, _get: any, updater: (p: Project) => Project) {
+  set((state: ProjectStore) => {
+    const newHistory = [...state.history.slice(-MAX_HISTORY + 1), state.project];
+    const newProject = updater(state.project);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(newProject));
+    return { project: newProject, history: newHistory, future: [] };
+  });
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -223,7 +235,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   loadFromJson: (json) => {
     try {
-      const project = JSON.parse(json) as Project;
+      const parsed = JSON.parse(json);
+      if (!isValidProject(parsed)) { alert("Invalid project JSON: missing required fields"); return; }
+      const project = parsed;
       localStorage.setItem(STORAGE_KEY, json);
       set({ project, history: [], future: [] });
     } catch {
