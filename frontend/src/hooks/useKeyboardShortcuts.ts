@@ -2,8 +2,8 @@ import { useEffect } from "react";
 import { useProjectStore } from "../store/useProjectStore";
 import { usePlayback } from "./usePlayback";
 
+
 export function useKeyboardShortcuts() {
-  const store = useProjectStore();
   const { toggle } = usePlayback();
 
   useEffect(() => {
