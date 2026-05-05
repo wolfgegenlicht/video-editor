@@ -41,5 +41,6 @@ export async function exportProject(project: Project): Promise<Blob> {
 }
 
 export async function deleteFile(fileId: string): Promise<void> {
-  await fetch(`/files/${fileId}`, { method: "DELETE" });
+  const res = await fetch(`/files/${fileId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete failed: ${res.status}`);
 }
