@@ -6,6 +6,7 @@ const STYLES: { id: CaptionStyle; label: string; description: string }[] = [
   { id: "bold", label: "Bold", description: "Large, thick black outline" },
   { id: "subtitle", label: "Subtitle", description: "Semi-transparent bar" },
   { id: "cinematic", label: "Cinematic", description: "Centered, all-caps" },
+  { id: "karaoke" as CaptionStyle, label: "Karaoke", description: "Word-by-word highlight" },
 ];
 
 export default function CaptionStylePicker() {
