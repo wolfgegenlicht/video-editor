@@ -3,11 +3,17 @@ import { useProjectStore } from "../../store/useProjectStore";
 import TimelineToolbar from "./TimelineToolbar";
 import TimelineRuler from "./TimelineRuler";
 import TimelineTrack from "./TimelineTrack";
+import TextOverlayTrack from "./TextOverlayTrack";
 
-const LABEL_WIDTH = 56;
+const LABEL_WIDTH = 110;
 
-export default function Timeline() {
-  const { project, zoom, playheadTime, splitClip } = useProjectStore();
+interface Props {
+  toggle: () => void;
+  seek: (time: number) => void;
+}
+
+export default function Timeline({ toggle, seek }: Props) {
+  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden } = useProjectStore();
 
   const totalDuration = Math.max(
     30,
@@ -37,7 +43,7 @@ export default function Timeline() {
 
   return (
     <div className="flex flex-col bg-white border-t border-gray-200 flex-shrink-0" style={{ height: 200 }}>
-      <TimelineToolbar onSplit={handleSplit} />
+      <TimelineToolbar onSplit={handleSplit} toggle={toggle} seek={seek} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Track labels */}
         <div className="flex-shrink-0 bg-gray-50 border-r border-gray-200" style={{ width: LABEL_WIDTH }}>
@@ -45,11 +51,38 @@ export default function Timeline() {
           {project.tracks.map((track) => (
             <div
               key={track.id}
-              className="h-10 flex items-center justify-center text-[10px] text-gray-400 border-b border-gray-100"
+              className="h-10 flex items-center gap-1 px-2 border-b border-gray-100"
             >
-              {track.type}
+              <span className={`text-[10px] font-medium flex-1 truncate ${track.type === "audio" ? "text-green-600" : "text-gray-500"}`}>
+                {track.type}
+              </span>
+              {/* Mute */}
+              <button
+                title={track.muted ? "Unmute track" : "Mute track"}
+                onClick={() => setTrackMuted(track.id, !track.muted)}
+                className={`flex-shrink-0 w-5 h-5 rounded text-[10px] flex items-center justify-center transition-colors
+                  ${track.muted ? "bg-yellow-400 text-white" : "text-gray-400 hover:bg-gray-200"}`}
+              >
+                {track.muted ? "🔇" : "🔈"}
+              </button>
+              {/* Hide — video tracks only */}
+              {track.type !== "audio" && (
+                <button
+                  title={track.hidden ? "Show track" : "Hide track"}
+                  onClick={() => setTrackHidden(track.id, !track.hidden)}
+                  className={`flex-shrink-0 w-5 h-5 rounded text-[10px] flex items-center justify-center transition-colors
+                    ${track.hidden ? "bg-gray-400 text-white" : "text-gray-400 hover:bg-gray-200"}`}
+                >
+                  {track.hidden ? "🚫" : "👁"}
+                </button>
+              )}
             </div>
           ))}
+          {project.textOverlays.length > 0 && (
+            <div className="h-10 flex items-center gap-1 px-2 border-b border-gray-100">
+              <span className="text-[10px] font-medium text-purple-500 flex-1">text</span>
+            </div>
+          )}
         </div>
 
         {/* Scrollable timeline */}
@@ -58,10 +91,13 @@ export default function Timeline() {
           onWheel={handleWheelZoom}
         >
           <div style={{ width: totalWidth, position: "relative" }}>
-            <TimelineRuler totalWidth={totalWidth} zoom={zoom} />
+            <TimelineRuler totalWidth={totalWidth} zoom={zoom} seek={seek} />
             {project.tracks.map((track) => (
               <TimelineTrack key={track.id} track={track} zoom={zoom} />
             ))}
+            {project.textOverlays.length > 0 && (
+              <TextOverlayTrack zoom={zoom} totalWidth={totalWidth} />
+            )}
             {/* Playhead */}
             <div
               className="absolute top-0 bottom-0 w-px bg-red-500 pointer-events-none z-10"

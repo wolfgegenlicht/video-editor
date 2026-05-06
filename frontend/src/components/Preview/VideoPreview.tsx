@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import { fileUrl } from "../../lib/api";
 import CaptionOverlay from "./CaptionOverlay";
+import TextOverlayRenderer from "./TextOverlayRenderer";
 
 const RATIO_CLASSES: Record<string, string> = {
   "16:9": "aspect-video",
@@ -81,6 +82,7 @@ export default function VideoPreview({ videoRef, toggle }: Props) {
           Upload media to get started
         </div>
       ) : null}
+      <TextOverlayRenderer time={playheadTime} />
       <CaptionOverlay time={playheadTime} />
       {activeClip && (activeClip.fadeIn || activeClip.fadeOut) && (() => {
         const speed = activeClip.speed ?? 1;
