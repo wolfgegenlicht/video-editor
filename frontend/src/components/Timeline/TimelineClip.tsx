@@ -1,15 +1,22 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useProjectStore } from "../../store/useProjectStore";
-import type { Clip } from "../../types/project";
+import type { Clip, TrackType } from "../../types/project";
+import ClipContextMenu from "./ClipContextMenu";
+import WaveformCanvas from "./WaveformCanvas";
 
 interface Props {
   clip: Clip;
   trackId: string;
+  trackType: TrackType;
   zoom: number;
 }
 
-export default function TimelineClip({ clip, trackId, zoom }: Props) {
-  const { moveClip, trimClip, deleteClip, files } = useProjectStore();
+export default function TimelineClip({ clip, trackId, trackType, zoom }: Props) {
+  const { moveClip, trimClip, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, files, playheadTime, selectedClipId } = useProjectStore();
+  const isAudioTrack = trackType === "audio";
+  const isSelected = selectedClipId === clip.id;
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const dragStartX = useRef(0);
   const dragStartTime = useRef(0);
   const dragStartDuration = useRef(0);
@@ -25,6 +32,7 @@ export default function TimelineClip({ clip, trackId, zoom }: Props) {
   function startDrag(e: React.MouseEvent, type: "move" | "trim-left" | "trim-right") {
     e.stopPropagation();
     e.preventDefault();
+    selectClip(clip.id);
 
     dragStartX.current = e.clientX;
     dragStartTime.current = clip.startTime;
@@ -39,7 +47,9 @@ export default function TimelineClip({ clip, trackId, zoom }: Props) {
       if (type === "move") {
         moveClip(clip.id, trackId, Math.max(0, dragStartTime.current + dt));
       } else if (type === "trim-left") {
-        const newStart = Math.max(0, Math.min(
+        // Can't trim further left than timeline start (0) or source start (0)
+        const minStart = Math.max(0, dragStartTime.current - dragStartSourceStart.current);
+        const newStart = Math.max(minStart, Math.min(
           dragStartTime.current + dragStartDuration.current - 0.1,
           dragStartTime.current + dt
         ));
@@ -80,29 +90,96 @@ export default function TimelineClip({ clip, trackId, zoom }: Props) {
     e.dataTransfer.effectAllowed = "move";
   }
 
+  const playheadInClip =
+    playheadTime > clip.startTime && playheadTime < clip.startTime + clip.duration;
+
+  const menuItems = [
+    {
+      label: "Split at Playhead",
+      icon: "✂️",
+      disabled: !playheadInClip,
+      onClick: () => splitClip(clip.id, playheadTime),
+    },
+    {
+      label: "Duplicate",
+      icon: "⧉",
+      onClick: () => duplicateClip(clip.id),
+    },
+    ...(!isAudioTrack && !clip.muted ? [{
+      label: "Detach Audio",
+      icon: "🔊",
+      onClick: () => detachAudio(clip.id),
+    }] : []),
+    { label: "---", icon: "", onClick: () => {} },
+    {
+      label: "Delete",
+      icon: "🗑",
+      danger: true,
+      onClick: () => deleteClip(clip.id),
+    },
+  ];
+
   return (
-    <div
-      className="absolute top-1 h-8 rounded bg-blue-400 border border-blue-500 flex items-center overflow-hidden select-none group"
-      style={{ left, width }}
-      draggable
-      onDragStart={onDragStart}
-      onMouseDown={(e) => startDrag(e, "move")}
-      onContextMenu={(e) => { e.preventDefault(); deleteClip(clip.id); }}
-      title="Drag to move · Drag edges to trim · Right-click to delete"
-    >
-      {/* Trim left handle */}
+    <>
       <div
-        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize bg-blue-600 opacity-0 group-hover:opacity-100 z-10"
-        onMouseDown={(e) => startDrag(e, "trim-left")}
-      />
-      <span className="px-2 text-[10px] text-white font-medium truncate pointer-events-none flex-1">
-        {label}
-      </span>
-      {/* Trim right handle */}
-      <div
-        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize bg-blue-600 opacity-0 group-hover:opacity-100 z-10"
-        onMouseDown={(e) => startDrag(e, "trim-right")}
-      />
-    </div>
+        className={`absolute top-1 h-8 rounded flex items-center overflow-hidden select-none group
+          ${isAudioTrack
+            ? isSelected
+              ? "bg-green-500 border-2 border-white ring-2 ring-green-400"
+              : "bg-green-400 border border-green-500"
+            : clip.muted
+              ? isSelected
+                ? "bg-blue-300 border-2 border-white ring-2 ring-blue-300 opacity-75"
+                : "bg-blue-300 border border-blue-400 opacity-75"
+              : isSelected
+                ? "bg-blue-500 border-2 border-white ring-2 ring-blue-400"
+                : "bg-blue-400 border border-blue-500"
+          }`}
+        style={{ left, width }}
+        draggable
+        onDragStart={onDragStart}
+        onMouseDown={(e) => startDrag(e, "move")}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setMenu({ x: e.clientX, y: e.clientY });
+        }}
+        title="Drag to move · Drag edges to trim · Right-click for options"
+      >
+        {/* Trim left handle */}
+        <div
+          className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-green-600" : "bg-blue-600"}`}
+          onMouseDown={(e) => startDrag(e, "trim-left")}
+        />
+        {isAudioTrack && file && (
+          <WaveformCanvas
+            fileId={clip.fileId}
+            fileDuration={file.duration}
+            sourceStart={clip.sourceStart}
+            sourceEnd={clip.sourceEnd}
+            width={width}
+          />
+        )}
+        <span className="px-2 text-[10px] text-white font-medium truncate pointer-events-none flex-1 relative z-10">
+          {isAudioTrack ? "♪ " : clip.muted ? "🔇 " : ""}{label}
+        </span>
+        {/* Trim right handle */}
+        <div
+          className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-green-600" : "bg-blue-600"}`}
+          onMouseDown={(e) => startDrag(e, "trim-right")}
+        />
+      </div>
+
+      {menu &&
+        createPortal(
+          <ClipContextMenu
+            x={menu.x}
+            y={menu.y}
+            items={menuItems}
+            onClose={() => setMenu(null)}
+          />,
+          document.body
+        )}
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import TimelineToolbar from "./TimelineToolbar";
 import TimelineRuler from "./TimelineRuler";
@@ -6,6 +6,8 @@ import TimelineTrack from "./TimelineTrack";
 import TextOverlayTrack from "./TextOverlayTrack";
 
 const LABEL_WIDTH = 110;
+const MIN_HEIGHT = 100;
+const MAX_HEIGHT = 600;
 
 interface Props {
   toggle: () => void;
@@ -14,6 +16,28 @@ interface Props {
 
 export default function Timeline({ toggle, seek }: Props) {
   const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden } = useProjectStore();
+  const [height, setHeight] = useState(200);
+  const dragState = useRef<{ startY: number; startHeight: number } | null>(null);
+
+  function onDragHandleMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    dragState.current = { startY: e.clientY, startHeight: height };
+
+    function onMouseMove(ev: MouseEvent) {
+      if (!dragState.current) return;
+      const delta = dragState.current.startY - ev.clientY;
+      setHeight(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, dragState.current.startHeight + delta)));
+    }
+
+    function onMouseUp() {
+      dragState.current = null;
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
 
   const totalDuration = Math.max(
     30,
@@ -42,7 +66,11 @@ export default function Timeline({ toggle, seek }: Props) {
   const playheadX = playheadTime * zoom;
 
   return (
-    <div className="flex flex-col bg-white border-t border-gray-200 flex-shrink-0" style={{ height: 200 }}>
+    <div className="flex flex-col bg-white border-t border-gray-200 flex-shrink-0" style={{ height }}>
+      <div
+        className="h-1 cursor-ns-resize bg-gray-200 hover:bg-blue-400 transition-colors flex-shrink-0"
+        onMouseDown={onDragHandleMouseDown}
+      />
       <TimelineToolbar onSplit={handleSplit} toggle={toggle} seek={seek} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Track labels */}

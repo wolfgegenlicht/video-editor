@@ -1,23 +1,55 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import { uploadFile, fileUrl } from "../../lib/api";
 
 export default function MediaTab() {
-  const { files, addFile, removeFile, addClip, project } = useProjectStore();
+  const { files, addFile, removeFile, addClip, project, activeProjectId } = useProjectStore();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [draggingOver, setDraggingOver] = useState(false);
+  const dragCounter = useRef(0);
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = Array.from(e.target.files ?? []);
+  async function uploadFiles(fileList: FileList | File[]) {
+    const selected = Array.from(fileList).filter((f) =>
+      f.type.startsWith("video/") || f.type.startsWith("audio/")
+    );
     for (const file of selected) {
       try {
-        const uploaded = await uploadFile(file);
+        const uploaded = await uploadFile(file, activeProjectId ?? undefined);
         addFile(uploaded);
       } catch (err) {
         alert("Upload failed: " + String(err));
       }
     }
-    // Reset input so same file can be re-uploaded
+  }
+
+  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    await uploadFiles(Array.from(e.target.files ?? []));
     e.target.value = "";
+  }
+
+  function onDragEnter(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounter.current++;
+    if (e.dataTransfer.types.includes("Files")) setDraggingOver(true);
+  }
+
+  function onDragLeave(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounter.current--;
+    if (dragCounter.current === 0) setDraggingOver(false);
+  }
+
+  function onDragOver(e: React.DragEvent) {
+    if (e.dataTransfer.types.includes("Files")) e.preventDefault();
+  }
+
+  async function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    dragCounter.current = 0;
+    setDraggingOver(false);
+    if (e.dataTransfer.files.length > 0) {
+      await uploadFiles(e.dataTransfer.files);
+    }
   }
 
   function handleDragStart(e: React.DragEvent, fileId: string) {
@@ -40,7 +72,18 @@ export default function MediaTab() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div
+      className={`flex flex-col h-full relative transition-colors ${draggingOver ? "bg-blue-50" : ""}`}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      {draggingOver && (
+        <div className="absolute inset-0 border-2 border-blue-400 border-dashed rounded pointer-events-none z-10 flex items-center justify-center bg-blue-50/80">
+          <span className="text-xs text-blue-600 font-medium">Drop to upload</span>
+        </div>
+      )}
       <div className="p-2 border-b border-gray-100">
         <button
           onClick={() => inputRef.current?.click()}
