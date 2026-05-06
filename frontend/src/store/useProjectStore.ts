@@ -446,7 +446,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const project: Project = {
         ...parsed,
         textOverlays: parsed.textOverlays ?? [],
-        captionTrackStyle: { ...makeDefaultCaptionStyle(), ...(parsed.captionTrackStyle ?? {}) },
+        captionTrackStyle: {
+          ...makeDefaultCaptionStyle(),
+          ...((parsed as any).captionX !== undefined ? { x: (parsed as any).captionX } : {}),
+          ...((parsed as any).captionY !== undefined ? { y: (parsed as any).captionY } : {}),
+          ...((parsed as any).captionBoxW !== undefined ? { boxW: (parsed as any).captionBoxW } : {}),
+          ...((parsed as any).captionBoxH !== undefined ? { boxH: (parsed as any).captionBoxH } : {}),
+          ...((parsed as any).captionSize !== undefined ? { fontSize: (parsed as any).captionSize } : {}),
+          ...(parsed.captionTrackStyle ?? {}),
+        },
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
       set({ project, history: [], future: [] });
