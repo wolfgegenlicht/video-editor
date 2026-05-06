@@ -128,10 +128,15 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   addFile: (file) => set((s) => ({ files: [...s.files, file] })),
   removeFile: (fileId) => {
+    const { files, project } = get();
+    const isVideoFile = files.find((f) => f.id === fileId)?.width ?? 0 > 0;
     set((s) => ({ files: s.files.filter((f) => f.id !== fileId) }));
-    // Clear captions if this was their source file
-    const { project } = get();
-    if (project.captionSourceFileId === fileId) {
+    // Clear captions when the source file is removed — check explicit link or
+    // fall back to: any video file removed while captions exist clears them.
+    const hasCaptions = project.captions.length > 0;
+    const isLinked = project.captionSourceFileId === fileId;
+    const isUnlinkedVideo = !project.captionSourceFileId && isVideoFile;
+    if (hasCaptions && (isLinked || isUnlinkedVideo)) {
       withHistory(set, get, (p) => ({ ...p, captions: [], captionSourceFileId: undefined }));
     }
   },
