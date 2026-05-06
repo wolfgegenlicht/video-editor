@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
 import type { Project, Track, Clip, Caption, AspectRatio, CaptionStyle, UploadedFile } from "../types/project";
+import { saveProject } from "../lib/api";
+import type { ProjectData } from "../lib/api";
 
 const STORAGE_KEY = "video-editor-project";
 const MAX_HISTORY = 50;
@@ -13,6 +15,7 @@ function makeDefaultProject(): Project {
     captionStyle: "minimal",
     tracks: [{ id: uuid(), type: "video", clips: [] }],
     captions: [],
+    textOverlays: [],
   };
 }
 
@@ -22,18 +25,6 @@ function isValidProject(p: unknown): p is Project {
   return typeof proj.id === "string" && Array.isArray(proj.tracks) && Array.isArray(proj.captions);
 }
 
-function loadFromStorage(): Project {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return makeDefaultProject();
-    const parsed = JSON.parse(raw);
-    if (!isValidProject(parsed)) return makeDefaultProject();
-    return parsed;
-  } catch (e) {
-    console.warn("[store] Failed to load from localStorage, starting fresh:", e);
-    return makeDefaultProject();
-  }
-}
 
 interface ProjectStore {
   project: Project;
@@ -41,7 +32,10 @@ interface ProjectStore {
   history: Project[];
   future: Project[];
   playheadTime: number;
+  isPlaying: boolean;
   zoom: number;
+  activeProjectId: string | null;
+  selectedClipId: string | null;
 
   setProjectName: (name: string) => void;
   setAspectRatio: (ratio: AspectRatio) => void;
@@ -50,7 +44,10 @@ interface ProjectStore {
   addFile: (file: UploadedFile) => void;
   removeFile: (fileId: string) => void;
 
-  addTrack: () => void;
+  addTrack: (type?: TrackType) => void;
+  detachAudio: (clipId: string) => void;
+  setTrackMuted: (trackId: string, muted: boolean) => void;
+  setTrackHidden: (trackId: string, hidden: boolean) => void;
   addClip: (trackId: string, clip: Omit<Clip, "id">) => void;
   moveClip: (clipId: string, toTrackId: string, newStartTime: number) => void;
   trimClip: (clipId: string, newStartTime: number, newDuration: number, newSourceStart: number, newSourceEnd: number) => void;
@@ -61,7 +58,11 @@ interface ProjectStore {
   setCaption: (captions: Caption[]) => void;
 
   setPlayhead: (time: number) => void;
+  setIsPlaying: (playing: boolean) => void;
   setZoom: (zoom: number) => void;
+  selectClip: (id: string | null) => void;
+  openProject: (data: ProjectData) => void;
+  closeProject: () => void;
 
   undo: () => void;
   redo: () => void;
@@ -78,22 +79,38 @@ function findClip(project: Project, clipId: string): { track: Track; clip: Clip 
   return null;
 }
 
+let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function _scheduleSave(projectId: string, project: Project) {
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    saveProject(projectId, project).catch(console.error);
+  }, 500);
+}
+
 function withHistory(set: any, _get: any, updater: (p: Project) => Project) {
+  let activeProjectId: string | null = null;
+  let newProject: Project | null = null;
   set((state: ProjectStore) => {
     const newHistory = [...state.history.slice(-MAX_HISTORY + 1), state.project];
-    const newProject = updater(state.project);
+    newProject = updater(state.project);
+    activeProjectId = state.activeProjectId;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(newProject));
     return { project: newProject, history: newHistory, future: [] };
   });
+  if (activeProjectId && newProject) _scheduleSave(activeProjectId, newProject);
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
-  project: loadFromStorage(),
+  project: makeDefaultProject(),
   files: [],
   history: [],
   future: [],
   playheadTime: 0,
+  isPlaying: false,
   zoom: 50,
+  activeProjectId: null,
+  selectedClipId: null,
 
   setProjectName: (name) => withHistory(set, get, (p) => ({ ...p, name })),
   setAspectRatio: (aspectRatio) => withHistory(set, get, (p) => ({ ...p, aspectRatio })),
@@ -102,10 +119,47 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   addFile: (file) => set((s) => ({ files: [...s.files, file] })),
   removeFile: (fileId) => set((s) => ({ files: s.files.filter((f) => f.id !== fileId) })),
 
-  addTrack: () => withHistory(set, get, (p) => ({
+  addTrack: (type = "video" as TrackType) => withHistory(set, get, (p) => ({
     ...p,
-    tracks: [...p.tracks, { id: uuid(), type: "video" as const, clips: [] }],
+    tracks: [...p.tracks, { id: uuid(), type, clips: [] }],
   })),
+
+  detachAudio: (clipId) => withHistory(set, get, (p) => {
+    let targetClip: Clip | null = null;
+    for (const track of p.tracks) {
+      const c = track.clips.find((c) => c.id === clipId);
+      if (c) { targetClip = c; break; }
+    }
+    if (!targetClip) return p;
+
+    const audioClip: Clip = {
+      id: uuid(),
+      fileId: targetClip.fileId,
+      startTime: targetClip.startTime,
+      duration: targetClip.duration,
+      sourceStart: targetClip.sourceStart,
+      sourceEnd: targetClip.sourceEnd,
+    };
+
+    const tracksWithMuted = p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, muted: true } : c),
+    }));
+
+    const existingAudioTrack = tracksWithMuted.find((t) => t.type === "audio");
+    if (existingAudioTrack) {
+      return {
+        ...p,
+        tracks: tracksWithMuted.map((t) =>
+          t.id === existingAudioTrack.id ? { ...t, clips: [...t.clips, audioClip] } : t
+        ),
+      };
+    }
+    return {
+      ...p,
+      tracks: [...tracksWithMuted, { id: uuid(), type: "audio" as const, clips: [audioClip] }],
+    };
+  }),
 
   addClip: (trackId, clip) => withHistory(set, get, (p) => ({
     ...p,
@@ -196,30 +250,56 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     };
   }),
 
-  deleteClip: (clipId) => withHistory(set, get, (p) => ({
-    ...p,
-    tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => c.id !== clipId) })),
-  })),
+  deleteClip: (clipId) => {
+    withHistory(set, get, (p) => ({
+      ...p,
+      tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => c.id !== clipId) })),
+    }));
+    set((s) => s.selectedClipId === clipId ? { selectedClipId: null } : {});
+  },
 
   setCaption: (captions) => withHistory(set, get, (p) => ({ ...p, captions })),
 
+  setTrackMuted: (trackId, muted) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => t.id === trackId ? { ...t, muted } : t),
+  })),
+  setTrackHidden: (trackId, hidden) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => t.id === trackId ? { ...t, hidden } : t),
+  })),
+
   setPlayhead: (playheadTime) => set({ playheadTime }),
+  setIsPlaying: (isPlaying) => set({ isPlaying }),
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(500, zoom)) }),
+  selectClip: (selectedClipId) => set({ selectedClipId }),
+
+  openProject: ({ project, files }) => {
+    const normalized: Project = { textOverlays: [], ...project };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    set({ project: normalized, files, activeProjectId: normalized.id, history: [], future: [], playheadTime: 0, isPlaying: false });
+  },
+
+  closeProject: () => {
+    set({ activeProjectId: null, files: [], history: [], future: [], playheadTime: 0, isPlaying: false });
+  },
 
   undo: () => {
-    const { history, project, future } = get();
+    const { history, project, future, activeProjectId } = get();
     if (!history.length) return;
     const prev = history[history.length - 1];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prev));
     set({ project: prev, history: history.slice(0, -1), future: [project, ...future] });
+    if (activeProjectId) _scheduleSave(activeProjectId, prev);
   },
 
   redo: () => {
-    const { future, project, history } = get();
+    const { future, project, history, activeProjectId } = get();
     if (!future.length) return;
     const next = future[0];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     set({ project: next, history: [...history, project], future: future.slice(1) });
+    if (activeProjectId) _scheduleSave(activeProjectId, next);
   },
 
   saveAsJson: () => {
