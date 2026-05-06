@@ -10,10 +10,12 @@ const STYLES: { id: CaptionStyle; label: string; description: string }[] = [
 ];
 
 export default function CaptionStylePicker() {
-  const { project, setCaptionStyle } = useProjectStore();
+  const { project, setCaptionStyle, setCaptionSize } = useProjectStore();
+  const captionSize = project.captionSize ?? 32;
+
   return (
-    <div className="p-2 border-t border-gray-100">
-      <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">Caption Style</p>
+    <div className="p-2 border-t border-gray-100 space-y-2">
+      <p className="text-[10px] text-gray-400 uppercase tracking-wide">Caption Style</p>
       <div className="space-y-1">
         {STYLES.map((s) => (
           <button
@@ -30,6 +32,27 @@ export default function CaptionStylePicker() {
           </button>
         ))}
       </div>
+
+      {project.captionStyle === "karaoke" && (
+        <div>
+          <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
+            Size — {captionSize}px
+          </label>
+          <input
+            type="range"
+            min={16}
+            max={96}
+            step={4}
+            value={captionSize}
+            onChange={(e) => setCaptionSize(parseInt(e.target.value))}
+            className="w-full accent-blue-600"
+          />
+          <div className="flex justify-between text-[9px] text-gray-400 mt-0.5">
+            <span>more words</span>
+            <span>fewer words</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
