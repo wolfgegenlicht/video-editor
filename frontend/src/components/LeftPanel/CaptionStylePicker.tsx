@@ -51,6 +51,7 @@ export default function CaptionStylePicker() {
             <span>more words</span>
             <span>fewer words</span>
           </div>
+          <p className="text-[9px] text-gray-400 mt-1">Drag box to move · drag corner to resize</p>
         </div>
       )}
     </div>

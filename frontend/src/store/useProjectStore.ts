@@ -43,6 +43,7 @@ interface ProjectStore {
   setCaptionStyle: (style: CaptionStyle) => void;
   setCaptionSize: (size: number) => void;
   setCaptionPosition: (x: number, y: number) => void;
+  setCaptionBox: (w: number, h: number) => void;
 
   addFile: (file: UploadedFile) => void;
   removeFile: (fileId: string) => void;
@@ -129,6 +130,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setCaptionStyle: (captionStyle) => withHistory(set, get, (p) => ({ ...p, captionStyle })),
   setCaptionSize: (captionSize) => set((s) => ({ project: { ...s.project, captionSize } })),
   setCaptionPosition: (captionX, captionY) => set((s) => ({ project: { ...s.project, captionX, captionY } })),
+  setCaptionBox: (captionBoxW, captionBoxH) => set((s) => ({ project: { ...s.project, captionBoxW, captionBoxH } })),
 
   addFile: (file) => set((s) => ({ files: [...s.files, file] })),
   removeFile: (fileId) => {

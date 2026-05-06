@@ -69,6 +69,8 @@ export interface Project {
   textOverlays: TextOverlay[];
   captionSourceFileId?: string;
   captionSize?: number;   // font size in px (default 32)
-  captionX?: number;      // position as % of video width (default 50)
-  captionY?: number;      // position as % of video height (default 85)
+  captionX?: number;      // box top-left x as % of video width (default 10)
+  captionY?: number;      // box top-left y as % of video height (default 78)
+  captionBoxW?: number;   // box width as % of video width (default 80)
+  captionBoxH?: number;   // box height as % of video height (default 18)
 }
