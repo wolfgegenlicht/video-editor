@@ -67,4 +67,5 @@ export interface Project {
   tracks: Track[];
   captions: Caption[];
   textOverlays: TextOverlay[];
+  captionSourceFileId?: string;
 }

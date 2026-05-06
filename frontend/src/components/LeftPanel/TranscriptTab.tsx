@@ -25,7 +25,7 @@ export default function TranscriptTab({ seek }: Props) {
         startTime: s.start,
         endTime: s.end,
         words: s.words?.map((w) => ({ text: w.text, start: w.start, end: w.end })) ?? [],
-      })));
+      })), videoFile.id);
     } catch (e) {
       alert("Transcription failed: " + String(e));
     } finally {

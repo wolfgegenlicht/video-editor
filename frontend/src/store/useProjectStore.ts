@@ -64,7 +64,7 @@ interface ProjectStore {
   deleteTextOverlay: (id: string) => void;
   selectOverlay: (id: string | null) => void;
 
-  setCaption: (captions: Caption[]) => void;
+  setCaption: (captions: Caption[], sourceFileId?: string) => void;
 
   setPlayhead: (time: number) => void;
   setIsPlaying: (playing: boolean) => void;
@@ -127,7 +127,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setCaptionStyle: (captionStyle) => withHistory(set, get, (p) => ({ ...p, captionStyle })),
 
   addFile: (file) => set((s) => ({ files: [...s.files, file] })),
-  removeFile: (fileId) => set((s) => ({ files: s.files.filter((f) => f.id !== fileId) })),
+  removeFile: (fileId) => {
+    set((s) => ({ files: s.files.filter((f) => f.id !== fileId) }));
+    // Clear captions if this was their source file
+    const { project } = get();
+    if (project.captionSourceFileId === fileId) {
+      withHistory(set, get, (p) => ({ ...p, captions: [], captionSourceFileId: undefined }));
+    }
+  },
 
   addTrack: (type = "video" as TrackType) => withHistory(set, get, (p) => ({
     ...p,
@@ -270,7 +277,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((s) => s.selectedClipId === clipId ? { selectedClipId: null } : {});
   },
 
-  setCaption: (captions) => withHistory(set, get, (p) => ({ ...p, captions })),
+  setCaption: (captions, sourceFileId) => withHistory(set, get, (p) => ({
+    ...p,
+    captions,
+    ...(sourceFileId !== undefined ? { captionSourceFileId: sourceFileId } : {}),
+  })),
 
   setTrackMuted: (trackId, muted) => withHistory(set, get, (p) => ({
     ...p,
