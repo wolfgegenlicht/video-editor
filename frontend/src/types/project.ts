@@ -1,6 +1,24 @@
 export type AspectRatio = "16:9" | "9:16" | "1:1" | "4:3";
-export type CaptionStyle = "minimal" | "bold" | "subtitle" | "cinematic" | "karaoke";
 export type TrackType = "video" | "audio" | "captions";
+
+export interface CaptionTrackStyle {
+  fontFamily: string;
+  fontSize: number;
+  fontWeight: "normal" | "bold";
+  color: string;
+  letterSpacing: number;         // px
+  textAlign: "left" | "center" | "right";
+  textShadow: boolean;
+  outlineWidth: number;          // px (0 = off)
+  outlineColor: string;
+  backgroundColor: string;      // hex or "transparent"
+  x: number;                    // % of video width (top-left)
+  y: number;                    // % of video height (top-left)
+  boxW: number;                  // % of video width
+  boxH: number;                  // % of video height (karaoke only)
+  highlightMode: "none" | "karaoke";
+  highlightColor: string;
+}
 
 export interface UploadedFile {
   id: string;
@@ -63,14 +81,9 @@ export interface Project {
   id: string;
   name: string;
   aspectRatio: AspectRatio;
-  captionStyle: CaptionStyle;
+  captionTrackStyle: CaptionTrackStyle;
   tracks: Track[];
   captions: Caption[];
   textOverlays: TextOverlay[];
   captionSourceFileId?: string;
-  captionSize?: number;   // font size in px (default 32)
-  captionX?: number;      // box top-left x as % of video width (default 10)
-  captionY?: number;      // box top-left y as % of video height (default 78)
-  captionBoxW?: number;   // box width as % of video width (default 80)
-  captionBoxH?: number;   // box height as % of video height (default 18)
 }
