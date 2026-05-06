@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import type { Project, Track, Clip, Caption, AspectRatio, CaptionStyle, UploadedFile } from "../types/project";
+import type { Project, Track, Clip, Caption, AspectRatio, CaptionStyle, UploadedFile, TextOverlay } from "../types/project";
 import { saveProject } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
@@ -36,6 +36,7 @@ interface ProjectStore {
   zoom: number;
   activeProjectId: string | null;
   selectedClipId: string | null;
+  selectedOverlayId: string | null;
 
   setProjectName: (name: string) => void;
   setAspectRatio: (ratio: AspectRatio) => void;
@@ -54,6 +55,14 @@ interface ProjectStore {
   splitClip: (clipId: string, atTime: number) => void;
   duplicateClip: (clipId: string) => void;
   deleteClip: (clipId: string) => void;
+
+  setClipSpeed: (clipId: string, speed: number) => void;
+  setClipVolume: (clipId: string, volume: number) => void;
+  setClipFade: (clipId: string, fadeIn: number, fadeOut: number) => void;
+  addTextOverlay: (overlay: Omit<TextOverlay, "id">) => void;
+  updateTextOverlay: (id: string, patch: Partial<Omit<TextOverlay, "id">>) => void;
+  deleteTextOverlay: (id: string) => void;
+  selectOverlay: (id: string | null) => void;
 
   setCaption: (captions: Caption[]) => void;
 
@@ -111,6 +120,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   zoom: 50,
   activeProjectId: null,
   selectedClipId: null,
+  selectedOverlayId: null,
 
   setProjectName: (name) => withHistory(set, get, (p) => ({ ...p, name })),
   setAspectRatio: (aspectRatio) => withHistory(set, get, (p) => ({ ...p, aspectRatio })),
@@ -268,6 +278,52 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     ...p,
     tracks: p.tracks.map((t) => t.id === trackId ? { ...t, hidden } : t),
   })),
+
+  setClipSpeed: (clipId, speed) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId
+        ? { ...c, speed, duration: (c.sourceEnd - c.sourceStart) / speed }
+        : c),
+    })),
+  })),
+
+  setClipVolume: (clipId, volume) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, volume } : c),
+    })),
+  })),
+
+  setClipFade: (clipId, fadeIn, fadeOut) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, fadeIn, fadeOut } : c),
+    })),
+  })),
+
+  addTextOverlay: (overlay) => withHistory(set, get, (p) => ({
+    ...p,
+    textOverlays: [...p.textOverlays, { ...overlay, id: uuid() }],
+  })),
+
+  updateTextOverlay: (id, patch) => withHistory(set, get, (p) => ({
+    ...p,
+    textOverlays: p.textOverlays.map((o) => o.id === id ? { ...o, ...patch } : o),
+  })),
+
+  deleteTextOverlay: (id) => {
+    withHistory(set, get, (p) => ({
+      ...p,
+      textOverlays: p.textOverlays.filter((o) => o.id !== id),
+    }));
+    set((s) => s.selectedOverlayId === id ? { selectedOverlayId: null } : {});
+  },
+
+  selectOverlay: (selectedOverlayId) => set({ selectedOverlayId }),
 
   setPlayhead: (playheadTime) => set({ playheadTime }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
