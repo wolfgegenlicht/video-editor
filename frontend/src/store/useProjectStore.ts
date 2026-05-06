@@ -1,18 +1,39 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import type { Project, Track, Clip, Caption, AspectRatio, CaptionStyle, TrackType, UploadedFile, TextOverlay } from "../types/project";
+import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay } from "../types/project";
 import { saveProject } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
 const STORAGE_KEY = "video-editor-project";
 const MAX_HISTORY = 50;
 
+export function makeDefaultCaptionStyle(): CaptionTrackStyle {
+  return {
+    fontFamily: "sans-serif",
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#ffffff",
+    letterSpacing: 0,
+    textAlign: "center",
+    textShadow: true,
+    outlineWidth: 0,
+    outlineColor: "#000000",
+    backgroundColor: "transparent",
+    x: 10,
+    y: 78,
+    boxW: 80,
+    boxH: 18,
+    highlightMode: "karaoke",
+    highlightColor: "#fde047",
+  };
+}
+
 function makeDefaultProject(): Project {
   return {
     id: uuid(),
     name: "Untitled Project",
     aspectRatio: "16:9",
-    captionStyle: "minimal",
+    captionTrackStyle: makeDefaultCaptionStyle(),
     tracks: [{ id: uuid(), type: "video", clips: [] }],
     captions: [],
     textOverlays: [],
@@ -37,11 +58,12 @@ interface ProjectStore {
   activeProjectId: string | null;
   selectedClipId: string | null;
   selectedOverlayId: string | null;
+  selectedCaptionId: string | null;
+  leftPanelTab: "Media" | "Transcript" | "Properties";
 
   setProjectName: (name: string) => void;
   setAspectRatio: (ratio: AspectRatio) => void;
-  setCaptionStyle: (style: CaptionStyle) => void;
-  setCaptionSize: (size: number) => void;
+  setCaptionTrackStyle: (patch: Partial<CaptionTrackStyle>) => void;
   setCaptionPosition: (x: number, y: number) => void;
   setCaptionBox: (w: number, h: number) => void;
 
@@ -73,6 +95,8 @@ interface ProjectStore {
   setIsPlaying: (playing: boolean) => void;
   setZoom: (zoom: number) => void;
   selectClip: (id: string | null) => void;
+  selectCaption: (id: string | null) => void;
+  selectLeftPanelTab: (tab: "Media" | "Transcript" | "Properties") => void;
   openProject: (data: ProjectData) => void;
   closeProject: () => void;
 
@@ -124,13 +148,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   activeProjectId: null,
   selectedClipId: null,
   selectedOverlayId: null,
+  selectedCaptionId: null,
+  leftPanelTab: "Media",
 
   setProjectName: (name) => withHistory(set, get, (p) => ({ ...p, name })),
   setAspectRatio: (aspectRatio) => withHistory(set, get, (p) => ({ ...p, aspectRatio })),
-  setCaptionStyle: (captionStyle) => withHistory(set, get, (p) => ({ ...p, captionStyle })),
-  setCaptionSize: (captionSize) => set((s) => ({ project: { ...s.project, captionSize } })),
-  setCaptionPosition: (captionX, captionY) => set((s) => ({ project: { ...s.project, captionX, captionY } })),
-  setCaptionBox: (captionBoxW, captionBoxH) => set((s) => ({ project: { ...s.project, captionBoxW, captionBoxH } })),
+  setCaptionTrackStyle: (patch) => withHistory(set, get, (p) => ({
+    ...p,
+    captionTrackStyle: { ...p.captionTrackStyle, ...patch },
+  })),
+  setCaptionPosition: (x, y) => set((s) => ({
+    project: { ...s.project, captionTrackStyle: { ...s.project.captionTrackStyle, x, y } },
+  })),
+  setCaptionBox: (boxW, boxH) => set((s) => ({
+    project: { ...s.project, captionTrackStyle: { ...s.project.captionTrackStyle, boxW, boxH } },
+  })),
 
   addFile: (file) => set((s) => ({ files: [...s.files, file] })),
   removeFile: (fileId) => {
@@ -353,9 +385,23 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(500, zoom)) }),
   selectClip: (selectedClipId) => set({ selectedClipId }),
+  selectCaption: (selectedCaptionId) => set({ selectedCaptionId }),
+  selectLeftPanelTab: (leftPanelTab) => set({ leftPanelTab }),
 
   openProject: ({ project, files }) => {
-    const normalized: Project = { ...project, textOverlays: project.textOverlays ?? [] };
+    const normalized: Project = {
+      ...project,
+      textOverlays: project.textOverlays ?? [],
+      captionTrackStyle: {
+        ...makeDefaultCaptionStyle(),
+        ...((project as any).captionX !== undefined ? { x: (project as any).captionX } : {}),
+        ...((project as any).captionY !== undefined ? { y: (project as any).captionY } : {}),
+        ...((project as any).captionBoxW !== undefined ? { boxW: (project as any).captionBoxW } : {}),
+        ...((project as any).captionBoxH !== undefined ? { boxH: (project as any).captionBoxH } : {}),
+        ...((project as any).captionSize !== undefined ? { fontSize: (project as any).captionSize } : {}),
+        ...(project.captionTrackStyle ?? {}),
+      },
+    };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
     set({ project: normalized, files, activeProjectId: normalized.id, history: [], future: [], playheadTime: 0, isPlaying: false });
   },
@@ -397,8 +443,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     try {
       const parsed = JSON.parse(json);
       if (!isValidProject(parsed)) { alert("Invalid project JSON: missing required fields"); return; }
-      const project = parsed;
-      localStorage.setItem(STORAGE_KEY, json);
+      const project: Project = {
+        ...parsed,
+        textOverlays: parsed.textOverlays ?? [],
+        captionTrackStyle: { ...makeDefaultCaptionStyle(), ...(parsed.captionTrackStyle ?? {}) },
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
       set({ project, history: [], future: [] });
     } catch {
       alert("Invalid project JSON");

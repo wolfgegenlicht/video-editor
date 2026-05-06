@@ -1,17 +1,41 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import MediaTab from "./MediaTab";
 import TranscriptTab from "./TranscriptTab";
 import ClipPropertiesPanel from "./ClipPropertiesPanel";
+import { useProjectStore } from "../../store/useProjectStore";
 
 type Tab = "Media" | "Transcript" | "Properties";
 
 interface Props { seek: (t: number) => void }
 
+const MIN_WIDTH = 160;
+const MAX_WIDTH = 480;
+
 export default function LeftPanel({ seek }: Props) {
-  const [tab, setTab] = useState<Tab>("Media");
+  const { leftPanelTab: tab, selectLeftPanelTab: setTab } = useProjectStore();
+  const [width, setWidth] = useState(240);
+  const dragState = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  function onResizeMouseDown(e: React.MouseEvent) {
+    e.preventDefault();
+    dragState.current = { startX: e.clientX, startWidth: width };
+
+    function onMove(ev: MouseEvent) {
+      if (!dragState.current) return;
+      const delta = ev.clientX - dragState.current.startX;
+      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, dragState.current.startWidth + delta)));
+    }
+    function onUp() {
+      dragState.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
 
   return (
-    <aside className="w-60 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+    <aside className="relative bg-white border-r border-gray-200 flex flex-col flex-shrink-0" style={{ width }}>
       <div className="flex border-b border-gray-200 flex-shrink-0">
         {(["Media", "Transcript", "Properties"] as Tab[]).map((t) => (
           <button
@@ -29,6 +53,11 @@ export default function LeftPanel({ seek }: Props) {
         {tab === "Transcript" && <TranscriptTab seek={seek} />}
         {tab === "Properties" && <ClipPropertiesPanel />}
       </div>
+      {/* Drag handle on right edge */}
+      <div
+        className="absolute top-0 right-0 bottom-0 w-1 cursor-ew-resize hover:bg-blue-400 transition-colors"
+        onMouseDown={onResizeMouseDown}
+      />
     </aside>
   );
 }
