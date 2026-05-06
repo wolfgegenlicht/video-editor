@@ -1,4 +1,4 @@
-import subprocess, uuid
+import subprocess, uuid, re
 from pathlib import Path
 
 OUT = Path(__file__).parent.parent / "out"
@@ -12,7 +12,9 @@ RATIO_FILTERS = {
 }
 
 def _escape(text: str) -> str:
-    return text.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:").replace("%", "\\%")
+    for ch in ("\\", "'", ":", "%", "[", "]", ",", ";"):
+        text = text.replace(ch, "\\" + ch)
+    return text
 
 def export(project: dict, uploads_dir: Path) -> Path:
     ratio_filter = RATIO_FILTERS.get(project.get("aspectRatio", "16:9"), RATIO_FILTERS["16:9"])
@@ -26,6 +28,8 @@ def export(project: dict, uploads_dir: Path) -> Path:
             matches = list(uploads_dir.glob(f"{clip['fileId']}.*"))
             if matches:
                 clips.append({**clip, "path": str(matches[0]), "track_muted": track.get("muted", False)})
+            else:
+                print(f"[ffmpeg export] WARNING: file not found for clip {clip['fileId']}, skipping")
     clips.sort(key=lambda c: c["startTime"])
 
     if not clips:
@@ -126,7 +130,8 @@ def export(project: dict, uploads_dir: Path) -> Path:
             px_x = int(ov["x"] / 100 * res[0])
             px_y = int(ov["y"] / 100 * res[1])
             fs = ov.get("fontSize", 32)
-            color = ov.get("color", "#ffffff").lstrip("#")
+            color_raw = ov.get("color", "#ffffff").lstrip("#")
+            color = color_raw if re.match(r'^[0-9a-fA-F]{6}$', color_raw) else "ffffff"
             bold = 1 if ov.get("fontWeight") == "bold" else 0
             ov_filters.append(
                 f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:bold={bold}:"
@@ -145,7 +150,12 @@ def export(project: dict, uploads_dir: Path) -> Path:
         "-c:v", "libx264", "-preset", "fast", "-c:a", "aac",
         str(out_path),
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+    except subprocess.TimeoutExpired:
+        out_path.unlink(missing_ok=True)
+        raise RuntimeError("FFmpeg export timed out after 30 minutes")
     if result.returncode != 0:
+        out_path.unlink(missing_ok=True)
         raise RuntimeError(f"FFmpeg failed:\n{result.stderr[-3000:]}")
     return out_path
