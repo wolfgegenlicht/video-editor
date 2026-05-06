@@ -1,12 +1,17 @@
 import { useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
-import { uploadFile, fileUrl } from "../../lib/api";
+import { uploadFile, fileUrl, deleteFile } from "../../lib/api";
 
 export default function MediaTab() {
   const { files, addFile, removeFile, addClip, project, activeProjectId } = useProjectStore();
   const inputRef = useRef<HTMLInputElement>(null);
   const [draggingOver, setDraggingOver] = useState(false);
   const dragCounter = useRef(0);
+
+  async function handleRemoveFile(fileId: string) {
+    try { await deleteFile(fileId); } catch { /* already gone */ }
+    removeFile(fileId);
+  }
 
   async function uploadFiles(fileList: FileList | File[]) {
     const selected = Array.from(fileList).filter((f) =>
@@ -119,7 +124,7 @@ export default function MediaTab() {
                 title="Add to timeline"
               >+</button>
               <button
-                onClick={() => removeFile(file.id)}
+                onClick={() => handleRemoveFile(file.id)}
                 className="text-xs text-red-400 hover:text-red-600 px-1"
                 title="Remove"
               >×</button>
