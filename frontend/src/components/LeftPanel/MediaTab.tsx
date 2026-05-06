@@ -8,7 +8,8 @@ export default function MediaTab() {
   const [draggingOver, setDraggingOver] = useState(false);
   const dragCounter = useRef(0);
 
-  async function handleRemoveFile(fileId: string) {
+  async function handleRemoveFile(fileId: string, name: string) {
+    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
     try { await deleteFile(fileId); } catch { /* already gone */ }
     removeFile(fileId);
   }
@@ -124,7 +125,7 @@ export default function MediaTab() {
                 title="Add to timeline"
               >+</button>
               <button
-                onClick={() => handleRemoveFile(file.id)}
+                onClick={() => handleRemoveFile(file.id, file.originalName)}
                 className="text-xs text-red-400 hover:text-red-600 px-1"
                 title="Remove"
               >×</button>
