@@ -166,7 +166,7 @@ export default function ClipPropertiesPanel() {
         <input
           type="range"
           min={0}
-          max={2}
+          max={1}
           step={0.05}
           value={volume}
           onChange={(e) => setClipVolume(clip.id, parseFloat(e.target.value))}

@@ -24,6 +24,10 @@ def export(project: dict, uploads_dir: Path) -> Path:
     for track in tracks:
         if track.get("hidden"):
             continue
+        if track.get("type") == "audio":
+            # Audio-only tracks require timeline-accurate mixing; skip for now.
+            # The corresponding video track clip has volume=0 (muted) when audio is detached.
+            continue
         for clip in track.get("clips", []):
             matches = list(uploads_dir.glob(f"{clip['fileId']}.*"))
             if matches:

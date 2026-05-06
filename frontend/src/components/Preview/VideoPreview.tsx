@@ -85,9 +85,8 @@ export default function VideoPreview({ videoRef, toggle }: Props) {
       <TextOverlayRenderer time={playheadTime} />
       <CaptionOverlay time={playheadTime} />
       {activeClip && (activeClip.fadeIn || activeClip.fadeOut) && (() => {
-        const speed = activeClip.speed ?? 1;
-        const elapsed = (playheadTime - activeClip.startTime) * speed;
-        const remaining = activeClip.duration * speed - elapsed;
+        const elapsed = playheadTime - activeClip.startTime;  // timeline seconds
+        const remaining = activeClip.duration - elapsed;       // timeline seconds
         let opacity = 0;
         if (activeClip.fadeIn && elapsed < activeClip.fadeIn) {
           opacity = 1 - elapsed / activeClip.fadeIn;

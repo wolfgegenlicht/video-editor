@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import type { Project, Track, Clip, Caption, AspectRatio, CaptionStyle, UploadedFile, TextOverlay } from "../types/project";
+import type { Project, Track, Clip, Caption, AspectRatio, CaptionStyle, TrackType, UploadedFile, TextOverlay } from "../types/project";
 import { saveProject } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
@@ -219,20 +219,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const { track, clip } = found;
     const splitOffset = atTime - clip.startTime;
     if (splitOffset <= 0 || splitOffset >= clip.duration) return p;
+    const speed = clip.speed ?? 1;
+    const sourceSplitOffset = splitOffset * speed;
     const left: Clip = {
+      ...clip,
       id: uuid(),
-      fileId: clip.fileId,
       startTime: clip.startTime,
       duration: splitOffset,
       sourceStart: clip.sourceStart,
-      sourceEnd: clip.sourceStart + splitOffset,
+      sourceEnd: clip.sourceStart + sourceSplitOffset,
     };
     const right: Clip = {
+      ...clip,
       id: uuid(),
-      fileId: clip.fileId,
       startTime: clip.startTime + splitOffset,
       duration: clip.duration - splitOffset,
-      sourceStart: clip.sourceStart + splitOffset,
+      sourceStart: clip.sourceStart + sourceSplitOffset,
       sourceEnd: clip.sourceEnd,
     };
     return {
@@ -331,7 +333,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   selectClip: (selectedClipId) => set({ selectedClipId }),
 
   openProject: ({ project, files }) => {
-    const normalized: Project = { textOverlays: [], ...project };
+    const normalized: Project = { ...project, textOverlays: project.textOverlays ?? [] };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
     set({ project: normalized, files, activeProjectId: normalized.id, history: [], future: [], playheadTime: 0, isPlaying: false });
   },
