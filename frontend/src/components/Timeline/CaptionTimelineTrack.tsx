@@ -4,13 +4,14 @@ interface Props {
   zoom: number;
   totalWidth: number;
   seek: (time: number) => void;
+  height: number;
 }
 
-export default function CaptionTimelineTrack({ zoom, totalWidth, seek }: Props) {
-  const { project, selectedCaptionId, selectCaption, selectLeftPanelTab } = useProjectStore();
+export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height }: Props) {
+  const { project, selectedCaptionId, selectCaption } = useProjectStore();
 
   return (
-    <div className="h-10 relative border-b border-gray-100" style={{ width: totalWidth }}>
+    <div className="relative border-b border-slate-100" style={{ width: totalWidth, height }}>
       {project.captions.map((cap) => {
         const left = cap.startTime * zoom;
         const width = Math.max(2, (cap.endTime - cap.startTime) * zoom);
@@ -22,17 +23,16 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek }: Props) 
             className={`absolute top-1 bottom-1 rounded cursor-pointer transition-colors select-none
               flex items-center overflow-hidden px-1
               ${isSelected
-                ? "bg-blue-500 ring-1 ring-blue-300"
-                : "bg-blue-300 hover:bg-blue-400"}`}
+                ? "bg-violet-600 ring-1 ring-violet-400"
+                : "bg-violet-400 hover:bg-violet-500"}`}
             style={{ left, width }}
             onClick={() => {
               selectCaption(cap.id);
-              selectLeftPanelTab("Properties");
               seek(cap.startTime);
             }}
             title={cap.text}
           >
-            <span className="text-[9px] text-white truncate pointer-events-none">
+            <span className="text-[9px] text-white font-semibold truncate pointer-events-none">
               {cap.text}
             </span>
           </div>
