@@ -403,10 +403,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       },
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    localStorage.setItem("video-editor-active-project", normalized.id);
     set({ project: normalized, files, activeProjectId: normalized.id, history: [], future: [], playheadTime: 0, isPlaying: false });
   },
 
   closeProject: () => {
+    localStorage.removeItem("video-editor-active-project");
     set({ activeProjectId: null, files: [], history: [], future: [], playheadTime: 0, isPlaying: false });
   },
 
