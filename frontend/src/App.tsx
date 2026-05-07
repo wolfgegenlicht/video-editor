@@ -4,6 +4,7 @@ import LeftPanel from "./components/LeftPanel/LeftPanel";
 import VideoPreview from "./components/Preview/VideoPreview";
 import AudioTrackPlayer from "./components/Preview/AudioTrackPlayer";
 import Timeline from "./components/Timeline/Timeline";
+import RightPanel from "./components/RightPanel/RightPanel";
 import ProjectPicker from "./components/ProjectPicker/ProjectPicker";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { usePlayback } from "./hooks/usePlayback";
@@ -14,16 +15,23 @@ function Editor() {
   const { videoRef, toggle, seek } = usePlayback();
   useKeyboardShortcuts(toggle);
   return (
-    <div className="flex flex-col h-screen bg-gray-50 text-gray-900 overflow-hidden">
+    <div className="flex flex-col h-screen bg-slate-100 text-slate-900 overflow-hidden">
       <Header />
       <div className="flex flex-1 min-h-0">
-        <LeftPanel seek={seek} />
-        <main className="flex-1 flex items-center justify-center bg-gray-100 min-w-0">
-          <VideoPreview videoRef={videoRef} toggle={toggle} />
-        </main>
+        {/* Floating card — contains the editing area and timeline */}
+        <div className="flex-1 flex flex-col ml-2 mb-2 rounded-xl border border-slate-200 shadow-sm bg-white overflow-hidden">
+          <div className="flex flex-1 min-h-0">
+            <LeftPanel seek={seek} />
+            <main className="flex-1 flex items-center justify-center bg-slate-100 min-w-0">
+              <VideoPreview videoRef={videoRef} toggle={toggle} />
+            </main>
+          </div>
+          <AudioTrackPlayer />
+          <Timeline toggle={toggle} seek={seek} />
+        </div>
+        {/* Right panel — sits outside the card on the recessed shell */}
+        <RightPanel />
       </div>
-      <AudioTrackPlayer />
-      <Timeline toggle={toggle} seek={seek} />
     </div>
   );
 }
@@ -43,8 +51,8 @@ export default function App() {
 
   if (restoring) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <span className="text-gray-400 text-sm">Opening project…</span>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <span className="text-slate-400 text-sm">Opening project…</span>
       </div>
     );
   }
