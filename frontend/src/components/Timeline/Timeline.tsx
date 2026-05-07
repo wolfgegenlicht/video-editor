@@ -4,6 +4,7 @@ import TimelineToolbar from "./TimelineToolbar";
 import TimelineRuler from "./TimelineRuler";
 import TimelineTrack from "./TimelineTrack";
 import TextOverlayTrack from "./TextOverlayTrack";
+import CaptionTimelineTrack from "./CaptionTimelineTrack";
 
 const LABEL_WIDTH = 110;
 const MIN_HEIGHT = 100;
@@ -111,6 +112,11 @@ export default function Timeline({ toggle, seek }: Props) {
               <span className="text-[10px] font-medium text-purple-500 flex-1">text</span>
             </div>
           )}
+          {project.captions.length > 0 && (
+            <div className="h-10 flex items-center gap-1 px-2 border-b border-gray-100">
+              <span className="text-[10px] font-medium text-blue-500 flex-1">captions</span>
+            </div>
+          )}
         </div>
 
         {/* Scrollable timeline */}
@@ -125,6 +131,9 @@ export default function Timeline({ toggle, seek }: Props) {
             ))}
             {project.textOverlays.length > 0 && (
               <TextOverlayTrack zoom={zoom} totalWidth={totalWidth} />
+            )}
+            {project.captions.length > 0 && (
+              <CaptionTimelineTrack zoom={zoom} totalWidth={totalWidth} seek={seek} />
             )}
             {/* Playhead */}
             <div
