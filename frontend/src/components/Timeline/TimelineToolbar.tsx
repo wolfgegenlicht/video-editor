@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
+import { SplitIcon } from "../Icons";
 
 interface Props {
   onSplit: () => void;
@@ -13,7 +14,6 @@ function fmt(t: number) {
   return `${String(m).padStart(2, "0")}:${s}`;
 }
 
-// Accept: "1:23", "1:23.5", "1:23.45", "83", "83.5"
 function parseTimecode(raw: string): number | null {
   const s = raw.trim();
   const colonParts = s.split(":");
@@ -36,7 +36,6 @@ export default function TimelineToolbar({ onSplit, toggle, seek }: Props) {
   function startEdit() {
     setDraft(fmt(playheadTime));
     setEditing(true);
-    // select-all happens after the input mounts
     setTimeout(() => inputRef.current?.select(), 0);
   }
 
@@ -65,40 +64,58 @@ export default function TimelineToolbar({ onSplit, toggle, seek }: Props) {
     });
   }
 
-  return (
-    <div className="flex items-center gap-2 px-3 py-1 bg-gray-50 border-b border-gray-200 text-xs flex-shrink-0">
-      <button onClick={toggle} className="px-2 py-0.5 rounded border border-gray-300 hover:bg-gray-100 w-12 text-center">
-        {isPlaying ? "⏸" : "▶"}
-      </button>
-      <div className="w-px h-4 bg-gray-300" />
-      <button onClick={() => setZoom(zoom + 15)} className="px-2 py-0.5 rounded border border-gray-300 hover:bg-gray-100">+</button>
-      <button onClick={() => setZoom(zoom - 15)} className="px-2 py-0.5 rounded border border-gray-300 hover:bg-gray-100">−</button>
-      <span className="text-gray-400 w-14">{zoom}px/s</span>
-      <button onClick={onSplit} className="px-2 py-0.5 rounded border border-gray-300 hover:bg-gray-100">Split (S)</button>
-      <button onClick={() => addTrack("video")} className="px-2 py-0.5 rounded border border-gray-300 hover:bg-gray-100">+ Video</button>
-      <button onClick={() => addTrack("audio")} className="px-2 py-0.5 rounded border border-gray-300 hover:bg-gray-100">+ Audio</button>
-      <button onClick={handleAddText} className="px-2 py-0.5 rounded border border-gray-300 hover:bg-gray-100" title="Add text overlay">T</button>
-      <div className="flex-1" />
+  const btnClass = "px-2 py-0.5 rounded border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 text-[11px] font-medium cursor-pointer transition-colors";
 
-      {editing ? (
-        <input
-          ref={inputRef}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={onKeyDown}
-          className="font-mono text-gray-800 bg-white border border-blue-400 rounded px-1 w-24 text-right outline-none ring-1 ring-blue-400"
-          placeholder="0:00.00"
-        />
-      ) : (
-        <span
-          className="font-mono text-gray-600 cursor-text hover:text-blue-600 hover:underline underline-offset-2 w-24 text-right"
-          title="Click to enter timecode"
-          onClick={startEdit}
-        >
-          {fmt(playheadTime)}
-        </span>
-      )}
+  return (
+    <div className="flex items-center px-3 py-1.5 bg-white border-b border-slate-200 text-xs flex-shrink-0">
+      {/* Left: timecode */}
+      <div className="flex-1 flex items-center gap-2">
+        {editing ? (
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={onKeyDown}
+            className="font-mono text-slate-800 bg-white border border-teal-400 rounded px-1 w-24 outline-none ring-1 ring-teal-400 text-[11px]"
+            placeholder="0:00.00"
+          />
+        ) : (
+          <span
+            className="font-mono text-slate-500 cursor-text hover:text-teal-600 hover:underline underline-offset-2 w-24 text-[11px] font-medium"
+            title="Click to enter timecode"
+            onClick={startEdit}
+          >
+            {fmt(playheadTime)}
+          </span>
+        )}
+      </div>
+
+      {/* Center: playback + editing controls */}
+      <div className="flex items-center gap-1.5">
+        <button onClick={toggle} className={`${btnClass} w-8 flex items-center justify-center`}>
+          {isPlaying ? (
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><rect x="1" y="0" width="3.5" height="11"/><rect x="6.5" y="0" width="3.5" height="11"/></svg>
+          ) : (
+            <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><polygon points="0,0 11,5.5 0,11"/></svg>
+          )}
+        </button>
+        <div className="w-px h-4 bg-slate-200" />
+        <button onClick={onSplit} className={`${btnClass} flex items-center gap-1`}>
+          <SplitIcon />
+          Split (S)
+        </button>
+        <button onClick={() => addTrack("video")} className={btnClass}>+ Video</button>
+        <button onClick={() => addTrack("audio")} className={btnClass}>+ Audio</button>
+        <button onClick={handleAddText} className={btnClass} title="Add text overlay">T</button>
+      </div>
+
+      {/* Right: zoom */}
+      <div className="flex-1 flex items-center gap-1.5 justify-end">
+        <span className="text-slate-400 w-14 text-right text-[11px]">{Math.round(zoom)}px/s</span>
+        <button onClick={() => setZoom(zoom - 15)} className={btnClass}>−</button>
+        <button onClick={() => setZoom(zoom + 15)} className={btnClass}>+</button>
+      </div>
     </div>
   );
 }
