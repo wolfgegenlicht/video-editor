@@ -2,9 +2,9 @@ import type { Track } from "../../types/project";
 import { useProjectStore } from "../../store/useProjectStore";
 import TimelineClip from "./TimelineClip";
 
-interface Props { track: Track; zoom: number }
+interface Props { track: Track; zoom: number; height: number }
 
-export default function TimelineTrack({ track, zoom }: Props) {
+export default function TimelineTrack({ track, zoom, height }: Props) {
   const { moveClip, addClip, selectClip, files } = useProjectStore();
 
   function onDragOver(e: React.DragEvent) {
@@ -38,13 +38,14 @@ export default function TimelineTrack({ track, zoom }: Props) {
 
   return (
     <div
-      className="h-10 border-b border-gray-100 relative bg-white hover:bg-gray-50"
+      className="border-b border-slate-100 relative bg-white hover:bg-slate-50"
+      style={{ height }}
       onDragOver={onDragOver}
       onDrop={onDrop}
       onMouseDown={() => selectClip(null)}
     >
       {track.clips.map((clip) => (
-        <TimelineClip key={clip.id} clip={clip} trackId={track.id} trackType={track.type} zoom={zoom} />
+        <TimelineClip key={clip.id} clip={clip} trackId={track.id} trackType={track.type} zoom={zoom} trackHeight={height} />
       ))}
     </div>
   );
