@@ -4,15 +4,17 @@ import { useProjectStore } from "../../store/useProjectStore";
 import type { Clip, TrackType } from "../../types/project";
 import ClipContextMenu from "./ClipContextMenu";
 import WaveformCanvas from "./WaveformCanvas";
+import { MusicIcon, VolumeXIcon, ScissorsIcon, CopyIcon, AudioLinesIcon, Trash2Icon } from "../Icons";
 
 interface Props {
   clip: Clip;
   trackId: string;
   trackType: TrackType;
   zoom: number;
+  trackHeight: number;
 }
 
-export default function TimelineClip({ clip, trackId, trackType, zoom }: Props) {
+export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeight }: Props) {
   const { moveClip, trimClip, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, files, playheadTime, selectedClipId } = useProjectStore();
   const isAudioTrack = trackType === "audio";
   const isSelected = selectedClipId === clip.id;
@@ -47,31 +49,17 @@ export default function TimelineClip({ clip, trackId, trackType, zoom }: Props) 
       if (type === "move") {
         moveClip(clip.id, trackId, Math.max(0, dragStartTime.current + dt));
       } else if (type === "trim-left") {
-        // Can't trim further left than timeline start (0) or source start (0)
         const minStart = Math.max(0, dragStartTime.current - dragStartSourceStart.current);
         const newStart = Math.max(minStart, Math.min(
           dragStartTime.current + dragStartDuration.current - 0.1,
           dragStartTime.current + dt
         ));
         const trimmed = newStart - dragStartTime.current;
-        trimClip(
-          clip.id,
-          newStart,
-          dragStartDuration.current - trimmed,
-          dragStartSourceStart.current + trimmed,
-          dragStartSourceEnd.current
-        );
+        trimClip(clip.id, newStart, dragStartDuration.current - trimmed, dragStartSourceStart.current + trimmed, dragStartSourceEnd.current);
       } else {
-        // trim-right: extend/shrink the right edge
         const maxDuration = file ? file.duration - dragStartSourceStart.current : dragStartDuration.current + 60;
         const newDuration = Math.max(0.1, Math.min(maxDuration, dragStartDuration.current + dt));
-        trimClip(
-          clip.id,
-          dragStartTime.current,
-          newDuration,
-          dragStartSourceStart.current,
-          dragStartSourceStart.current + newDuration
-        );
+        trimClip(clip.id, dragStartTime.current, newDuration, dragStartSourceStart.current, dragStartSourceStart.current + newDuration);
       }
     }
 
@@ -90,30 +78,29 @@ export default function TimelineClip({ clip, trackId, trackType, zoom }: Props) 
     e.dataTransfer.effectAllowed = "move";
   }
 
-  const playheadInClip =
-    playheadTime > clip.startTime && playheadTime < clip.startTime + clip.duration;
+  const playheadInClip = playheadTime > clip.startTime && playheadTime < clip.startTime + clip.duration;
 
   const menuItems = [
     {
       label: "Split at Playhead",
-      icon: "✂️",
+      icon: <ScissorsIcon />,
       disabled: !playheadInClip,
       onClick: () => splitClip(clip.id, playheadTime),
     },
     {
       label: "Duplicate",
-      icon: "⧉",
+      icon: <CopyIcon />,
       onClick: () => duplicateClip(clip.id),
     },
     ...(!isAudioTrack && !clip.muted ? [{
       label: "Detach Audio",
-      icon: "🔊",
+      icon: <AudioLinesIcon />,
       onClick: () => detachAudio(clip.id),
     }] : []),
-    { label: "---", icon: "", onClick: () => {} },
+    { label: "---", icon: null, onClick: () => {} },
     {
       label: "Delete",
-      icon: "🗑",
+      icon: <Trash2Icon />,
       danger: true,
       onClick: () => deleteClip(clip.id),
     },
@@ -122,18 +109,18 @@ export default function TimelineClip({ clip, trackId, trackType, zoom }: Props) 
   return (
     <>
       <div
-        className={`absolute top-1 h-8 rounded flex items-center overflow-hidden select-none group
+        className={`absolute top-1 bottom-1 rounded flex items-center overflow-hidden select-none group cursor-grab active:cursor-grabbing
           ${isAudioTrack
             ? isSelected
-              ? "bg-green-500 border-2 border-white ring-2 ring-green-400"
-              : "bg-green-400 border border-green-500"
+              ? "bg-emerald-600 border-2 border-white ring-2 ring-emerald-500"
+              : "bg-emerald-500 border border-emerald-600"
             : clip.muted
               ? isSelected
-                ? "bg-blue-300 border-2 border-white ring-2 ring-blue-300 opacity-75"
-                : "bg-blue-300 border border-blue-400 opacity-75"
+                ? "bg-teal-300 border-2 border-white ring-2 ring-teal-300 opacity-75"
+                : "bg-teal-300 border border-teal-400 opacity-75"
               : isSelected
-                ? "bg-blue-500 border-2 border-white ring-2 ring-blue-400"
-                : "bg-blue-400 border border-blue-500"
+                ? "bg-teal-600 border-2 border-white ring-2 ring-teal-500"
+                : "bg-teal-500 border border-teal-600"
           }`}
         style={{ left, width }}
         draggable
@@ -148,7 +135,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom }: Props) 
       >
         {/* Trim left handle */}
         <div
-          className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-green-600" : "bg-blue-600"}`}
+          className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-700" : "bg-teal-700"}`}
           onMouseDown={(e) => startDrag(e, "trim-left")}
         />
         {isAudioTrack && file && (
@@ -158,14 +145,17 @@ export default function TimelineClip({ clip, trackId, trackType, zoom }: Props) 
             sourceStart={clip.sourceStart}
             sourceEnd={clip.sourceEnd}
             width={width}
+            height={trackHeight - 8}
           />
         )}
-        <span className="px-2 text-[10px] text-white font-medium truncate pointer-events-none flex-1 relative z-10">
-          {isAudioTrack ? "♪ " : clip.muted ? "🔇 " : ""}{label}
+        <span className="px-2 text-[10px] text-white font-semibold truncate pointer-events-none flex-1 relative z-10 flex items-center gap-1">
+          {isAudioTrack && <MusicIcon className="flex-shrink-0" />}
+          {!isAudioTrack && clip.muted && <VolumeXIcon className="flex-shrink-0" />}
+          {label}
         </span>
         {/* Trim right handle */}
         <div
-          className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-green-600" : "bg-blue-600"}`}
+          className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-700" : "bg-teal-700"}`}
           onMouseDown={(e) => startDrag(e, "trim-right")}
         />
       </div>
