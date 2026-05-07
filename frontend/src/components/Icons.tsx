@@ -85,7 +85,7 @@ export function ScissorsIcon({ className = "" }: IconProps) {
 
 export function SplitIcon({ className = "" }: IconProps) {
   return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" className={className}>
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M1 1.5h11M6.5 1.5v10M1 11.5h11" />
     </svg>
   );
@@ -102,7 +102,7 @@ export function CopyIcon({ className = "" }: IconProps) {
 
 export function AudioLinesIcon({ className = "" }: IconProps) {
   return (
-    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className={className}>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M2 5H4.5L7 2.5v9L4.5 9H2V5z" />
       <path d="M9.5 2a7 7 0 0 1 0 10" />
     </svg>
