@@ -2,6 +2,7 @@ import { useRef } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import type { AspectRatio } from "../../types/project";
 import { exportProject } from "../../lib/api";
+import { UndoIcon, RedoIcon, ChevronLeftIcon } from "../Icons";
 
 const ASPECT_RATIOS: AspectRatio[] = ["16:9", "9:16", "1:1", "4:3"];
 
@@ -33,65 +34,71 @@ export default function Header() {
   }
 
   return (
-    <header className="h-12 bg-white border-b border-gray-200 flex items-center px-4 gap-3 flex-shrink-0">
-      <button
-        onClick={closeProject}
-        className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 mr-1"
-      >
-        ← Projects
-      </button>
-      <div className="w-px h-4 bg-gray-200" />
-      <input
-        className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 w-40"
-        value={project.name}
-        onChange={(e) => setProjectName(e.target.value)}
-      />
-
-      <div className="flex gap-1">
+    <header className="h-9 flex items-center px-3 gap-2 flex-shrink-0 bg-white border-b border-slate-200">
+      {/* Left group */}
+      <div className="flex items-center gap-2 flex-1">
         <button
-          onClick={undo}
-          disabled={!history.length}
-          className="px-2 py-1 text-xs rounded hover:bg-gray-100 disabled:opacity-30"
-          title="Undo (⌘Z)"
+          onClick={closeProject}
+          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 cursor-pointer transition-colors"
         >
-          ↩
+          <ChevronLeftIcon />
+          Projects
         </button>
-        <button
-          onClick={redo}
-          disabled={!future.length}
-          className="px-2 py-1 text-xs rounded hover:bg-gray-100 disabled:opacity-30"
-          title="Redo (⌘⇧Z)"
+        <div className="w-px h-3.5 bg-slate-200" />
+        <div className="flex gap-0.5">
+          <button
+            onClick={undo}
+            disabled={!history.length}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer transition-colors"
+            title="Undo (⌘Z)"
+          >
+            <UndoIcon />
+          </button>
+          <button
+            onClick={redo}
+            disabled={!future.length}
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer transition-colors"
+            title="Redo (⌘⇧Z)"
+          >
+            <RedoIcon />
+          </button>
+        </div>
+        <select
+          value={project.aspectRatio}
+          onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
+          className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-slate-50 text-slate-700 cursor-pointer"
         >
-          ↪
-        </button>
+          {ASPECT_RATIOS.map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
       </div>
 
-      <select
-        value={project.aspectRatio}
-        onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
-        className="text-xs border border-gray-200 rounded px-2 py-1 bg-white"
-      >
-        {ASPECT_RATIOS.map((r) => (
-          <option key={r} value={r}>{r}</option>
-        ))}
-      </select>
+      {/* Center group — project name */}
+      <div className="flex items-center justify-center">
+        <input
+          className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-teal-500 rounded px-1 w-44 text-center text-slate-900"
+          value={project.name}
+          onChange={(e) => setProjectName(e.target.value)}
+        />
+      </div>
 
-      <div className="flex-1" />
-
-      <button onClick={saveAsJson} className="px-2 py-1 text-xs rounded hover:bg-gray-100 border border-gray-200">
-        Save JSON
-      </button>
-      <button onClick={() => fileInputRef.current?.click()} className="px-2 py-1 text-xs rounded hover:bg-gray-100 border border-gray-200">
-        Load JSON
-      </button>
-      <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleLoadJson} />
-
-      <button
-        onClick={handleExport}
-        className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 font-medium"
-      >
-        Export
-      </button>
+      {/* Right group */}
+      <div className="flex items-center gap-2 flex-1 justify-end">
+        <button onClick={saveAsJson} className="px-2 py-0.5 text-xs rounded hover:bg-slate-100 border border-slate-200 text-slate-600 cursor-pointer transition-colors">
+          Save JSON
+        </button>
+        <button onClick={() => fileInputRef.current?.click()} className="px-2 py-0.5 text-xs rounded hover:bg-slate-100 border border-slate-200 text-slate-600 cursor-pointer transition-colors">
+          Load JSON
+        </button>
+        <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleLoadJson} />
+        <button
+          onClick={handleExport}
+          className="px-3 py-0.5 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 font-semibold cursor-pointer transition-colors"
+        >
+          Export
+        </button>
+      </div>
     </header>
   );
 }
