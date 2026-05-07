@@ -1,10 +1,7 @@
 import { useEffect } from "react";
 import { useProjectStore } from "../store/useProjectStore";
-import { usePlayback } from "./usePlayback";
 
-
-export function useKeyboardShortcuts() {
-  const { toggle } = usePlayback();
+export function useKeyboardShortcuts(toggle: () => void) {
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -13,6 +10,15 @@ export function useKeyboardShortcuts() {
       if (e.code === "Space") {
         e.preventDefault();
         toggle();
+        return;
+      }
+
+      if (e.code === "Delete" || e.code === "Backspace") {
+        const { selectedClipId, deleteClip } = useProjectStore.getState();
+        if (selectedClipId) {
+          e.preventDefault();
+          deleteClip(selectedClipId);
+        }
         return;
       }
 

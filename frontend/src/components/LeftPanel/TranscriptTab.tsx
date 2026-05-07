@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import { transcribeFile } from "../../lib/api";
 import { v4 as uuid } from "uuid";
-import CaptionStylePicker from "./CaptionStylePicker";
 import type { Caption, CaptionWord } from "../../types/project";
 
 interface Props { seek: (t: number) => void }
@@ -35,10 +34,6 @@ export default function TranscriptTab({ seek }: Props) {
     }
   }
 
-  function deleteWord(cap: Caption, wordIdx: number) {
-    applyWords(cap, (cap.words ?? []).filter((_, i) => i !== wordIdx));
-  }
-
   function applyWords(cap: Caption, newWords: CaptionWord[]) {
     const updated = project.captions.map((c) =>
       c.id !== cap.id ? c : {
@@ -51,6 +46,10 @@ export default function TranscriptTab({ seek }: Props) {
     setCaption(updated);
   }
 
+  function deleteWord(cap: Caption, wordIdx: number) {
+    applyWords(cap, (cap.words ?? []).filter((_, i) => i !== wordIdx));
+  }
+
   function commitEdit(cap: Caption, wordIdx: number) {
     const newWords = (cap.words ?? []).map((w, i) =>
       i === wordIdx ? { ...w, text: editText.trim() || w.text } : w
@@ -59,8 +58,6 @@ export default function TranscriptTab({ seek }: Props) {
     setEditKey(null);
   }
 
-  // insertKey format: `${cap.id}:${i}` = insert before word i
-  //                   `${cap.id}:end`  = append after last word
   function commitInsert(cap: Caption, position: number | "end") {
     const text = insertText.trim();
     setInsertKey(null);
@@ -96,31 +93,38 @@ export default function TranscriptTab({ seek }: Props) {
         </button>
         {!hasWords && project.captions.length > 0 && (
           <p className="text-[10px] text-gray-400 text-center mt-1">
-            Re-transcribe for word-level highlighting
+            Re-transcribe for word-level editing
           </p>
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2 min-h-0">
+      <div className="flex-1 overflow-y-auto px-3 pt-3 pb-2 min-h-0">
         {project.captions.length === 0 && (
           <p className="text-xs text-gray-400 text-center pt-4">No transcript yet</p>
         )}
-        {project.captions.map((cap) => {
-          const words = cap.words ?? [];
-          let activeWordIdx = -1;
-          if (playheadTime >= cap.startTime && playheadTime <= cap.endTime) {
-            for (let i = 0; i < words.length; i++) {
-              if (playheadTime >= words[i].start) activeWordIdx = i;
-              else break;
-            }
-          }
 
-          return (
-            <div key={cap.id} className="mb-3">
-              <p className="text-[10px] text-gray-400 mb-1 font-mono">
-                {cap.startTime.toFixed(1)}s – {cap.endTime.toFixed(1)}s
-              </p>
-              <div className="flex flex-wrap gap-0.5 leading-relaxed">
+        <div className="text-sm leading-loose text-gray-800">
+          {project.captions.map((cap) => {
+            const words = cap.words ?? [];
+            let activeWordIdx = -1;
+            if (playheadTime >= cap.startTime && playheadTime <= cap.endTime) {
+              for (let i = 0; i < words.length; i++) {
+                if (playheadTime >= words[i].start) activeWordIdx = i;
+                else break;
+              }
+            }
+
+            return (
+              <span key={cap.id}>
+                {/* Segment timestamp */}
+                <button
+                  className="inline-block align-middle text-[10px] font-mono text-gray-300 hover:text-blue-400 mr-1 transition-colors leading-none"
+                  onClick={() => seek(cap.startTime)}
+                  title={`Seek to ${cap.startTime.toFixed(1)}s`}
+                >
+                  {cap.startTime.toFixed(1)}s
+                </button>
+
                 {words.length > 0 ? words.map((w, i) => {
                   const key = `${cap.id}:${i}`;
                   const insKey = `${cap.id}:${i}`;
@@ -129,7 +133,7 @@ export default function TranscriptTab({ seek }: Props) {
 
                   return (
                     <span key={key} className="contents">
-                      {/* Insert-before inline input */}
+                      {/* Insert-before input */}
                       {insertKey === insKey && (
                         <input
                           autoFocus
@@ -140,10 +144,10 @@ export default function TranscriptTab({ seek }: Props) {
                             if (e.key === "Enter") commitInsert(cap, i);
                             if (e.key === "Escape") { setInsertKey(null); setInsertText(""); }
                           }}
-                          className="text-xs border border-blue-400 rounded px-1 outline-none w-20"
+                          className="inline-block text-sm border border-blue-400 rounded px-1 outline-none w-20 align-baseline"
                           placeholder="word…"
                         />
-                      )}
+                      )}{" "}
 
                       {editKey === key ? (
                         <input
@@ -155,11 +159,11 @@ export default function TranscriptTab({ seek }: Props) {
                             if (e.key === "Enter") commitEdit(cap, i);
                             if (e.key === "Escape") setEditKey(null);
                           }}
-                          className="text-xs border border-blue-400 rounded px-1 outline-none w-20"
+                          className="inline-block text-sm border border-blue-400 rounded px-1 outline-none w-24 align-baseline"
                         />
                       ) : (
                         <span
-                          className={`group relative text-xs px-0.5 rounded cursor-pointer select-none
+                          className={`group relative inline-block px-0.5 rounded cursor-pointer select-none
                             ${isActive ? "bg-yellow-200 text-yellow-900 font-semibold" : ""}
                             ${isPast ? "text-gray-400" : "text-gray-800"}
                             hover:bg-gray-100`}
@@ -170,23 +174,23 @@ export default function TranscriptTab({ seek }: Props) {
                           {w.text}
                           {/* Insert before */}
                           <button
-                            className="absolute -top-2 -left-1 hidden group-hover:flex w-3 h-3 bg-blue-400 text-white rounded-full text-[8px] items-center justify-center z-10"
+                            className="absolute -top-3 -left-1.5 hidden group-hover:flex w-4 h-4 bg-blue-400 text-white rounded-full text-[10px] items-center justify-center z-10"
                             onClick={(e) => { e.stopPropagation(); setInsertKey(insKey); setInsertText(""); }}
                             title="Insert word before"
                           >+</button>
                           {/* Delete */}
                           <button
-                            className="absolute -top-2 -right-1 hidden group-hover:flex w-3 h-3 bg-red-400 text-white rounded-full text-[8px] items-center justify-center z-10"
+                            className="absolute -top-3 -right-1.5 hidden group-hover:flex w-4 h-4 bg-red-400 text-white rounded-full text-[10px] items-center justify-center z-10"
                             onClick={(e) => { e.stopPropagation(); deleteWord(cap, i); }}
                             title="Delete word"
                           >×</button>
                         </span>
-                      )}
+                      )}{" "}
                     </span>
                   );
                 }) : (
                   <span
-                    className="text-xs text-gray-800 cursor-pointer hover:bg-gray-100 rounded px-0.5"
+                    className="cursor-pointer hover:bg-gray-100 rounded px-0.5"
                     onClick={() => seek(cap.startTime)}
                   >
                     {cap.text}
@@ -205,23 +209,25 @@ export default function TranscriptTab({ seek }: Props) {
                         if (e.key === "Enter") commitInsert(cap, "end");
                         if (e.key === "Escape") { setInsertKey(null); setInsertText(""); }
                       }}
-                      className="text-xs border border-blue-400 rounded px-1 outline-none w-20"
+                      className="inline-block text-sm border border-blue-400 rounded px-1 outline-none w-20 align-baseline"
                       placeholder="word…"
                     />
                   ) : (
                     <button
-                      className="text-[10px] text-blue-400 hover:text-blue-600 px-0.5 rounded hover:bg-blue-50 leading-none"
+                      className="text-xs text-blue-400 hover:text-blue-600 px-1 rounded hover:bg-blue-50 font-bold leading-none"
                       onClick={() => { setInsertKey(`${cap.id}:end`); setInsertText(""); }}
                       title="Append word"
                     >+</button>
                   )
                 )}
-              </div>
-            </div>
-          );
-        })}
+
+                <br /><br />
+              </span>
+            );
+          })}
+        </div>
       </div>
-      <CaptionStylePicker />
+
     </div>
   );
 }

@@ -1,6 +1,8 @@
 import uuid, subprocess, json
 from pathlib import Path
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from typing import Optional
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
+from database import get_db
 
 router = APIRouter()
 UPLOADS = Path(__file__).parent.parent / "uploads"
@@ -26,7 +28,10 @@ def _probe(path: Path) -> dict:
     return {"duration": duration, "width": width, "height": height}
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    project_id: Optional[str] = Query(None),
+):
     file_id = str(uuid.uuid4())
     original_name = file.filename or "upload"
     ext = Path(original_name).suffix.lower()
@@ -40,4 +45,10 @@ async def upload_file(file: UploadFile = File(...)):
     except Exception as e:
         dest.unlink(missing_ok=True)
         raise HTTPException(400, f"Cannot probe file: {e}")
+    if project_id:
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO files (id, project_id, original_name, duration, width, height, path) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (file_id, project_id, original_name, info["duration"], info["width"], info["height"], str(dest)),
+            )
     return {"fileId": file_id, **info, "originalName": original_name}

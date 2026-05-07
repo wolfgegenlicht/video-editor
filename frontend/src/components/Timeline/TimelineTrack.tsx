@@ -5,7 +5,7 @@ import TimelineClip from "./TimelineClip";
 interface Props { track: Track; zoom: number }
 
 export default function TimelineTrack({ track, zoom }: Props) {
-  const { moveClip, addClip, files } = useProjectStore();
+  const { moveClip, addClip, selectClip, files } = useProjectStore();
 
   function onDragOver(e: React.DragEvent) {
     e.preventDefault();
@@ -41,9 +41,10 @@ export default function TimelineTrack({ track, zoom }: Props) {
       className="h-10 border-b border-gray-100 relative bg-white hover:bg-gray-50"
       onDragOver={onDragOver}
       onDrop={onDrop}
+      onMouseDown={() => selectClip(null)}
     >
       {track.clips.map((clip) => (
-        <TimelineClip key={clip.id} clip={clip} trackId={track.id} zoom={zoom} />
+        <TimelineClip key={clip.id} clip={clip} trackId={track.id} trackType={track.type} zoom={zoom} />
       ))}
     </div>
   );

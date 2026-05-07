@@ -1,13 +1,12 @@
 import { useCallback, useRef } from "react";
-import { useProjectStore } from "../../store/useProjectStore";
 
 interface Props {
   totalWidth: number;
   zoom: number;
+  seek: (time: number) => void;
 }
 
-export default function TimelineRuler({ totalWidth, zoom }: Props) {
-  const setPlayhead = useProjectStore((s) => s.setPlayhead);
+export default function TimelineRuler({ totalWidth, zoom, seek }: Props) {
   const rulerRef = useRef<HTMLDivElement>(null);
 
   const handleClick = useCallback(
@@ -15,9 +14,9 @@ export default function TimelineRuler({ totalWidth, zoom }: Props) {
       const rect = rulerRef.current?.getBoundingClientRect();
       if (!rect) return;
       const x = e.clientX - rect.left;
-      setPlayhead(Math.max(0, x / zoom));
+      seek(Math.max(0, x / zoom));
     },
-    [zoom, setPlayhead]
+    [zoom, seek]
   );
 
   const ticks: React.ReactElement[] = [];

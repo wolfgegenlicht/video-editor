@@ -6,7 +6,7 @@ import { exportProject } from "../../lib/api";
 const ASPECT_RATIOS: AspectRatio[] = ["16:9", "9:16", "1:1", "4:3"];
 
 export default function Header() {
-  const { project, setProjectName, setAspectRatio, undo, redo, history, future, saveAsJson, loadFromJson } =
+  const { project, setProjectName, setAspectRatio, undo, redo, history, future, saveAsJson, loadFromJson, closeProject } =
     useProjectStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -34,6 +34,13 @@ export default function Header() {
 
   return (
     <header className="h-12 bg-white border-b border-gray-200 flex items-center px-4 gap-3 flex-shrink-0">
+      <button
+        onClick={closeProject}
+        className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-800 mr-1"
+      >
+        ← Projects
+      </button>
+      <div className="w-px h-4 bg-gray-200" />
       <input
         className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-blue-400 rounded px-1 w-40"
         value={project.name}
