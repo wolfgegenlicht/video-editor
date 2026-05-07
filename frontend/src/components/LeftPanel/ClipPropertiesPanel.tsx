@@ -1,13 +1,18 @@
 import { useProjectStore } from "../../store/useProjectStore";
+import CaptionStyleEditor from "./CaptionStyleEditor";
 
 const SPEEDS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 4];
 
 export default function ClipPropertiesPanel() {
   const {
-    project, selectedClipId, selectedOverlayId,
+    project, selectedClipId, selectedOverlayId, selectedCaptionId,
     setClipSpeed, setClipVolume, setClipFade,
     updateTextOverlay,
   } = useProjectStore();
+
+  if (selectedCaptionId) {
+    return <CaptionStyleEditor />;
+  }
 
   // Text overlay editor takes priority if an overlay is selected
   const overlay = selectedOverlayId
@@ -129,7 +134,7 @@ export default function ClipPropertiesPanel() {
   if (!clip) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-xs text-gray-400 text-center">Select a clip or text overlay to edit its properties</p>
+        <p className="text-xs text-gray-400 text-center">Select a clip, caption, or text overlay to edit properties</p>
       </div>
     );
   }
