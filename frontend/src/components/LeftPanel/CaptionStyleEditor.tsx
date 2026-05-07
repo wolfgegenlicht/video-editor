@@ -239,20 +239,7 @@ export default function CaptionStyleEditor() {
         />
       </div>
 
-      {s.highlightMode === "karaoke" && (
-        <div>
-          <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
-            Box Height — {s.boxH.toFixed(0)}%
-          </label>
-          <input
-            type="range" min={5} max={60}
-            value={s.boxH}
-            onChange={(e) => setCaptionTrackStyle({ boxH: parseInt(e.target.value) })}
-            className="w-full accent-blue-600"
-          />
-          <p className="text-[9px] text-gray-400 mt-1">Drag box to move · drag corner to resize</p>
-        </div>
-      )}
+      <p className="text-[9px] text-gray-400">Drag to move · drag right edge to resize width</p>
 
       {/* Reset */}
       <button

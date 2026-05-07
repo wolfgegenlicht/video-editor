@@ -32,7 +32,7 @@ function captionTextStyle(s: CaptionTrackStyle): React.CSSProperties {
 
 function KaraokeOverlay({ seg, time, style }: { seg: Caption; time: number; style: CaptionTrackStyle }) {
   const { setCaptionPosition, setCaptionBox } = useProjectStore();
-  const { x, y, boxW, boxH } = style;
+  const { x, y, boxW } = style;
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const visible = useFadeIn();
@@ -56,7 +56,7 @@ function KaraokeOverlay({ seg, time, style }: { seg: Caption; time: number; styl
       const dy = ((ev.clientY - startY) / rect.height) * 100;
       setCaptionPosition(
         Math.max(0, Math.min(100 - boxW, startCX + dx)),
-        Math.max(0, Math.min(100 - boxH, startCY + dy)),
+        Math.max(0, Math.min(95, startCY + dy)),
       );
     }
     function onUp() {
@@ -72,16 +72,12 @@ function KaraokeOverlay({ seg, time, style }: { seg: Caption; time: number; styl
     e.stopPropagation();
     const container = containerRef.current?.parentElement;
     if (!container) return;
-    const startX = e.clientX, startY = e.clientY;
-    const startW = boxW, startH = boxH;
+    const startX = e.clientX;
+    const startW = boxW;
     function onMove(ev: MouseEvent) {
       const rect = container!.getBoundingClientRect();
       const dw = ((ev.clientX - startX) / rect.width) * 100;
-      const dh = ((ev.clientY - startY) / rect.height) * 100;
-      setCaptionBox(
-        Math.max(10, Math.min(100 - x, startW + dw)),
-        Math.max(5, Math.min(60, startH + dh)),
-      );
+      setCaptionBox(Math.max(10, Math.min(100 - x, startW + dw)), style.boxH);
     }
     function onUp() {
       document.removeEventListener("mousemove", onMove);
@@ -96,8 +92,7 @@ function KaraokeOverlay({ seg, time, style }: { seg: Caption; time: number; styl
       ref={containerRef}
       className="absolute group select-none cursor-move"
       style={{
-        left: `${x}%`, top: `${y}%`, width: `${boxW}%`, height: `${boxH}%`,
-        overflow: "hidden",
+        left: `${x}%`, top: `${y}%`, width: `${boxW}%`,
         border: "1.5px dashed rgba(255,255,255,0.25)",
         opacity: visible ? 1 : 0,
         transition: "opacity 80ms ease-out",
@@ -126,13 +121,13 @@ function KaraokeOverlay({ seg, time, style }: { seg: Caption; time: number; styl
         )) : <span style={{ pointerEvents: "none", color: style.color }}>{seg.text}</span>}
       </p>
 
-      {/* Resize handle */}
+      {/* Width-only resize handle — right edge */}
       <div
-        className="absolute bottom-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity cursor-nwse-resize"
-        style={{ width: 20, height: 20, padding: 4 }}
+        className="absolute top-0 bottom-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity cursor-ew-resize"
+        style={{ width: 8 }}
         onMouseDown={onResizeStart}
       >
-        <div style={{ width: "100%", height: "100%", borderRight: "2px solid rgba(255,255,255,0.7)", borderBottom: "2px solid rgba(255,255,255,0.7)" }} />
+        <div style={{ position: "absolute", top: "50%", right: 2, width: 4, height: 20, marginTop: -10, background: "rgba(255,255,255,0.7)", borderRadius: 2 }} />
       </div>
     </div>
   );
