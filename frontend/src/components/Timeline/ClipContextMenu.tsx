@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 
 interface MenuItem {
   label: string;
-  icon: string;
+  icon: ReactNode;
   onClick: () => void;
   danger?: boolean;
   disabled?: boolean;
@@ -35,7 +36,6 @@ export default function ClipContextMenu({ x, y, items, onClose }: Props) {
     };
   }, [onClose]);
 
-  // Nudge menu inward if it would overflow the viewport
   const menuWidth = 180;
   const menuHeight = items.length * 36 + 8;
   const left = Math.min(x, window.innerWidth - menuWidth - 8);
@@ -44,23 +44,23 @@ export default function ClipContextMenu({ x, y, items, onClose }: Props) {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-white border border-gray-200 rounded-lg shadow-xl py-1 min-w-[180px]"
+      className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-xl py-1 min-w-[180px]"
       style={{ left, top }}
       onContextMenu={(e) => e.preventDefault()}
     >
       {items.map((item, i) =>
         item.label === "---" ? (
-          <div key={i} className="my-1 border-t border-gray-100" />
+          <div key={i} className="my-1 border-t border-slate-100" />
         ) : (
           <button
             key={i}
             disabled={item.disabled}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors
+            className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors cursor-pointer
               ${item.disabled
-                ? "text-gray-300 cursor-not-allowed"
+                ? "text-slate-300 cursor-not-allowed"
                 : item.danger
                   ? "text-red-600 hover:bg-red-50"
-                  : "text-gray-700 hover:bg-gray-50"
+                  : "text-slate-700 hover:bg-slate-50"
               }`}
             onClick={() => {
               if (!item.disabled) {
@@ -69,7 +69,7 @@ export default function ClipContextMenu({ x, y, items, onClose }: Props) {
               }
             }}
           >
-            <span className="text-base leading-none">{item.icon}</span>
+            <span className="flex-shrink-0">{item.icon}</span>
             {item.label}
           </button>
         )
