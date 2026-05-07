@@ -239,7 +239,18 @@ export default function CaptionStyleEditor() {
         />
       </div>
 
-      <p className="text-[9px] text-gray-400">Drag to move · drag right edge to resize width</p>
+      <div>
+        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
+          Height — {s.boxH.toFixed(0)}%
+        </label>
+        <input
+          type="range" min={3} max={80}
+          value={s.boxH}
+          onChange={(e) => setCaptionTrackStyle({ boxH: parseInt(e.target.value) })}
+          className="w-full accent-blue-600"
+        />
+        <p className="text-[9px] text-gray-400 mt-1">Text scrolls to stay visible · drag corner to resize</p>
+      </div>
 
       {/* Reset */}
       <button
