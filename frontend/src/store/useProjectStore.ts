@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay } from "../types/project";
+import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform } from "../types/project";
 import { saveProject, deleteEyeContactFile } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
@@ -87,6 +87,7 @@ interface ProjectStore {
   setClipVolume: (clipId: string, volume: number) => void;
   setClipFade: (clipId: string, fadeIn: number, fadeOut: number) => void;
   setClipAdjustment: (clipId: string, key: "brightness" | "contrast" | "saturation", value: number) => void;
+  setClipTransform: (clipId: string, transform: Partial<ClipTransform>) => void;
   setClipEyeContact: (clipId: string, enabled: boolean) => void;
   setClipEyeContactFileId: (clipId: string, fileId: string) => void;
   setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
@@ -389,6 +390,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     tracks: p.tracks.map((t) => ({
       ...t,
       clips: t.clips.map((c) => c.id === clipId ? { ...c, [key]: value } : c),
+    })),
+  })),
+
+  setClipTransform: (clipId, patch) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => {
+        if (c.id !== clipId) return c;
+        const current = c.transform ?? { x: 0, y: 0, scale: 1, rotation: 0 };
+        const merged = { ...current, ...patch };
+        merged.scale = Math.max(1.0, Math.min(5.0, merged.scale));
+        return { ...c, transform: merged };
+      }),
     })),
   })),
 
