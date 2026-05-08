@@ -29,7 +29,14 @@ export default function VideoPreview({ videoRef, toggle: _toggle }: Props) {
   const activeClip = activeTrack?.hidden
     ? null
     : activeTrack?.clips.find((c) => playheadTime >= c.startTime && playheadTime < c.startTime + c.duration) ?? null;
-  const activeFile = activeClip ? files.find((f) => f.id === activeClip.fileId) : null;
+  const playbackFileId = activeClip
+    ? (activeClip.eyeContact && activeClip.eyeContactFileId)
+      ? activeClip.eyeContactFileId
+      : activeClip.fileId
+    : null;
+  const activeFile = playbackFileId
+    ? (files.find((f) => f.id === playbackFileId) ?? { id: playbackFileId } as import("../../types/project").UploadedFile)
+    : null;
   const effectiveMuted = !!activeClip?.muted || !!activeTrack?.muted;
 
   useEffect(() => {
@@ -49,7 +56,7 @@ export default function VideoPreview({ videoRef, toggle: _toggle }: Props) {
       video.pause();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, activeClip?.startTime, activeFile?.id]);
+  }, [isPlaying, activeClip?.startTime, playbackFileId]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -83,8 +90,8 @@ export default function VideoPreview({ videoRef, toggle: _toggle }: Props) {
         {activeFile ? (
           <video
             ref={videoRef}
-            key={activeFile.id}
-            src={fileUrl(activeFile.id)}
+            key={playbackFileId ?? undefined}
+            src={fileUrl(playbackFileId!)}
             className="w-full h-full object-cover"
             muted={effectiveMuted}
             style={videoStyle}
