@@ -30,7 +30,7 @@ function captionTextStyle(s: CaptionTrackStyle): React.CSSProperties {
   };
 }
 
-function KaraokeOverlay({ seg, time, style }: { seg: Caption; time: number; style: CaptionTrackStyle }) {
+function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: number; style: CaptionTrackStyle; onSelect: () => void }) {
   const { setCaptionPosition, setCaptionBox } = useProjectStore();
   const { x, y, boxW, boxH } = style;
 
@@ -67,6 +67,7 @@ function KaraokeOverlay({ seg, time, style }: { seg: Caption; time: number; styl
 
   function onDragStart(e: React.MouseEvent<HTMLDivElement>) {
     e.preventDefault();
+    onSelect();
     const container = containerRef.current?.parentElement;
     if (!container) return;
     const startX = e.clientX, startY = e.clientY;
@@ -162,17 +163,18 @@ function KaraokeOverlay({ seg, time, style }: { seg: Caption; time: number; styl
   );
 }
 
-function StaticCaption({ seg, style }: { seg: Caption; style: CaptionTrackStyle }) {
+function StaticCaption({ seg, style, onSelect }: { seg: Caption; style: CaptionTrackStyle; onSelect: () => void }) {
   const visible = useFadeIn();
   return (
     <div
+      onClick={onSelect}
       style={{
         position: "absolute",
         left: `${style.x}%`,
         top: `${style.y}%`,
         width: `${style.boxW}%`,
         textAlign: style.textAlign,
-        pointerEvents: "none",
+        cursor: "pointer",
         opacity: visible ? 1 : 0,
         transition: "opacity 80ms ease-out",
       }}
@@ -183,14 +185,16 @@ function StaticCaption({ seg, style }: { seg: Caption; style: CaptionTrackStyle 
 }
 
 export default function CaptionOverlay({ time }: Props) {
-  const { project } = useProjectStore();
+  const { project, selectCaption } = useProjectStore();
   const style = project.captionTrackStyle;
-  const cap = project.captions.find((c) => time >= c.startTime && time <= c.endTime);
+  const cap = project.captions.find((c) => time >= c.startTime && time < c.endTime);
   if (!cap) return null;
 
+  const handleSelect = () => selectCaption(cap.id);
+
   if (style.highlightMode === "karaoke") {
-    return <KaraokeOverlay key={cap.id} seg={cap} time={time} style={style} />;
+    return <KaraokeOverlay key={cap.id} seg={cap} time={time} style={style} onSelect={handleSelect} />;
   }
 
-  return <StaticCaption key={cap.id} seg={cap} style={style} />;
+  return <StaticCaption key={cap.id} seg={cap} style={style} onSelect={handleSelect} />;
 }
