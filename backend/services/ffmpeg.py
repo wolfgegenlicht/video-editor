@@ -29,11 +29,12 @@ def export(project: dict, uploads_dir: Path) -> Path:
             # The corresponding video track clip has volume=0 (muted) when audio is detached.
             continue
         for clip in track.get("clips", []):
-            matches = list(uploads_dir.glob(f"{clip['fileId']}.*"))
+            file_id = clip.get("eyeContactFileId") or clip["fileId"]
+            matches = list(uploads_dir.glob(f"{file_id}.*"))
             if matches:
                 clips.append({**clip, "path": str(matches[0]), "track_muted": track.get("muted", False)})
             else:
-                print(f"[ffmpeg export] WARNING: file not found for clip {clip['fileId']}, skipping")
+                print(f"[ffmpeg export] WARNING: file not found for clip {file_id}, skipping")
     clips.sort(key=lambda c: c["startTime"])
 
     if not clips:

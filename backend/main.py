@@ -6,6 +6,7 @@ from routes.files import router as files_router
 from routes.transcribe import router as transcribe_router
 from routes.export_ import router as export_router
 from routes.projects import router as projects_router
+from routes.eye_contact import router as eye_contact_router
 
 init_db()
 
@@ -22,3 +23,4 @@ app.include_router(files_router)
 app.include_router(transcribe_router)
 app.include_router(export_router)
 app.include_router(projects_router)
+app.include_router(eye_contact_router)
