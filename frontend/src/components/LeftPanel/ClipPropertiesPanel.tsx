@@ -78,9 +78,12 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
     setEyeContactStatus(clip.id, "processing");
     try {
       const { jobId } = await api.startEyeContactJob(clip.fileId);
-      while (mountedRef.current) {
+      let polls = 0;
+      const maxPolls = 150; // 5 minutes at 2s intervals
+      while (mountedRef.current && polls < maxPolls) {
         await new Promise<void>((r) => setTimeout(r, 2000));
         if (!mountedRef.current) break;
+        polls++;
         const s = await api.getEyeContactStatus(jobId);
         if (s.status === "done" && s.correctedFileId) {
           setClipEyeContactFileId(clip.id, s.correctedFileId);
@@ -88,6 +91,7 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
           break;
         }
         if (s.status === "error") throw new Error(s.error ?? "Processing failed");
+        if (polls >= maxPolls) throw new Error("Processing timed out");
       }
     } catch (e) {
       if (mountedRef.current) {

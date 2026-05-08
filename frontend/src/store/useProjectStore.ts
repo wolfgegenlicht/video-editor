@@ -415,13 +415,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     })),
   })),
 
-  setClipEyeContactFileId: (clipId, eyeContactFileId) => withHistory(set, get, (p) => ({
-    ...p,
-    tracks: p.tracks.map((t) => ({
-      ...t,
-      clips: t.clips.map((c) => c.id === clipId ? { ...c, eyeContactFileId } : c),
-    })),
-  })),
+  setClipEyeContactFileId: (clipId, eyeContactFileId) => {
+    set((s) => ({
+      project: {
+        ...s.project,
+        tracks: s.project.tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, eyeContactFileId } : c)),
+        })),
+      },
+    }));
+    const { project, activeProjectId } = get();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    if (activeProjectId) _scheduleSave(activeProjectId, project);
+  },
 
   setEyeContactStatus: (clipId, status) => set((s) => {
     if (status === undefined) {
