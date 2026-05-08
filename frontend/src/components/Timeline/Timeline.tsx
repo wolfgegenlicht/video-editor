@@ -5,6 +5,7 @@ import TimelineRuler from "./TimelineRuler";
 import TimelineTrack from "./TimelineTrack";
 import TextOverlayTrack from "./TextOverlayTrack";
 import CaptionTimelineTrack from "./CaptionTimelineTrack";
+import EffectOverlayTrack from "./EffectOverlayTrack";
 import { Volume2Icon, VolumeXIcon, EyeIcon, EyeOffIcon } from "../Icons";
 
 const LABEL_WIDTH = 110;
@@ -174,6 +175,14 @@ export default function Timeline({ toggle, seek }: Props) {
               />
             </div>
           )}
+          <div className="relative flex items-center gap-1.5 px-2 border-b border-slate-100" style={{ height: trackH("fx") }}>
+            <div className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
+            <span className="text-[10px] font-bold tracking-wide uppercase text-slate-500 flex-1">fx</span>
+            <div
+              className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
+              onMouseDown={(e) => onTrackResizeDown("fx", e)}
+            />
+          </div>
         </div>
 
         {/* Scrollable timeline */}
@@ -192,6 +201,7 @@ export default function Timeline({ toggle, seek }: Props) {
             {project.captions.length > 0 && (
               <CaptionTimelineTrack zoom={zoom} totalWidth={totalWidth} seek={seek} height={trackH("captions")} />
             )}
+            <EffectOverlayTrack zoom={zoom} totalWidth={totalWidth} height={trackH("fx")} />
             {/* Playhead */}
             <div
               className="absolute top-0 bottom-0 w-px bg-red-500 pointer-events-none z-10"
