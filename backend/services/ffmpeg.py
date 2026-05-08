@@ -12,14 +12,6 @@ CANVAS_SIZES: dict[str, tuple[int, int]] = {
     "4:3":  (1440, 1080),
 }
 
-# Base scale filter: cover (fills canvas, crops excess) instead of contain+pad
-RATIO_FILTERS = {
-    "16:9": "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080",
-    "9:16": "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
-    "1:1":  "scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080",
-    "4:3":  "scale=1440:1080:force_original_aspect_ratio=increase,crop=1440:1080",
-}
-
 def _build_transform_filter(transform: dict, W: int, H: int) -> str:
     """Return an ffmpeg filter string that applies the clip transform.
 
@@ -63,8 +55,8 @@ def _escape(text: str) -> str:
     return text
 
 def export(project: dict, uploads_dir: Path) -> Path:
-    ratio_filter = RATIO_FILTERS.get(project.get("aspectRatio", "16:9"), RATIO_FILTERS["16:9"])
     W, H = CANVAS_SIZES.get(project.get("aspectRatio", "16:9"), CANVAS_SIZES["16:9"])
+    ratio_filter = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}"
     tracks = project.get("tracks", [])
 
     clips = []
