@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform } from "../types/project";
+import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams } from "../types/project";
 import { saveProject, deleteEyeContactFile } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
@@ -37,6 +37,7 @@ function makeDefaultProject(): Project {
     tracks: [{ id: uuid(), type: "video", clips: [] }],
     captions: [],
     textOverlays: [],
+    effectOverlays: [],
   };
 }
 
@@ -59,7 +60,8 @@ interface ProjectStore {
   selectedClipId: string | null;
   selectedOverlayId: string | null;
   selectedCaptionId: string | null;
-  rightPanelTab: "properties" | "media" | null;
+  rightPanelTab: "properties" | "media" | "effects" | null;
+  selectedEffectOverlayId: string | null;
   transcriptSelection: { startTime: number; endTime: number } | null;
   eyeContactStatus: Record<string, "processing" | "done" | "error">;
 
@@ -96,6 +98,12 @@ interface ProjectStore {
   updateTextOverlay: (id: string, patch: Partial<Omit<TextOverlay, "id">>) => void;
   deleteTextOverlay: (id: string) => void;
   selectOverlay: (id: string | null) => void;
+  addEffectOverlay: (overlay: Omit<EffectOverlay, "id">) => void;
+  moveEffectOverlay: (id: string, newStartTime: number) => void;
+  resizeEffectOverlay: (id: string, newStartTime: number, newEndTime: number) => void;
+  deleteEffectOverlay: (id: string) => void;
+  updateEffectOverlayParams: (id: string, params: Partial<ZoomParams>) => void;
+  selectEffectOverlay: (id: string | null) => void;
 
   setCaption: (captions: Caption[], sourceFileId?: string) => void;
 
@@ -104,7 +112,7 @@ interface ProjectStore {
   setZoom: (zoom: number) => void;
   selectClip: (id: string | null) => void;
   selectCaption: (id: string | null) => void;
-  setRightPanelTab: (tab: "properties" | "media" | null) => void;
+  setRightPanelTab: (tab: "properties" | "media" | "effects" | null) => void;
   setTranscriptSelection: (sel: { startTime: number; endTime: number } | null) => void;
   deleteTimeRange: (startTime: number, endTime: number) => void;
   cutWord: (captionId: string, wordIndex: number) => void;
@@ -160,6 +168,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   selectedClipId: null,
   selectedOverlayId: null,
   selectedCaptionId: null,
+  selectedEffectOverlayId: null,
   rightPanelTab: null,
   transcriptSelection: null,
   eyeContactStatus: {},
@@ -475,6 +484,49 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
 
   selectOverlay: (selectedOverlayId) => set(selectedOverlayId ? { selectedOverlayId, selectedClipId: null, selectedCaptionId: null, rightPanelTab: "properties" as const } : { selectedOverlayId }),
 
+  addEffectOverlay: (overlay) => withHistory(set, get, (p) => ({
+    ...p,
+    effectOverlays: [...p.effectOverlays, { ...overlay, id: uuid() }],
+  })),
+
+  moveEffectOverlay: (id, newStartTime) => withHistory(set, get, (p) => {
+    const effect = p.effectOverlays.find((e) => e.id === id);
+    if (!effect) return p;
+    const duration = effect.endTime - effect.startTime;
+    return {
+      ...p,
+      effectOverlays: p.effectOverlays.map((e) =>
+        e.id === id ? { ...e, startTime: newStartTime, endTime: newStartTime + duration } : e
+      ),
+    };
+  }),
+
+  resizeEffectOverlay: (id, newStartTime, newEndTime) => withHistory(set, get, (p) => ({
+    ...p,
+    effectOverlays: p.effectOverlays.map((e) =>
+      e.id === id ? { ...e, startTime: newStartTime, endTime: newEndTime } : e
+    ),
+  })),
+
+  deleteEffectOverlay: (id) => withHistory(set, get, (p) => ({
+    ...p,
+    effectOverlays: p.effectOverlays.filter((e) => e.id !== id),
+  })),
+
+  updateEffectOverlayParams: (id, params) => withHistory(set, get, (p) => ({
+    ...p,
+    effectOverlays: p.effectOverlays.map((e) =>
+      e.id === id ? { ...e, params: { ...e.params, ...params } } : e
+    ),
+  })),
+
+  selectEffectOverlay: (id) =>
+    set(
+      id
+        ? { selectedEffectOverlayId: id, selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, rightPanelTab: "properties" as const }
+        : { selectedEffectOverlayId: null }
+    ),
+
   setPlayhead: (playheadTime) => set({ playheadTime }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(500, zoom)) }),
@@ -603,6 +655,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const normalized: Project = {
       ...project,
       textOverlays: project.textOverlays ?? [],
+      effectOverlays: (project as any).effectOverlays ?? [],
       captionTrackStyle: {
         ...makeDefaultCaptionStyle(),
         ...((project as any).captionX !== undefined ? { x: (project as any).captionX } : {}),
@@ -659,6 +712,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       const project: Project = {
         ...parsed,
         textOverlays: parsed.textOverlays ?? [],
+        effectOverlays: (parsed as any).effectOverlays ?? [],
         captionTrackStyle: {
           ...makeDefaultCaptionStyle(),
           ...((parsed as any).captionX !== undefined ? { x: (parsed as any).captionX } : {}),
