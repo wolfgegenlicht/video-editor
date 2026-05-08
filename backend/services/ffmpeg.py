@@ -4,12 +4,58 @@ from pathlib import Path
 OUT = Path(__file__).parent.parent / "out"
 OUT.mkdir(exist_ok=True)
 
-RATIO_FILTERS = {
-    "16:9": "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2",
-    "9:16": "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2",
-    "1:1":  "scale=1080:1080:force_original_aspect_ratio=decrease,pad=1080:1080:(ow-iw)/2:(oh-ih)/2",
-    "4:3":  "scale=1440:1080:force_original_aspect_ratio=decrease,pad=1440:1080:(ow-iw)/2:(oh-ih)/2",
+# Canvas dimensions per aspect ratio
+CANVAS_SIZES: dict[str, tuple[int, int]] = {
+    "16:9": (1920, 1080),
+    "9:16": (1080, 1920),
+    "1:1":  (1080, 1080),
+    "4:3":  (1440, 1080),
 }
+
+# Base scale filter: cover (fills canvas, crops excess) instead of contain+pad
+RATIO_FILTERS = {
+    "16:9": "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080",
+    "9:16": "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920",
+    "1:1":  "scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080",
+    "4:3":  "scale=1440:1080:force_original_aspect_ratio=increase,crop=1440:1080",
+}
+
+def _build_transform_filter(transform: dict, W: int, H: int) -> str:
+    """Return an ffmpeg filter string that applies the clip transform.
+
+    Operations: scale-to-cover-at-scale-factor → rotate → crop-to-canvas-with-offset.
+    Returns empty string for identity transforms (skip to avoid re-encode overhead).
+    """
+    x = transform.get("x", 0)
+    y = transform.get("y", 0)
+    scale = max(1.0, min(5.0, transform.get("scale", 1.0)))
+    rotation = transform.get("rotation", 0)
+
+    identity = (x == 0 and y == 0 and scale == 1.0 and rotation == 0)
+    if identity:
+        return ""
+
+    scaled_w = int(W * scale)
+    scaled_h = int(H * scale)
+
+    # 1. Scale source to cover canvas * scale factor
+    parts = [f"scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=increase,crop={scaled_w}:{scaled_h}"]
+
+    # 2. Rotate (keeps dimensions; corners may show black fill)
+    if rotation != 0:
+        r_rad = rotation * 3.14159265358979 / 180
+        parts.append(f"rotate={r_rad:.6f}:fillcolor=black:ow=iw:oh=ih")
+
+    # 3. Crop to canvas with translation offset
+    # crop origin = center of scaled video + x/y% offset - half canvas size
+    crop_x = int(W * ((scale - 1) / 2 + x / 100))
+    crop_y = int(H * ((scale - 1) / 2 + y / 100))
+    # Clamp so crop window stays within scaled video bounds
+    crop_x = max(0, min(scaled_w - W, crop_x))
+    crop_y = max(0, min(scaled_h - H, crop_y))
+    parts.append(f"crop={W}:{H}:{crop_x}:{crop_y}")
+
+    return ",".join(parts)
 
 def _escape(text: str) -> str:
     for ch in ("\\", "'", ":", "%", "[", "]", ",", ";"):
@@ -18,6 +64,7 @@ def _escape(text: str) -> str:
 
 def export(project: dict, uploads_dir: Path) -> Path:
     ratio_filter = RATIO_FILTERS.get(project.get("aspectRatio", "16:9"), RATIO_FILTERS["16:9"])
+    W, H = CANVAS_SIZES.get(project.get("aspectRatio", "16:9"), CANVAS_SIZES["16:9"])
     tracks = project.get("tracks", [])
 
     clips = []
@@ -57,7 +104,10 @@ def export(project: dict, uploads_dir: Path) -> Path:
         inputs += ["-ss", str(ss), "-to", str(se), "-i", clip["path"]]
 
         # Video filter chain
-        vf = f"[{i}:v]setpts=PTS/{speed}/TB,{ratio_filter}"
+        clip_transform = clip.get("transform") or {}
+        transform_filter = _build_transform_filter(clip_transform, W, H)
+        active_filter = transform_filter if transform_filter else ratio_filter
+        vf = f"[{i}:v]setpts=PTS/{speed}/TB,{active_filter}"
 
         if fade_in > 0:
             vf += f",fade=t=in:st=0:d={fade_in}"
