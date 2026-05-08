@@ -289,6 +289,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       duration: splitOffset,
       sourceStart: clip.sourceStart,
       sourceEnd: clip.sourceStart + sourceSplitOffset,
+      eyeContact: undefined,
+      eyeContactFileId: undefined,
     };
     const right: Clip = {
       ...clip,
@@ -297,6 +299,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       duration: clip.duration - splitOffset,
       sourceStart: clip.sourceStart + sourceSplitOffset,
       sourceEnd: clip.sourceEnd,
+      eyeContact: undefined,
+      eyeContactFileId: undefined,
     };
     return {
       ...p,
@@ -312,7 +316,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     const found = findClip(p, clipId);
     if (!found) return p;
     const { track, clip } = found;
-    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration };
+    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration, eyeContact: undefined, eyeContactFileId: undefined };
     return {
       ...p,
       tracks: p.tracks.map((t) =>
@@ -333,6 +337,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => c.id !== clipId) })),
     }));
     set((s) => s.selectedClipId === clipId ? { selectedClipId: null } : {});
+    set((s) => {
+      const { [clipId]: _, ...rest } = s.eyeContactStatus;
+      return { eyeContactStatus: rest };
+    });
   },
 
   setCaption: (captions, sourceFileId) => withHistory(set, get, (p) => ({
