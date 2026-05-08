@@ -14,10 +14,9 @@ const RATIO_CLASSES: Record<string, string> = {
 
 interface Props {
   videoRef: React.RefObject<HTMLVideoElement | null>;
-  toggle: () => void;
 }
 
-export default function VideoPreview({ videoRef, toggle: _toggle }: Props) {
+export default function VideoPreview({ videoRef }: Props) {
   const { project, files, playheadTime, isPlaying, selectedClipId, selectClip } = useProjectStore();
   // selectClip(id) — select; deselection happens when user clicks elsewhere in the app (timeline, panels)
   const outerRef = useRef<HTMLDivElement>(null);

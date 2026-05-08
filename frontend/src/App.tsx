@@ -23,7 +23,7 @@ function Editor() {
           <div className="flex flex-1 min-h-0">
             <LeftPanel seek={seek} />
             <main className="flex-1 flex items-center justify-center bg-slate-100 min-w-0">
-              <VideoPreview videoRef={videoRef} toggle={toggle} />
+              <VideoPreview videoRef={videoRef} />
             </main>
           </div>
           <AudioTrackPlayer />

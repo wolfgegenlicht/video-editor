@@ -365,6 +365,9 @@ export default function ClipPropertiesPanel() {
             className="w-full accent-teal-600 h-1"
           />
         </div>
+        {tScale === 1 && (tx !== 0 || ty !== 0) && (
+          <p className="text-[10px] text-amber-500">Increase scale to pan — translation has no effect at 100%</p>
+        )}
         <div>
           <div className="flex justify-between items-baseline mb-1">
             <span className="text-xs text-slate-600">Scale</span>
