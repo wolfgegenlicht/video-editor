@@ -104,7 +104,7 @@ export default function VideoPreview({ videoRef }: Props) {
   return (
     <div
       ref={outerRef}
-      className={`relative ${ratioClass} max-h-full overflow-hidden`}
+      className={`relative ${ratioClass} w-full max-h-full`}
       style={{ maxWidth: "min(100%, 720px)" }}
     >
       {/* Inner canvas — clips video at frame edge */}
