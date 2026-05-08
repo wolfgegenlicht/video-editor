@@ -1,4 +1,4 @@
-import subprocess, uuid, re
+import subprocess, uuid, re, math
 from pathlib import Path
 
 OUT = Path(__file__).parent.parent / "out"
@@ -35,21 +35,21 @@ def _build_transform_filter(transform: dict, W: int, H: int) -> str:
     if identity:
         return ""
 
-    scaled_w = int(W * scale)
-    scaled_h = int(H * scale)
+    scaled_w = round(W * scale / 2) * 2
+    scaled_h = round(H * scale / 2) * 2
 
     # 1. Scale source to cover canvas * scale factor
     parts = [f"scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=increase,crop={scaled_w}:{scaled_h}"]
 
     # 2. Rotate (keeps dimensions; corners may show black fill)
     if rotation != 0:
-        r_rad = rotation * 3.14159265358979 / 180
+        r_rad = rotation * math.pi / 180
         parts.append(f"rotate={r_rad:.6f}:fillcolor=black:ow=iw:oh=ih")
 
     # 3. Crop to canvas with translation offset
     # crop origin = center of scaled video + x/y% offset - half canvas size
-    crop_x = int(W * ((scale - 1) / 2 + x / 100))
-    crop_y = int(H * ((scale - 1) / 2 + y / 100))
+    crop_x = int(W * ((scale - 1) / 2 - x / 100))
+    crop_y = int(H * ((scale - 1) / 2 - y / 100))
     # Clamp so crop window stays within scaled video bounds
     crop_x = max(0, min(scaled_w - W, crop_x))
     crop_y = max(0, min(scaled_h - H, crop_y))
@@ -176,7 +176,7 @@ def export(project: dict, uploads_dir: Path) -> Path:
     text_overlays = project.get("textOverlays", [])
     if text_overlays:
         ratio = project.get("aspectRatio", "16:9")
-        res = {"16:9": (1920, 1080), "9:16": (1080, 1920), "1:1": (1080, 1080), "4:3": (1440, 1080)}.get(ratio, (1920, 1080))
+        res = CANVAS_SIZES.get(ratio, (1920, 1080))
         ov_filters = []
         for ov in text_overlays:
             escaped = _escape(ov["text"])
