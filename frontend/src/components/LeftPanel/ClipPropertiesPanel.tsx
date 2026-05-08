@@ -48,11 +48,13 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
   const { setClipEyeContact, setClipEyeContactFileId, setEyeContactStatus, eyeContactStatus } =
     useProjectStore();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [eta, setEta] = useState<number | null>(null);
   const mountedRef = useRef(true);
+  const startedAtRef = useRef(0);
 
   useEffect(() => {
     mountedRef.current = true;
-    // Restore ephemeral 'done' status after page refresh if persisted data shows it's processed
     if (clip.eyeContact && clip.eyeContactFileId && !eyeContactStatus[clip.id]) {
       setEyeContactStatus(clip.id, "done");
     }
@@ -65,30 +67,46 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
 
   async function handleToggle() {
     if (isProcessing) return;
+    setErrorMsg(null);
     const enabling = !clip.eyeContact;
     setClipEyeContact(clip.id, enabling);
     if (!enabling) {
       setEyeContactStatus(clip.id, undefined);
+      setProgress(0);
+      setEta(null);
       return;
     }
-    // Already processed — just flip the flag
     if (clip.eyeContactFileId) {
       setEyeContactStatus(clip.id, "done");
       return;
     }
     setEyeContactStatus(clip.id, "processing");
+    setProgress(0);
+    setEta(null);
+    startedAtRef.current = Date.now();
     try {
       const { jobId } = await api.startEyeContactJob(clip.fileId);
+      console.log("[eye-contact] job started", jobId);
       let polls = 0;
-      const maxPolls = 150; // 5 minutes at 2s intervals
+      const maxPolls = 150;
       while (mountedRef.current && polls < maxPolls) {
         await new Promise<void>((r) => setTimeout(r, 2000));
         if (!mountedRef.current) break;
         polls++;
         const s = await api.getEyeContactStatus(jobId);
+        console.log("[eye-contact] poll", polls, s);
+        if (s.progress != null) {
+          setProgress(s.progress);
+          if (s.progress > 0.05) {
+            const elapsed = (Date.now() - startedAtRef.current) / 1000;
+            setEta(Math.round(elapsed / s.progress * (1 - s.progress)));
+          }
+        }
         if (s.status === "done" && s.correctedFileId) {
           setClipEyeContactFileId(clip.id, s.correctedFileId);
           setEyeContactStatus(clip.id, "done");
+          setProgress(1);
+          setEta(null);
           toast.success("Eye contact correction done");
           break;
         }
@@ -97,39 +115,60 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
       }
     } catch (e) {
       if (mountedRef.current) {
+        const msg = e instanceof Error ? e.message : "Failed";
+        console.error("[eye-contact] error", msg);
         setClipEyeContact(clip.id, false);
         setEyeContactStatus(clip.id, "error");
-        setErrorMsg(e instanceof Error ? e.message : "Failed");
-        setTimeout(() => { if (mountedRef.current) setErrorMsg(null); }, 3000);
+        setErrorMsg(msg);
+        setProgress(0);
+        setEta(null);
       }
     }
   }
 
+  const pct = Math.round(progress * 100);
+  const etaLabel = eta != null && eta > 0 ? ` · ~${eta}s left` : "";
+
   return (
-    <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-50 border border-slate-100">
-      <div>
+    <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+      <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-slate-700">Eye Contact</p>
-        <p className="text-[11px] text-slate-400 mt-0.5">
-          {isProcessing ? "Processing…" : errorMsg ?? "AI gaze correction"}
-        </p>
-      </div>
-      <button
-        onClick={handleToggle}
-        disabled={isProcessing}
-        aria-label="Toggle eye contact correction"
-        className={[
-          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-          isOn ? "bg-teal-500" : "bg-slate-200",
-          isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-        ].join(" ")}
-      >
-        <span
+        <button
+          onClick={handleToggle}
+          disabled={isProcessing}
+          aria-label="Toggle eye contact correction"
           className={[
-            "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
-            isOn ? "translate-x-4" : "translate-x-0.5",
+            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
+            isOn ? "bg-teal-500" : "bg-slate-200",
+            isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
           ].join(" ")}
-        />
-      </button>
+        >
+          <span
+            className={[
+              "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+              isOn ? "translate-x-4" : "translate-x-0.5",
+            ].join(" ")}
+          />
+        </button>
+      </div>
+
+      {isProcessing ? (
+        <div className="space-y-1">
+          <div className="h-1 w-full rounded-full bg-slate-200 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-teal-500 transition-all duration-500"
+              style={{ width: `${Math.max(2, pct)}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-slate-400 tabular-nums">
+            {pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}
+          </p>
+        </div>
+      ) : errorMsg ? (
+        <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
+      ) : (
+        <p className="text-[11px] text-slate-400">AI gaze correction</p>
+      )}
     </div>
   );
 }

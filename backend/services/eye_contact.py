@@ -41,6 +41,7 @@ def get_job(job_id: str) -> Optional[_JobState]:
 
 
 def _run_job(job_id: str, file_id: str, state: _JobState) -> None:
+    print(f"[eye-contact] job {job_id[:8]}: starting for file {file_id[:8]}", flush=True)
     try:
         matches = list(UPLOADS.glob(f"{file_id}.*"))
         if not matches:
@@ -48,16 +49,18 @@ def _run_job(job_id: str, file_id: str, state: _JobState) -> None:
         input_path = str(matches[0])
         corrected_id = str(uuid.uuid4())
         output_path = str(UPLOADS / f"{corrected_id}.mp4")
-        _process_video(input_path, output_path, state)
+        _process_video(input_path, output_path, state, job_id)
         state.corrected_file_id = corrected_id
         state.status = "done"
         state.progress = 1.0
+        print(f"[eye-contact] job {job_id[:8]}: done → {corrected_id[:8]}", flush=True)
     except Exception as exc:
         state.status = "error"
         state.error = str(exc)
+        print(f"[eye-contact] job {job_id[:8]}: ERROR — {exc}", flush=True)
 
 
-def _process_video(input_path: str, output_path: str, state: _JobState) -> None:
+def _process_video(input_path: str, output_path: str, state: _JobState, job_id: str = "") -> None:
     corrector = get_corrector()
     cap = cv2.VideoCapture(input_path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -75,6 +78,9 @@ def _process_video(input_path: str, output_path: str, state: _JobState) -> None:
         cap.release()
         raise RuntimeError("OpenCV VideoWriter failed to open")
 
+    tag = f"[eye-contact] job {job_id[:8]}:" if job_id else "[eye-contact]"
+    print(f"{tag} processing {total_frames} frames at {fps:.1f}fps ({w}×{h})", flush=True)
+    last_logged_pct = -1
     frame_idx = 0
     try:
         while cap.isOpened():
@@ -85,11 +91,16 @@ def _process_video(input_path: str, output_path: str, state: _JobState) -> None:
             writer.write(corrected)
             frame_idx += 1
             state.progress = (frame_idx / total_frames) * 0.9  # reserve last 10% for re-encode
+            pct = int(state.progress * 100)
+            if pct // 10 > last_logged_pct // 10:
+                print(f"{tag} {pct}%", flush=True)
+                last_logged_pct = pct
     finally:
         cap.release()
         writer.release()
 
     # Merge corrected video with original audio track
+    print(f"{tag} re-encoding with audio…", flush=True)
     try:
         result = subprocess.run(
             [
