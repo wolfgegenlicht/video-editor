@@ -40,6 +40,11 @@ export interface Clip {
   volume?: number;
   fadeIn?: number;
   fadeOut?: number;
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  eyeContact?: boolean;
+  eyeContactFileId?: string;
 }
 
 export interface Track {

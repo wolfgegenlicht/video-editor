@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
 import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay } from "../types/project";
-import { saveProject } from "../lib/api";
+import { saveProject, deleteEyeContactFile } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
 const STORAGE_KEY = "video-editor-project";
@@ -59,7 +59,9 @@ interface ProjectStore {
   selectedClipId: string | null;
   selectedOverlayId: string | null;
   selectedCaptionId: string | null;
-  leftPanelTab: "Media" | "Transcript" | "Properties";
+  rightPanelTab: "properties" | "media" | null;
+  transcriptSelection: { startTime: number; endTime: number } | null;
+  eyeContactStatus: Record<string, "processing" | "done" | "error">;
 
   setProjectName: (name: string) => void;
   setAspectRatio: (ratio: AspectRatio) => void;
@@ -84,6 +86,10 @@ interface ProjectStore {
   setClipSpeed: (clipId: string, speed: number) => void;
   setClipVolume: (clipId: string, volume: number) => void;
   setClipFade: (clipId: string, fadeIn: number, fadeOut: number) => void;
+  setClipAdjustment: (clipId: string, key: "brightness" | "contrast" | "saturation", value: number) => void;
+  setClipEyeContact: (clipId: string, enabled: boolean) => void;
+  setClipEyeContactFileId: (clipId: string, fileId: string) => void;
+  setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   addTextOverlay: (overlay: Omit<TextOverlay, "id">) => void;
   updateTextOverlay: (id: string, patch: Partial<Omit<TextOverlay, "id">>) => void;
   deleteTextOverlay: (id: string) => void;
@@ -96,7 +102,10 @@ interface ProjectStore {
   setZoom: (zoom: number) => void;
   selectClip: (id: string | null) => void;
   selectCaption: (id: string | null) => void;
-  selectLeftPanelTab: (tab: "Media" | "Transcript" | "Properties") => void;
+  setRightPanelTab: (tab: "properties" | "media" | null) => void;
+  setTranscriptSelection: (sel: { startTime: number; endTime: number } | null) => void;
+  deleteTimeRange: (startTime: number, endTime: number) => void;
+  cutWord: (captionId: string, wordIndex: number) => void;
   openProject: (data: ProjectData) => void;
   closeProject: () => void;
 
@@ -149,7 +158,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   selectedClipId: null,
   selectedOverlayId: null,
   selectedCaptionId: null,
-  leftPanelTab: "Media",
+  rightPanelTab: null,
+  transcriptSelection: null,
+  eyeContactStatus: {},
 
   setProjectName: (name) => withHistory(set, get, (p) => ({ ...p, name })),
   setAspectRatio: (aspectRatio) => withHistory(set, get, (p) => ({ ...p, aspectRatio })),
@@ -313,6 +324,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   }),
 
   deleteClip: (clipId) => {
+    const found = findClip(get().project, clipId);
+    if (found?.clip.eyeContactFileId) {
+      deleteEyeContactFile(found.clip.eyeContactFileId).catch(console.error);
+    }
     withHistory(set, get, (p) => ({
       ...p,
       tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => c.id !== clipId) })),
@@ -361,6 +376,38 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     })),
   })),
 
+  setClipAdjustment: (clipId, key, value) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, [key]: value } : c),
+    })),
+  })),
+
+  setClipEyeContact: (clipId, eyeContact) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, eyeContact } : c),
+    })),
+  })),
+
+  setClipEyeContactFileId: (clipId, eyeContactFileId) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, eyeContactFileId } : c),
+    })),
+  })),
+
+  setEyeContactStatus: (clipId, status) => set((s) => {
+    if (status === undefined) {
+      const { [clipId]: _, ...rest } = s.eyeContactStatus;
+      return { eyeContactStatus: rest };
+    }
+    return { eyeContactStatus: { ...s.eyeContactStatus, [clipId]: status } };
+  }),
+
   addTextOverlay: (overlay) => withHistory(set, get, (p) => ({
     ...p,
     textOverlays: [...p.textOverlays, { ...overlay, id: uuid() }],
@@ -379,14 +426,131 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((s) => s.selectedOverlayId === id ? { selectedOverlayId: null } : {});
   },
 
-  selectOverlay: (selectedOverlayId) => set({ selectedOverlayId }),
+  selectOverlay: (selectedOverlayId) => set(selectedOverlayId ? { selectedOverlayId, selectedClipId: null, selectedCaptionId: null, rightPanelTab: "properties" as const } : { selectedOverlayId }),
 
   setPlayhead: (playheadTime) => set({ playheadTime }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(500, zoom)) }),
-  selectClip: (selectedClipId) => set({ selectedClipId }),
-  selectCaption: (selectedCaptionId) => set({ selectedCaptionId }),
-  selectLeftPanelTab: (leftPanelTab) => set({ leftPanelTab }),
+  selectClip: (selectedClipId) => set(selectedClipId ? { selectedClipId, selectedCaptionId: null, selectedOverlayId: null, rightPanelTab: "properties" as const } : { selectedClipId }),
+  selectCaption: (selectedCaptionId) => set(selectedCaptionId ? { selectedCaptionId, selectedClipId: null, selectedOverlayId: null, rightPanelTab: "properties" as const } : { selectedCaptionId }),
+  setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
+  setTranscriptSelection: (transcriptSelection) => set({ transcriptSelection }),
+  deleteTimeRange: (dStart, dEnd) => withHistory(set, get, (p) => {
+    const gap = dEnd - dStart;
+    if (gap <= 0) return p;
+
+    const newTracks = p.tracks.map((track) => ({
+      ...track,
+      clips: track.clips.flatMap((clip): Clip[] => {
+        const cStart = clip.startTime;
+        const cEnd = clip.startTime + clip.duration;
+        const speed = clip.speed ?? 1;
+
+        if (cEnd <= dStart) return [clip];
+        if (cStart >= dEnd) return [{ ...clip, startTime: cStart - gap }];
+        if (cStart >= dStart && cEnd <= dEnd) return [];
+
+        // Clip spans entire deletion range
+        if (cStart < dStart && cEnd > dEnd) {
+          const leftDur = dStart - cStart;
+          const rightDur = cEnd - dEnd;
+          return [
+            { ...clip, duration: leftDur, sourceEnd: clip.sourceStart + leftDur * speed },
+            { ...clip, id: uuid(), startTime: dStart, duration: rightDur, sourceStart: clip.sourceStart + (dEnd - cStart) * speed },
+          ];
+        }
+
+        // Clip overlaps from left (cStart < dStart, cEnd in (dStart, dEnd])
+        if (cStart < dStart) {
+          const newDur = dStart - cStart;
+          return [{ ...clip, duration: newDur, sourceEnd: clip.sourceStart + newDur * speed }];
+        }
+
+        // Clip overlaps from right (cStart in [dStart, dEnd), cEnd > dEnd)
+        const trimDur = dEnd - cStart;
+        return [{ ...clip, startTime: dStart, duration: cEnd - dEnd, sourceStart: clip.sourceStart + trimDur * speed }];
+      }),
+    }));
+
+    const newCaptions = p.captions
+      .filter((c) => !(c.startTime < dEnd && c.endTime > dStart))
+      .map((c) => c.startTime >= dEnd ? { ...c, startTime: c.startTime - gap, endTime: c.endTime - gap } : c);
+
+    const newTextOverlays = (p.textOverlays ?? [])
+      .filter((o) => !(o.startTime < dEnd && o.endTime > dStart))
+      .map((o) => o.startTime >= dEnd ? { ...o, startTime: o.startTime - gap, endTime: o.endTime - gap } : o);
+
+    return { ...p, tracks: newTracks, captions: newCaptions, textOverlays: newTextOverlays };
+  }),
+
+  cutWord: (captionId, wordIndex) => withHistory(set, get, (p) => {
+    const capIdx = p.captions.findIndex((c) => c.id === captionId);
+    if (capIdx === -1) return p;
+    const cap = p.captions[capIdx];
+    const words = cap.words ?? [];
+    const word = words[wordIndex];
+    if (!word) return p;
+
+    // End of cut = next word's start (more reliable than word.end from Whisper)
+    const cutStart = word.start;
+    const cutEnd = wordIndex + 1 < words.length
+      ? words[wordIndex + 1].start
+      : p.captions[capIdx + 1]?.words?.[0]?.start ?? word.end;
+    const gap = cutEnd - cutStart;
+    if (gap <= 0) return p;
+
+    // Trim video clips (same logic as deleteTimeRange)
+    const newTracks = p.tracks.map((track) => ({
+      ...track,
+      clips: track.clips.flatMap((clip): Clip[] => {
+        const cStart = clip.startTime;
+        const cEnd = clip.startTime + clip.duration;
+        const speed = clip.speed ?? 1;
+        if (cEnd <= cutStart) return [clip];
+        if (cStart >= cutEnd) return [{ ...clip, startTime: cStart - gap }];
+        if (cStart >= cutStart && cEnd <= cutEnd) return [];
+        if (cStart < cutStart && cEnd > cutEnd) {
+          const leftDur = cutStart - cStart;
+          const rightDur = cEnd - cutEnd;
+          return [
+            { ...clip, duration: leftDur, sourceEnd: clip.sourceStart + leftDur * speed },
+            { ...clip, id: uuid(), startTime: cutStart, duration: rightDur, sourceStart: clip.sourceStart + (cutEnd - cStart) * speed },
+          ];
+        }
+        if (cStart < cutStart) {
+          const newDur = cutStart - cStart;
+          return [{ ...clip, duration: newDur, sourceEnd: clip.sourceStart + newDur * speed }];
+        }
+        const trimDur = cutEnd - cStart;
+        return [{ ...clip, startTime: cutStart, duration: cEnd - cutEnd, sourceStart: clip.sourceStart + trimDur * speed }];
+      }),
+    }));
+
+    // Word-level caption editing: remove just this word, shift subsequent timestamps
+    const newCaptions = p.captions.flatMap((c, idx): Caption[] => {
+      if (c.id === captionId) {
+        const remaining = words
+          .filter((_, i) => i !== wordIndex)
+          .map((w) => w.start >= cutEnd ? { ...w, start: w.start - gap, end: w.end - gap } : w);
+        if (remaining.length === 0) return [];
+        return [{ ...c, words: remaining, text: remaining.map((w) => w.text).join(""), endTime: remaining[remaining.length - 1].end }];
+      }
+      if (idx > capIdx) {
+        return [{ ...c,
+          startTime: c.startTime - gap,
+          endTime: c.endTime - gap,
+          words: (c.words ?? []).map((w) => ({ ...w, start: w.start - gap, end: w.end - gap })),
+        }];
+      }
+      return [c];
+    });
+
+    const newTextOverlays = (p.textOverlays ?? [])
+      .filter((o) => !(o.startTime < cutEnd && o.endTime > cutStart))
+      .map((o) => o.startTime >= cutEnd ? { ...o, startTime: o.startTime - gap, endTime: o.endTime - gap } : o);
+
+    return { ...p, tracks: newTracks, captions: newCaptions, textOverlays: newTextOverlays };
+  }),
 
   openProject: ({ project, files }) => {
     const normalized: Project = {
