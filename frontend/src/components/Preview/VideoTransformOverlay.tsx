@@ -7,7 +7,7 @@ interface Props {
 }
 
 export default function VideoTransformOverlay({ clip, outerRef }: Props) {
-  const { setClipTransform } = useProjectStore();
+  const { setClipTransform, setClipTransformLive } = useProjectStore();
   const t = clip.transform ?? { x: 0, y: 0, scale: 1, rotation: 0 };
 
   const cssTransform = `translate(${t.x}%, ${t.y}%) scale(${t.scale}) rotate(${t.rotation}deg)`;
@@ -15,21 +15,27 @@ export default function VideoTransformOverlay({ clip, outerRef }: Props) {
   // ── Move ────────────────────────────────────────────────────────────────
   function onMoveStart(e: React.PointerEvent) {
     e.stopPropagation();
+    e.preventDefault();
     const rect = outerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const startX = e.clientX;
     const startY = e.clientY;
     const startTX = t.x;
     const startTY = t.y;
+    let finalX = startTX;
+    let finalY = startTY;
 
     function onMove(ev: PointerEvent) {
       const dx = ((ev.clientX - startX) / rect!.width) * 100;
       const dy = ((ev.clientY - startY) / rect!.height) * 100;
-      setClipTransform(clip.id, { x: startTX + dx, y: startTY + dy });
+      finalX = startTX + dx;
+      finalY = startTY + dy;
+      setClipTransformLive(clip.id, { x: finalX, y: finalY });
     }
     function onUp() {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
+      setClipTransform(clip.id, { x: finalX, y: finalY });
     }
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
@@ -38,6 +44,7 @@ export default function VideoTransformOverlay({ clip, outerRef }: Props) {
   // ── Scale ───────────────────────────────────────────────────────────────
   function onScaleStart(e: React.PointerEvent) {
     e.stopPropagation();
+    e.preventDefault();
     const rect = outerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const cx = rect.left + rect.width / 2;
@@ -45,14 +52,17 @@ export default function VideoTransformOverlay({ clip, outerRef }: Props) {
     const startDist = Math.hypot(e.clientX - cx, e.clientY - cy);
     if (startDist < 1) return;
     const startScale = t.scale;
+    let finalScale = startScale;
 
     function onMove(ev: PointerEvent) {
       const newDist = Math.hypot(ev.clientX - cx, ev.clientY - cy);
-      setClipTransform(clip.id, { scale: startScale * (newDist / startDist) });
+      finalScale = startScale * (newDist / startDist);
+      setClipTransformLive(clip.id, { scale: finalScale });
     }
     function onUp() {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
+      setClipTransform(clip.id, { scale: finalScale });
     }
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
@@ -61,21 +71,25 @@ export default function VideoTransformOverlay({ clip, outerRef }: Props) {
   // ── Rotate ──────────────────────────────────────────────────────────────
   function onRotateStart(e: React.PointerEvent) {
     e.stopPropagation();
+    e.preventDefault();
     const rect = outerRef.current?.getBoundingClientRect();
     if (!rect) return;
     const cx = rect.left + rect.width / 2;
     const cy = rect.top + rect.height / 2;
     const startAngle = Math.atan2(e.clientY - cy, e.clientX - cx);
     const startRotation = t.rotation;
+    let finalRotation = startRotation;
 
     function onMove(ev: PointerEvent) {
       const newAngle = Math.atan2(ev.clientY - cy, ev.clientX - cx);
       const delta = ((newAngle - startAngle) * 180) / Math.PI;
-      setClipTransform(clip.id, { rotation: startRotation + delta });
+      finalRotation = startRotation + delta;
+      setClipTransformLive(clip.id, { rotation: finalRotation });
     }
     function onUp() {
       document.removeEventListener("pointermove", onMove);
       document.removeEventListener("pointerup", onUp);
+      setClipTransform(clip.id, { rotation: finalRotation });
     }
     document.addEventListener("pointermove", onMove);
     document.addEventListener("pointerup", onUp);
@@ -93,7 +107,7 @@ export default function VideoTransformOverlay({ clip, outerRef }: Props) {
 
       {/* Body drag area — move (rendered BEFORE handles so handles sit on top in DOM order) */}
       <div
-        className="absolute inset-0 pointer-events-auto cursor-move"
+        className="absolute inset-0 pointer-events-auto cursor-move select-none"
         onPointerDown={onMoveStart}
       />
 

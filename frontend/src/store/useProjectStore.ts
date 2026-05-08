@@ -88,6 +88,7 @@ interface ProjectStore {
   setClipFade: (clipId: string, fadeIn: number, fadeOut: number) => void;
   setClipAdjustment: (clipId: string, key: "brightness" | "contrast" | "saturation", value: number) => void;
   setClipTransform: (clipId: string, transform: Partial<ClipTransform>) => void;
+  setClipTransformLive: (clipId: string, transform: Partial<ClipTransform>) => void;
   setClipEyeContact: (clipId: string, enabled: boolean) => void;
   setClipEyeContactFileId: (clipId: string, fileId: string) => void;
   setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
@@ -405,6 +406,22 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         return { ...c, transform: merged };
       }),
     })),
+  })),
+
+  setClipTransformLive: (clipId, patch) => set((s) => ({
+    project: {
+      ...s.project,
+      tracks: s.project.tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) => {
+          if (c.id !== clipId) return c;
+          const current = c.transform ?? { x: 0, y: 0, scale: 1, rotation: 0 };
+          const merged = { ...current, ...patch };
+          merged.scale = Math.max(1.0, Math.min(5.0, merged.scale));
+          return { ...c, transform: merged };
+        }),
+      })),
+    },
   })),
 
   setClipEyeContact: (clipId, eyeContact) => withHistory(set, get, (p) => ({
