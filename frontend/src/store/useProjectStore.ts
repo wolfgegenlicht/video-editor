@@ -99,6 +99,7 @@ interface ProjectStore {
   deleteTextOverlay: (id: string) => void;
   selectOverlay: (id: string | null) => void;
   addEffectOverlay: (overlay: Omit<EffectOverlay, "id">) => void;
+  addEffectOverlayWithId: (overlay: EffectOverlay) => void;
   moveEffectOverlay: (id: string, newStartTime: number) => void;
   moveEffectOverlayLive: (id: string, newStartTime: number) => void;
   resizeEffectOverlay: (id: string, newStartTime: number, newEndTime: number) => void;
@@ -490,6 +491,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   addEffectOverlay: (overlay) => withHistory(set, get, (p) => ({
     ...p,
     effectOverlays: [...p.effectOverlays, { ...overlay, id: uuid() }],
+  })),
+  addEffectOverlayWithId: (overlay) => withHistory(set, get, (p) => ({
+    ...p,
+    effectOverlays: [...p.effectOverlays, overlay],
   })),
 
   moveEffectOverlay: (id, newStartTime) => withHistory(set, get, (p) => {

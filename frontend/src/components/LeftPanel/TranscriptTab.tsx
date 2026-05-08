@@ -251,7 +251,7 @@ export default function TranscriptTab({ seek }: Props) {
 
         <div
           ref={containerRef}
-          className="px-4 pt-10 pb-5 text-[13px] leading-relaxed text-slate-700 outline-none"
+          className="px-4 pt-10 pb-5 text-[16px] leading-relaxed text-slate-700 outline-none"
           tabIndex={0}
           onKeyDown={handleKeyDown}
         >
@@ -304,7 +304,7 @@ export default function TranscriptTab({ seek }: Props) {
                           setCursorPosition(null);
                         }
                       }}
-                      className="inline-block text-[13px] border-b-2 border-teal-400 outline-none bg-teal-50 rounded px-0.5 w-28 align-baseline"
+                      className="inline-block text-[16px] border-b-2 border-teal-400 outline-none bg-teal-50 rounded px-0.5 w-28 align-baseline"
                     />
                     {" "}
                   </React.Fragment>

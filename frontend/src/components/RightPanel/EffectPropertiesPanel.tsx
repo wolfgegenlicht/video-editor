@@ -58,7 +58,7 @@ export default function EffectPropertiesPanel() {
           format={(v) => `${v.toFixed(2)}×`}
         />
         <SliderRow
-          label="Ramp In"
+          label="Zoom In"
           value={params.rampIn}
           min={0}
           max={maxRamp}
@@ -67,7 +67,7 @@ export default function EffectPropertiesPanel() {
           format={(v) => `${v.toFixed(2)}s`}
         />
         <SliderRow
-          label="Ramp Out"
+          label="Zoom Out"
           value={params.rampOut}
           min={0}
           max={maxRamp}

@@ -7,13 +7,13 @@ interface Props {
   sourceStart: number;
   sourceEnd: number;
   width: number;
+  height: number;
 }
 
-export default function WaveformCanvas({ fileId, fileDuration, sourceStart, sourceEnd, width }: Props) {
+export default function WaveformCanvas({ fileId, fileDuration, sourceStart, sourceEnd, width, height }: Props) {
   const waveform = useWaveform(fileId);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dpr = window.devicePixelRatio || 1;
-  const H = 30;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -37,16 +37,16 @@ export default function WaveformCanvas({ fileId, fileDuration, sourceStart, sour
       const barH = amp * CH;
       ctx.fillRect(x, (CH - barH) / 2, 1, Math.max(1, barH));
     }
-  }, [waveform, sourceStart, sourceEnd, fileDuration, width]);
+  }, [waveform, sourceStart, sourceEnd, fileDuration, width, height]);
 
   return (
     <canvas
       ref={canvasRef}
       width={Math.round(width * dpr)}
-      height={Math.round(H * dpr)}
+      height={Math.round(height * dpr)}
       style={{
         width,
-        height: H,
+        height,
         position: "absolute",
         inset: 0,
         pointerEvents: "none",

@@ -1,17 +1,33 @@
+import { useProjectStore } from "../../store/useProjectStore";
+
 export default function EffectsTab() {
+  const { addEffectOverlay, playheadTime } = useProjectStore();
+
   function handleDragStart(e: React.DragEvent, effectType: string) {
     e.dataTransfer.setData("effectType", effectType);
     e.dataTransfer.effectAllowed = "copy";
   }
 
+  function handleDoubleClick(effectType: string) {
+    if (effectType === "zoom") {
+      addEffectOverlay({
+        type: "zoom",
+        startTime: playheadTime,
+        endTime: playheadTime + 3,
+        params: { scale: 1.5, rampIn: 0.3, rampOut: 0.3 },
+      });
+    }
+  }
+
   return (
     <div className="flex-1 overflow-y-auto p-3 space-y-4">
       <p className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Video Effects</p>
-      <p className="text-[11px] text-slate-400">Drag an effect onto the FX track in the timeline.</p>
+      <p className="text-[11px] text-slate-400">Drag or double-click to add to the FX track.</p>
 
       <div
         draggable
         onDragStart={(e) => handleDragStart(e, "zoom")}
+        onDoubleClick={() => handleDoubleClick("zoom")}
         className="flex items-center gap-3 p-3 rounded-lg border border-violet-200 bg-violet-50 cursor-grab active:cursor-grabbing hover:bg-violet-100 transition-colors select-none"
       >
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">

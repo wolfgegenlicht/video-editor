@@ -10,7 +10,7 @@ interface Props {
 export default function EffectOverlayTrack({ zoom, totalWidth, height }: Props) {
   const effectOverlays = useProjectStore((s) => s.project.effectOverlays);
   const selectedEffectOverlayId = useProjectStore((s) => s.selectedEffectOverlayId);
-  const { addEffectOverlay, moveEffectOverlay, moveEffectOverlayLive, resizeEffectOverlay, resizeEffectOverlayLive, deleteEffectOverlay, selectEffectOverlay } =
+  const { addEffectOverlay, addEffectOverlayWithId, moveEffectOverlay, moveEffectOverlayLive, resizeEffectOverlay, resizeEffectOverlayLive, selectEffectOverlay } =
     useProjectStore();
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
@@ -46,7 +46,10 @@ export default function EffectOverlayTrack({ zoom, totalWidth, height }: Props) 
           onMoveCommit={(newStart) => moveEffectOverlay(effect.id, newStart)}
           onResize={(newStart, newEnd) => resizeEffectOverlayLive(effect.id, newStart, newEnd)}
           onResizeCommit={(newStart, newEnd) => resizeEffectOverlay(effect.id, newStart, newEnd)}
-          onDelete={() => deleteEffectOverlay(effect.id)}
+          onDuplicate={(clone) => {
+            addEffectOverlayWithId(clone);
+            selectEffectOverlay(clone.id);
+          }}
         />
       ))}
     </div>
@@ -62,7 +65,7 @@ function EffectBlock({
   onMoveCommit,
   onResize,
   onResizeCommit,
-  onDelete,
+  onDuplicate,
 }: {
   effect: EffectOverlay;
   zoom: number;
@@ -72,8 +75,9 @@ function EffectBlock({
   onMoveCommit: (newStart: number) => void;
   onResize: (newStart: number, newEnd: number) => void;
   onResizeCommit: (newStart: number, newEnd: number) => void;
-  onDelete: () => void;
+  onDuplicate: (clone: EffectOverlay) => void;
 }) {
+  const { moveEffectOverlayLive, moveEffectOverlay } = useProjectStore();
   const left = effect.startTime * zoom;
   const width = Math.max((effect.endTime - effect.startTime) * zoom, 8);
 
@@ -86,12 +90,28 @@ function EffectBlock({
     let lastStart = origStart;
     let lastEnd = origEnd;
 
+    // Alt+drag: create a clone immediately and drag it instead
+    const isAltDuplicate = e.altKey && mode === "move";
+    let cloneId: string | null = null;
+    if (isAltDuplicate) {
+      const clone: EffectOverlay = {
+        ...effect,
+        id: crypto.randomUUID(),
+      };
+      cloneId = clone.id;
+      onDuplicate(clone);
+    }
+
     function onMouseMove(ev: MouseEvent) {
       const dt = (ev.clientX - startX) / zoom;
       if (mode === "move") {
         lastStart = Math.max(0, origStart + dt);
         lastEnd = lastStart + (origEnd - origStart);
-        onMove(lastStart);
+        if (cloneId) {
+          moveEffectOverlayLive(cloneId, lastStart);
+        } else {
+          onMove(lastStart);
+        }
       } else if (mode === "left") {
         lastStart = Math.max(0, Math.min(origStart + dt, origEnd - 0.1));
         lastEnd = origEnd;
@@ -105,7 +125,9 @@ function EffectBlock({
     function onMouseUp() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
-      if (mode === "move") {
+      if (cloneId) {
+        moveEffectOverlay(cloneId, lastStart);
+      } else if (mode === "move") {
         onMoveCommit(lastStart);
       } else {
         onResizeCommit(lastStart, lastEnd);
@@ -123,7 +145,6 @@ function EffectBlock({
           : "bg-violet-400/25 border border-violet-400 hover:bg-violet-400/35"}`}
       style={{ left, width }}
       onMouseDown={(e) => startDrag(e, "move")}
-      onContextMenu={(e) => { e.preventDefault(); onDelete(); }}
     >
       <div
         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 hover:bg-violet-500/40"

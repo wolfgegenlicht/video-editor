@@ -14,10 +14,16 @@ export function useKeyboardShortcuts(toggle: () => void) {
       }
 
       if (e.code === "Delete" || e.code === "Backspace") {
-        const { selectedClipId, deleteClip } = useProjectStore.getState();
+        const { selectedClipId, deleteClip, selectedOverlayId, deleteTextOverlay, selectedEffectOverlayId, deleteEffectOverlay } = useProjectStore.getState();
         if (selectedClipId) {
           e.preventDefault();
           deleteClip(selectedClipId);
+        } else if (selectedOverlayId) {
+          e.preventDefault();
+          deleteTextOverlay(selectedOverlayId);
+        } else if (selectedEffectOverlayId) {
+          e.preventDefault();
+          deleteEffectOverlay(selectedEffectOverlayId);
         }
         return;
       }
@@ -53,6 +59,20 @@ export function useKeyboardShortcuts(toggle: () => void) {
       if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ") {
         e.preventDefault();
         useProjectStore.getState().undo();
+        return;
+      }
+
+      if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
+        e.preventDefault();
+        const { playheadTime, project, setPlayhead, isPlaying } = useProjectStore.getState();
+        const step = e.shiftKey ? 1 : 1 / 30;
+        const direction = e.code === "ArrowLeft" ? -1 : 1;
+        const totalDuration = project.tracks
+          .flatMap((t) => t.clips)
+          .reduce((max, c) => Math.max(max, c.startTime + c.duration), 0);
+        const newTime = Math.min(Math.max(0, playheadTime + direction * step), totalDuration);
+        if (isPlaying) toggle();
+        setPlayhead(newTime);
         return;
       }
     }
