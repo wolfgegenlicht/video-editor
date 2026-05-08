@@ -15,6 +15,7 @@ UPLOADS = Path(__file__).parent.parent / "uploads"
 _executor = ThreadPoolExecutor(max_workers=1)   # one correction job at a time
 atexit.register(_executor.shutdown, wait=False)
 _jobs: dict[str, "_JobState"] = {}
+_active_file_jobs: dict[str, str] = {}  # file_id → job_id for in-progress jobs
 _jobs_lock = threading.Lock()
 
 
@@ -27,10 +28,16 @@ class _JobState:
 
 
 def start_job(file_id: str) -> str:
-    job_id = str(uuid.uuid4())
-    state = _JobState()
     with _jobs_lock:
+        # Re-use an existing in-progress job for the same file instead of queuing a duplicate
+        existing = _active_file_jobs.get(file_id)
+        if existing and _jobs.get(existing, _JobState()).status == "processing":
+            print(f"[eye-contact] re-using in-progress job {existing[:8]} for file {file_id[:8]}", flush=True)
+            return existing
+        job_id = str(uuid.uuid4())
+        state = _JobState()
         _jobs[job_id] = state
+        _active_file_jobs[file_id] = job_id
     _executor.submit(_run_job, job_id, file_id, state)
     return job_id
 
@@ -58,6 +65,10 @@ def _run_job(job_id: str, file_id: str, state: _JobState) -> None:
         state.status = "error"
         state.error = str(exc)
         print(f"[eye-contact] job {job_id[:8]}: ERROR — {exc}", flush=True)
+    finally:
+        with _jobs_lock:
+            if _active_file_jobs.get(file_id) == job_id:
+                del _active_file_jobs[file_id]
 
 
 def _process_video(input_path: str, output_path: str, state: _JobState, job_id: str = "") -> None:
