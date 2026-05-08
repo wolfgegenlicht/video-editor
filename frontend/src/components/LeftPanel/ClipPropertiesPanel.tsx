@@ -135,7 +135,7 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
 export default function ClipPropertiesPanel() {
   const {
     project, files, selectedClipId, selectedOverlayId, selectedCaptionId,
-    setClipSpeed, setClipVolume, setClipFade, setClipAdjustment,
+    setClipSpeed, setClipVolume, setClipFade, setClipAdjustment, setClipTransform,
     updateTextOverlay,
   } = useProjectStore();
 
@@ -242,6 +242,12 @@ export default function ClipPropertiesPanel() {
   const contrast = clip.contrast ?? 1;
   const saturation = clip.saturation ?? 1;
 
+  const tx = clip.transform?.x ?? 0;
+  const ty = clip.transform?.y ?? 0;
+  const tScale = clip.transform?.scale ?? 1;
+  const tRotation = clip.transform?.rotation ?? 0;
+  const hasTransform = tx !== 0 || ty !== 0 || tScale !== 1 || tRotation !== 0;
+
   const clipFile = files.find((f) => f.id === clip.fileId);
 
   return (
@@ -331,6 +337,62 @@ export default function ClipPropertiesPanel() {
             className="text-[11px] text-slate-400 border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50 hover:text-slate-600 transition-colors"
           >
             Reset adjustments
+          </button>
+        )}
+      </Section>
+
+      {/* Transform */}
+      <Section title="Transform">
+        <div>
+          <div className="flex justify-between items-baseline mb-1">
+            <span className="text-xs text-slate-600">X offset</span>
+            <span className="text-[11px] text-slate-400 tabular-nums">{tx.toFixed(1)}%</span>
+          </div>
+          <input
+            type="range" min={-200} max={200} step={1} value={tx}
+            onChange={(e) => setClipTransform(clip.id, { x: parseFloat(e.target.value) })}
+            className="w-full accent-teal-600 h-1"
+          />
+        </div>
+        <div>
+          <div className="flex justify-between items-baseline mb-1">
+            <span className="text-xs text-slate-600">Y offset</span>
+            <span className="text-[11px] text-slate-400 tabular-nums">{ty.toFixed(1)}%</span>
+          </div>
+          <input
+            type="range" min={-200} max={200} step={1} value={ty}
+            onChange={(e) => setClipTransform(clip.id, { y: parseFloat(e.target.value) })}
+            className="w-full accent-teal-600 h-1"
+          />
+        </div>
+        <div>
+          <div className="flex justify-between items-baseline mb-1">
+            <span className="text-xs text-slate-600">Scale</span>
+            <span className="text-[11px] text-slate-400 tabular-nums">{Math.round(tScale * 100)}%</span>
+          </div>
+          <input
+            type="range" min={100} max={500} step={1} value={Math.round(tScale * 100)}
+            onChange={(e) => setClipTransform(clip.id, { scale: parseInt(e.target.value) / 100 })}
+            className="w-full accent-teal-600 h-1"
+          />
+        </div>
+        <div>
+          <div className="flex justify-between items-baseline mb-1">
+            <span className="text-xs text-slate-600">Rotation</span>
+            <span className="text-[11px] text-slate-400 tabular-nums">{tRotation.toFixed(1)}°</span>
+          </div>
+          <input
+            type="range" min={-180} max={180} step={1} value={tRotation}
+            onChange={(e) => setClipTransform(clip.id, { rotation: parseFloat(e.target.value) })}
+            className="w-full accent-teal-600 h-1"
+          />
+        </div>
+        {hasTransform && (
+          <button
+            onClick={() => setClipTransform(clip.id, { x: 0, y: 0, scale: 1, rotation: 0 })}
+            className="text-[11px] text-slate-400 border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50 hover:text-slate-600 transition-colors"
+          >
+            Reset transform
           </button>
         )}
       </Section>
