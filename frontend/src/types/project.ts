@@ -90,6 +90,22 @@ export interface TextOverlay {
   background: string;
 }
 
+export type EffectType = "zoom";
+
+export interface ZoomParams {
+  scale: number;   // 1.0–3.0
+  rampIn: number;  // seconds to ramp from 1× to scale
+  rampOut: number; // seconds to ramp from scale back to 1×
+}
+
+export interface EffectOverlay {
+  id: string;
+  type: EffectType;
+  startTime: number;
+  endTime: number;
+  params: ZoomParams;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -98,5 +114,6 @@ export interface Project {
   tracks: Track[];
   captions: Caption[];
   textOverlays: TextOverlay[];
+  effectOverlays: EffectOverlay[];
   captionSourceFileId?: string;
 }
