@@ -14,7 +14,12 @@ export default function EffectsTab() {
         onDragStart={(e) => handleDragStart(e, "zoom")}
         className="flex items-center gap-3 p-3 rounded-lg border border-violet-200 bg-violet-50 cursor-grab active:cursor-grabbing hover:bg-violet-100 transition-colors select-none"
       >
-        <span className="text-xl">🔍</span>
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+          <circle cx="7.5" cy="7.5" r="5"/>
+          <line x1="11.5" y1="11.5" x2="15.5" y2="15.5"/>
+          <line x1="7.5" y1="5" x2="7.5" y2="10"/>
+          <line x1="5" y1="7.5" x2="10" y2="7.5"/>
+        </svg>
         <div>
           <p className="text-xs font-semibold text-violet-800">Zoom</p>
           <p className="text-[11px] text-violet-500">Zooms in, holds, zooms out</p>

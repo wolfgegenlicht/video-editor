@@ -10,7 +10,7 @@ interface Props {
 export default function EffectOverlayTrack({ zoom, totalWidth, height }: Props) {
   const effectOverlays = useProjectStore((s) => s.project.effectOverlays);
   const selectedEffectOverlayId = useProjectStore((s) => s.selectedEffectOverlayId);
-  const { addEffectOverlay, moveEffectOverlay, resizeEffectOverlay, deleteEffectOverlay, selectEffectOverlay } =
+  const { addEffectOverlay, moveEffectOverlay, moveEffectOverlayLive, resizeEffectOverlay, resizeEffectOverlayLive, deleteEffectOverlay, selectEffectOverlay } =
     useProjectStore();
 
   function handleDrop(e: React.DragEvent<HTMLDivElement>) {
@@ -42,8 +42,10 @@ export default function EffectOverlayTrack({ zoom, totalWidth, height }: Props) 
           zoom={zoom}
           selected={effect.id === selectedEffectOverlayId}
           onSelect={() => selectEffectOverlay(effect.id)}
-          onMove={(newStart) => moveEffectOverlay(effect.id, newStart)}
-          onResize={(newStart, newEnd) => resizeEffectOverlay(effect.id, newStart, newEnd)}
+          onMove={(newStart) => moveEffectOverlayLive(effect.id, newStart)}
+          onMoveCommit={(newStart) => moveEffectOverlay(effect.id, newStart)}
+          onResize={(newStart, newEnd) => resizeEffectOverlayLive(effect.id, newStart, newEnd)}
+          onResizeCommit={(newStart, newEnd) => resizeEffectOverlay(effect.id, newStart, newEnd)}
           onDelete={() => deleteEffectOverlay(effect.id)}
         />
       ))}
@@ -57,7 +59,9 @@ function EffectBlock({
   selected,
   onSelect,
   onMove,
+  onMoveCommit,
   onResize,
+  onResizeCommit,
   onDelete,
 }: {
   effect: EffectOverlay;
@@ -65,7 +69,9 @@ function EffectBlock({
   selected: boolean;
   onSelect: () => void;
   onMove: (newStart: number) => void;
+  onMoveCommit: (newStart: number) => void;
   onResize: (newStart: number, newEnd: number) => void;
+  onResizeCommit: (newStart: number, newEnd: number) => void;
   onDelete: () => void;
 }) {
   const left = effect.startTime * zoom;
@@ -77,22 +83,33 @@ function EffectBlock({
     const startX = e.clientX;
     const origStart = effect.startTime;
     const origEnd = effect.endTime;
+    let lastStart = origStart;
+    let lastEnd = origEnd;
 
     function onMouseMove(ev: MouseEvent) {
       const dt = (ev.clientX - startX) / zoom;
       if (mode === "move") {
-        onMove(Math.max(0, origStart + dt));
+        lastStart = Math.max(0, origStart + dt);
+        lastEnd = lastStart + (origEnd - origStart);
+        onMove(lastStart);
       } else if (mode === "left") {
-        const newStart = Math.max(0, Math.min(origStart + dt, origEnd - 0.1));
-        onResize(newStart, origEnd);
+        lastStart = Math.max(0, Math.min(origStart + dt, origEnd - 0.1));
+        lastEnd = origEnd;
+        onResize(lastStart, lastEnd);
       } else {
-        const newEnd = Math.max(origStart + 0.1, origEnd + dt);
-        onResize(origStart, newEnd);
+        lastStart = origStart;
+        lastEnd = Math.max(origStart + 0.1, origEnd + dt);
+        onResize(lastStart, lastEnd);
       }
     }
     function onMouseUp() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
+      if (mode === "move") {
+        onMoveCommit(lastStart);
+      } else {
+        onResizeCommit(lastStart, lastEnd);
+      }
     }
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
@@ -112,8 +129,14 @@ function EffectBlock({
         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 hover:bg-violet-500/40"
         onMouseDown={(e) => { e.stopPropagation(); startDrag(e, "left"); }}
       />
-      <span className="px-2 text-[10px] text-violet-700 font-semibold truncate flex-1 pointer-events-none">
-        🔍 Zoom
+      <span className="px-2 text-[10px] text-violet-700 font-semibold truncate flex-1 pointer-events-none flex items-center gap-1">
+        <svg width="10" height="10" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="7.5" cy="7.5" r="5"/>
+          <line x1="11.5" y1="11.5" x2="15.5" y2="15.5"/>
+          <line x1="7.5" y1="5" x2="7.5" y2="10"/>
+          <line x1="5" y1="7.5" x2="10" y2="7.5"/>
+        </svg>
+        Zoom
       </span>
       <div
         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 hover:bg-violet-500/40"

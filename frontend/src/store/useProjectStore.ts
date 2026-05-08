@@ -100,7 +100,9 @@ interface ProjectStore {
   selectOverlay: (id: string | null) => void;
   addEffectOverlay: (overlay: Omit<EffectOverlay, "id">) => void;
   moveEffectOverlay: (id: string, newStartTime: number) => void;
+  moveEffectOverlayLive: (id: string, newStartTime: number) => void;
   resizeEffectOverlay: (id: string, newStartTime: number, newEndTime: number) => void;
+  resizeEffectOverlayLive: (id: string, newStartTime: number, newEndTime: number) => void;
   deleteEffectOverlay: (id: string) => void;
   updateEffectOverlayParams: (id: string, params: Partial<ZoomParams>) => void;
   selectEffectOverlay: (id: string | null) => void;
@@ -482,7 +484,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((s) => s.selectedOverlayId === id ? { selectedOverlayId: null } : {});
   },
 
-  selectOverlay: (selectedOverlayId) => set(selectedOverlayId ? { selectedOverlayId, selectedClipId: null, selectedCaptionId: null, rightPanelTab: "properties" as const } : { selectedOverlayId }),
+  selectOverlay: (selectedOverlayId) => set(selectedOverlayId ? { selectedOverlayId, selectedClipId: null, selectedCaptionId: null, selectedEffectOverlayId: null, rightPanelTab: "properties" as const } : { selectedOverlayId }),
 
   addEffectOverlay: (overlay) => withHistory(set, get, (p) => ({
     ...p,
@@ -501,11 +503,34 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     };
   }),
 
+  moveEffectOverlayLive: (id, newStartTime) => set((s) => {
+    const effect = s.project.effectOverlays.find((e) => e.id === id);
+    if (!effect) return s;
+    const duration = effect.endTime - effect.startTime;
+    return {
+      project: {
+        ...s.project,
+        effectOverlays: s.project.effectOverlays.map((e) =>
+          e.id === id ? { ...e, startTime: newStartTime, endTime: newStartTime + duration } : e
+        ),
+      },
+    };
+  }),
+
   resizeEffectOverlay: (id, newStartTime, newEndTime) => withHistory(set, get, (p) => ({
     ...p,
     effectOverlays: p.effectOverlays.map((e) =>
       e.id === id ? { ...e, startTime: newStartTime, endTime: newEndTime } : e
     ),
+  })),
+
+  resizeEffectOverlayLive: (id, newStartTime, newEndTime) => set((s) => ({
+    project: {
+      ...s.project,
+      effectOverlays: s.project.effectOverlays.map((e) =>
+        e.id === id ? { ...e, startTime: newStartTime, endTime: newEndTime } : e
+      ),
+    },
   })),
 
   deleteEffectOverlay: (id) => withHistory(set, get, (p) => ({
@@ -530,8 +555,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setPlayhead: (playheadTime) => set({ playheadTime }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(500, zoom)) }),
-  selectClip: (selectedClipId) => set(selectedClipId ? { selectedClipId, selectedCaptionId: null, selectedOverlayId: null, rightPanelTab: "properties" as const } : { selectedClipId }),
-  selectCaption: (selectedCaptionId) => set(selectedCaptionId ? { selectedCaptionId, selectedClipId: null, selectedOverlayId: null, rightPanelTab: "properties" as const } : { selectedCaptionId }),
+  selectClip: (selectedClipId) => set(selectedClipId ? { selectedClipId, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, rightPanelTab: "properties" as const } : { selectedClipId }),
+  selectCaption: (selectedCaptionId) => set(selectedCaptionId ? { selectedCaptionId, selectedClipId: null, selectedOverlayId: null, selectedEffectOverlayId: null, rightPanelTab: "properties" as const } : { selectedCaptionId }),
   setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
   setTranscriptSelection: (transcriptSelection) => set({ transcriptSelection }),
   deleteTimeRange: (dStart, dEnd) => withHistory(set, get, (p) => {

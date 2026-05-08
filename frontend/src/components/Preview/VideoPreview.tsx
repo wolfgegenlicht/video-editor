@@ -7,7 +7,8 @@ import TextOverlayRenderer from "./TextOverlayRenderer";
 import VideoTransformOverlay from "./VideoTransformOverlay";
 
 function easeInOut(t: number): number {
-  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  const c = Math.min(1, Math.max(0, t));
+  return c < 0.5 ? 2 * c * c : -1 + (4 - 2 * c) * c;
 }
 
 function computeZoomScale(effect: EffectOverlay, playheadTime: number): number {
