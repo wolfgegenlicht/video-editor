@@ -23,7 +23,7 @@ def _build_transform_filter(transform: dict, W: int, H: int) -> str:
     scale = max(1.0, min(5.0, transform.get("scale", 1.0)))
     rotation = transform.get("rotation", 0)
 
-    identity = (x == 0 and y == 0 and scale == 1.0 and rotation == 0)
+    identity = (abs(x) < 1e-6 and abs(y) < 1e-6 and abs(scale - 1.0) < 1e-6 and abs(rotation) < 1e-6)
     if identity:
         return ""
 
@@ -34,7 +34,7 @@ def _build_transform_filter(transform: dict, W: int, H: int) -> str:
     parts = [f"scale={scaled_w}:{scaled_h}:force_original_aspect_ratio=increase,crop={scaled_w}:{scaled_h}"]
 
     # 2. Rotate (keeps dimensions; corners may show black fill)
-    if rotation != 0:
+    if abs(rotation) > 1e-6:
         r_rad = rotation * math.pi / 180
         parts.append(f"rotate={r_rad:.6f}:fillcolor=black:ow=iw:oh=ih")
 
