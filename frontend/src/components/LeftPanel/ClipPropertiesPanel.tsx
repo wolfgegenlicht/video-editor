@@ -1,4 +1,7 @@
+import { useState, useEffect, useRef } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
+import * as api from "../../lib/api";
+import type { Clip } from "../../types/project";
 import CaptionStyleEditor from "./CaptionStyleEditor";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
@@ -36,6 +39,91 @@ function SliderRow({ label, value, min, max, step, onChange, format }: {
         onChange={(e) => onChange(parseFloat(e.target.value))}
         className="w-full accent-teal-600 h-1"
       />
+    </div>
+  );
+}
+
+function EyeContactToggle({ clip }: { clip: Clip }) {
+  const { setClipEyeContact, setClipEyeContactFileId, setEyeContactStatus, eyeContactStatus } =
+    useProjectStore();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    // Restore ephemeral 'done' status after page refresh if persisted data shows it's processed
+    if (clip.eyeContact && clip.eyeContactFileId && !eyeContactStatus[clip.id]) {
+      setEyeContactStatus(clip.id, "done");
+    }
+    return () => { mountedRef.current = false; };
+  }, [clip.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const status = eyeContactStatus[clip.id];
+  const isProcessing = status === "processing";
+  const isOn = !!clip.eyeContact && (status === "done" || (!!clip.eyeContactFileId && status !== "error"));
+
+  async function handleToggle() {
+    if (isProcessing) return;
+    const enabling = !clip.eyeContact;
+    setClipEyeContact(clip.id, enabling);
+    if (!enabling) {
+      setEyeContactStatus(clip.id, undefined);
+      return;
+    }
+    // Already processed — just flip the flag
+    if (clip.eyeContactFileId) {
+      setEyeContactStatus(clip.id, "done");
+      return;
+    }
+    setEyeContactStatus(clip.id, "processing");
+    try {
+      const { jobId } = await api.startEyeContactJob(clip.fileId);
+      while (mountedRef.current) {
+        await new Promise<void>((r) => setTimeout(r, 2000));
+        if (!mountedRef.current) break;
+        const s = await api.getEyeContactStatus(jobId);
+        if (s.status === "done" && s.correctedFileId) {
+          setClipEyeContactFileId(clip.id, s.correctedFileId);
+          setEyeContactStatus(clip.id, "done");
+          break;
+        }
+        if (s.status === "error") throw new Error(s.error ?? "Processing failed");
+      }
+    } catch (e) {
+      if (mountedRef.current) {
+        setClipEyeContact(clip.id, false);
+        setEyeContactStatus(clip.id, "error");
+        setErrorMsg(e instanceof Error ? e.message : "Failed");
+        setTimeout(() => { if (mountedRef.current) setErrorMsg(null); }, 3000);
+      }
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-50 border border-slate-100">
+      <div>
+        <p className="text-xs font-medium text-slate-700">Eye Contact</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">
+          {isProcessing ? "Processing…" : errorMsg ?? "AI gaze correction"}
+        </p>
+      </div>
+      <button
+        onClick={handleToggle}
+        disabled={isProcessing}
+        aria-label="Toggle eye contact correction"
+        className={[
+          "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+          isOn ? "bg-teal-500" : "bg-slate-200",
+          isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+        ].join(" ")}
+      >
+        <span
+          className={[
+            "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+            isOn ? "translate-x-4" : "translate-x-0.5",
+          ].join(" ")}
+        />
+      </button>
     </div>
   );
 }
@@ -246,13 +334,7 @@ export default function ClipPropertiesPanel() {
       {/* Effects */}
       <div className="px-3 py-3 space-y-2">
         <p className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Effects</p>
-        <div className="flex items-center justify-between py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 opacity-50 cursor-not-allowed">
-          <div>
-            <p className="text-xs font-medium text-slate-700">Eye Contact</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">AI gaze correction</p>
-          </div>
-          <span className="text-[11px] text-slate-400 border border-slate-200 rounded px-1.5 py-0.5">Soon</span>
-        </div>
+        <EyeContactToggle clip={clip} />
       </div>
     </div>
   );
