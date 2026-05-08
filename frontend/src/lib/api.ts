@@ -135,5 +135,6 @@ export async function getEyeContactStatus(jobId: string): Promise<{
 }
 
 export async function deleteEyeContactFile(fileId: string): Promise<void> {
-  await fetch(`/eye-contact/files/${fileId}`, { method: "DELETE" });
+  const res = await fetch(`/eye-contact/files/${fileId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete eye contact file failed: ${res.status}`);
 }
