@@ -65,7 +65,7 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
     contentRef.current.style.transform = `translateY(-${Math.max(0, el.offsetTop - 4)}px)`;
   }, [activeIdx]);
 
-  function onDragStart(e: React.MouseEvent<HTMLDivElement>) {
+  function onDragStart(e: React.PointerEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
     onSelect();
@@ -90,7 +90,7 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
     document.addEventListener("mouseup", onUp);
   }
 
-  function onResizeStart(e: React.MouseEvent<HTMLDivElement>) {
+  function onResizeStart(e: React.PointerEvent<HTMLDivElement>) {
     e.preventDefault();
     e.stopPropagation();
     const container = containerRef.current?.parentElement;
@@ -125,7 +125,7 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
         opacity: visible ? 1 : 0,
         transition: "opacity 80ms ease-out",
       }}
-      onMouseDown={onDragStart}
+      onPointerDown={onDragStart}
       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.6)"; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(255,255,255,0.25)"; }}
     >
@@ -156,7 +156,7 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
       <div
         className="absolute bottom-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity cursor-nwse-resize"
         style={{ width: 20, height: 20, padding: 4 }}
-        onMouseDown={onResizeStart}
+        onPointerDown={onResizeStart}
       >
         <div style={{ width: "100%", height: "100%", borderRight: "2px solid rgba(255,255,255,0.7)", borderBottom: "2px solid rgba(255,255,255,0.7)" }} />
       </div>
@@ -168,7 +168,7 @@ function StaticCaption({ seg, style, onSelect }: { seg: Caption; style: CaptionT
   const visible = useFadeIn();
   return (
     <div
-      onClick={(e) => { e.stopPropagation(); onSelect(); }}
+      onPointerDown={(e) => { e.stopPropagation(); onSelect(); }}
       style={{
         position: "absolute",
         left: `${style.x}%`,

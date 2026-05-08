@@ -23,7 +23,7 @@ function Editor() {
         <div className="flex-1 flex flex-col ml-2 mb-2 rounded-xl border border-slate-200 shadow-sm bg-white overflow-hidden">
           <div className="flex flex-1 min-h-0">
             <LeftPanel seek={seek} />
-            <main className="flex-1 flex items-center justify-center bg-slate-100 min-w-0" onClick={deselectAll}>
+            <main className="flex-1 flex items-center justify-center bg-slate-100 min-w-0" onPointerDown={deselectAll}>
               <VideoPreview videoRef={videoRef} />
             </main>
           </div>
