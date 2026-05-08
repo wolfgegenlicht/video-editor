@@ -1,3 +1,4 @@
+import atexit
 import threading
 import uuid
 import subprocess
@@ -12,6 +13,7 @@ from services.gaze_correction.corrector import get_corrector
 
 UPLOADS = Path(__file__).parent.parent / "uploads"
 _executor = ThreadPoolExecutor(max_workers=1)   # one correction job at a time
+atexit.register(_executor.shutdown, wait=False)
 _jobs: dict[str, "_JobState"] = {}
 _jobs_lock = threading.Lock()
 
@@ -63,9 +65,15 @@ def _process_video(input_path: str, output_path: str, state: _JobState) -> None:
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
 
+    if not cap.isOpened():
+        raise RuntimeError(f"OpenCV could not open video: {input_path}")
+
     temp_path = str(UPLOADS / f"tmp_{uuid.uuid4().hex}.mp4")
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(temp_path, fourcc, fps, (w, h))
+    if not writer.isOpened():
+        cap.release()
+        raise RuntimeError("OpenCV VideoWriter failed to open")
 
     frame_idx = 0
     try:
@@ -82,21 +90,23 @@ def _process_video(input_path: str, output_path: str, state: _JobState) -> None:
         writer.release()
 
     # Merge corrected video with original audio track
-    result = subprocess.run(
-        [
-            "ffmpeg", "-y",
-            "-i", temp_path,
-            "-i", input_path,
-            "-c:v", "libx264", "-preset", "fast",
-            "-c:a", "aac",
-            "-map", "0:v:0",
-            "-map", "1:a:0?",  # optional audio stream (some clips have none)
-            "-shortest",
-            output_path,
-        ],
-        capture_output=True,
-        text=True,
-    )
-    Path(temp_path).unlink(missing_ok=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"FFmpeg re-encode failed:\n{result.stderr[-2000:]}")
+    try:
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", temp_path,
+                "-i", input_path,
+                "-c:v", "libx264", "-preset", "fast",
+                "-c:a", "aac",
+                "-map", "0:v:0",
+                "-map", "1:a:0?",  # optional audio stream (some clips have none)
+                "-shortest",
+                output_path,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg re-encode failed:\n{result.stderr[-2000:]}")
+    finally:
+        Path(temp_path).unlink(missing_ok=True)
