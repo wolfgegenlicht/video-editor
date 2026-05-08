@@ -24,6 +24,13 @@ export interface ProjectData {
   files: UploadedFile[];
 }
 
+export interface EyeContactStatusResponse {
+  status: "processing" | "done" | "error";
+  correctedFileId?: string;
+  progress?: number;
+  error?: string;
+}
+
 function mapFile(raw: { fileId: string; originalName: string; duration: number; width: number; height: number }): UploadedFile {
   return { id: raw.fileId, originalName: raw.originalName, duration: raw.duration, width: raw.width, height: raw.height };
 }
@@ -123,14 +130,9 @@ export async function startEyeContactJob(fileId: string): Promise<{ jobId: strin
   return res.json();
 }
 
-export async function getEyeContactStatus(jobId: string): Promise<{
-  status: "processing" | "done" | "error";
-  correctedFileId?: string;
-  progress?: number;
-  error?: string;
-}> {
+export async function getEyeContactStatus(jobId: string): Promise<EyeContactStatusResponse> {
   const res = await fetch(`/eye-contact/status/${jobId}`);
-  if (!res.ok) throw new Error(`Status check failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Eye contact status check failed: ${res.status}`);
   return res.json();
 }
 
