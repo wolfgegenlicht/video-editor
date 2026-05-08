@@ -9,11 +9,12 @@ import EffectOverlayTrack from "./EffectOverlayTrack";
 import { Volume2Icon, VolumeXIcon, EyeIcon, EyeOffIcon } from "../Icons";
 
 const LABEL_WIDTH = 110;
-const MIN_HEIGHT = 100;
 const MAX_HEIGHT = 600;
 const DEFAULT_TRACK_H = 40;
 const MIN_TRACK_H = 28;
 const MAX_TRACK_H = 160;
+// scrubber (4) + resize handle (4) + toolbar (~32) + ruler (24)
+const CHROME_H = 64;
 
 const TRACK_DOT_COLORS: Record<string, string> = {
   video: "bg-teal-500",
@@ -27,7 +28,7 @@ interface Props {
 
 export default function Timeline({ toggle, seek }: Props) {
   const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden } = useProjectStore();
-  const [height, setHeight] = useState(200);
+  const [height, setHeight] = useState(260);
   const [trackHeights, setTrackHeights] = useState<Record<string, number>>({});
   const dragState = useRef<{ startY: number; startHeight: number } | null>(null);
   const dragTrackRef = useRef<{ key: string; startY: number; startH: number } | null>(null);
@@ -59,7 +60,7 @@ export default function Timeline({ toggle, seek }: Props) {
     function onMouseMove(ev: MouseEvent) {
       if (!dragState.current) return;
       const delta = dragState.current.startY - ev.clientY;
-      setHeight(Math.min(MAX_HEIGHT, Math.max(MIN_HEIGHT, dragState.current.startHeight + delta)));
+      setHeight(Math.min(MAX_HEIGHT, Math.max(minHeight, dragState.current.startHeight + delta)));
     }
 
     function onMouseUp() {
@@ -71,6 +72,10 @@ export default function Timeline({ toggle, seek }: Props) {
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
   }
+
+  const minHeight = CHROME_H
+    + project.tracks.reduce((sum, t) => sum + trackH(t.id), 0)
+    + trackH("text") + trackH("captions") + trackH("fx");
 
   const totalDuration = Math.max(
     30,
@@ -100,7 +105,7 @@ export default function Timeline({ toggle, seek }: Props) {
   const scrubberPct = totalDuration > 0 ? Math.min(1, playheadTime / totalDuration) * 100 : 0;
 
   return (
-    <div className="flex flex-col bg-white border-t border-slate-200 flex-shrink-0" style={{ height }}>
+    <div className="flex flex-col bg-white border-t border-slate-200 flex-shrink-0" style={{ height: Math.max(minHeight, height) }}>
       {/* Scrubber bar */}
       <div
         className="h-1 bg-slate-200 flex-shrink-0 relative cursor-pointer"
