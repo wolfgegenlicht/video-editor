@@ -13,6 +13,7 @@ import { loadProject } from "./lib/api";
 
 function Editor() {
   const { videoRef, toggle, seek } = usePlayback();
+  const deselectAll = useProjectStore((s) => s.deselectAll);
   useKeyboardShortcuts(toggle);
   return (
     <div className="flex flex-col h-screen bg-slate-100 text-slate-900 overflow-hidden">
@@ -22,7 +23,7 @@ function Editor() {
         <div className="flex-1 flex flex-col ml-2 mb-2 rounded-xl border border-slate-200 shadow-sm bg-white overflow-hidden">
           <div className="flex flex-1 min-h-0">
             <LeftPanel seek={seek} />
-            <main className="flex-1 flex items-center justify-center bg-slate-100 min-w-0">
+            <main className="flex-1 flex items-center justify-center bg-slate-100 min-w-0" onClick={deselectAll}>
               <VideoPreview videoRef={videoRef} />
             </main>
           </div>

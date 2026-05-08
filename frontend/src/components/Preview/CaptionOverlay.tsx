@@ -67,6 +67,7 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
 
   function onDragStart(e: React.MouseEvent<HTMLDivElement>) {
     e.preventDefault();
+    e.stopPropagation();
     onSelect();
     const container = containerRef.current?.parentElement;
     if (!container) return;
@@ -167,7 +168,7 @@ function StaticCaption({ seg, style, onSelect }: { seg: Caption; style: CaptionT
   const visible = useFadeIn();
   return (
     <div
-      onClick={onSelect}
+      onClick={(e) => { e.stopPropagation(); onSelect(); }}
       style={{
         position: "absolute",
         left: `${style.x}%`,

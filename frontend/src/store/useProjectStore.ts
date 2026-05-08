@@ -114,6 +114,7 @@ interface ProjectStore {
   setZoom: (zoom: number) => void;
   selectClip: (id: string | null) => void;
   selectCaption: (id: string | null) => void;
+  deselectAll: () => void;
   setRightPanelTab: (tab: "properties" | "media" | "effects" | null) => void;
   setTranscriptSelection: (sel: { startTime: number; endTime: number } | null) => void;
   deleteTimeRange: (startTime: number, endTime: number) => void;
@@ -557,6 +558,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(500, zoom)) }),
   selectClip: (selectedClipId) => set(selectedClipId ? { selectedClipId, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, rightPanelTab: "properties" as const } : { selectedClipId }),
   selectCaption: (selectedCaptionId) => set(selectedCaptionId ? { selectedCaptionId, selectedClipId: null, selectedOverlayId: null, selectedEffectOverlayId: null, rightPanelTab: "properties" as const } : { selectedCaptionId }),
+  deselectAll: () => set({ selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null }),
   setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
   setTranscriptSelection: (transcriptSelection) => set({ transcriptSelection }),
   deleteTimeRange: (dStart, dEnd) => withHistory(set, get, (p) => {
