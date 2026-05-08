@@ -66,14 +66,13 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
   }, [activeIdx]);
 
   function onDragStart(e: React.PointerEvent<HTMLDivElement>) {
-    e.preventDefault();
     e.stopPropagation();
     onSelect();
     const container = containerRef.current?.parentElement;
     if (!container) return;
     const startX = e.clientX, startY = e.clientY;
     const startCX = x, startCY = y;
-    function onMove(ev: MouseEvent) {
+    function onMove(ev: PointerEvent) {
       const rect = container!.getBoundingClientRect();
       const dx = ((ev.clientX - startX) / rect.width) * 100;
       const dy = ((ev.clientY - startY) / rect.height) * 100;
@@ -83,21 +82,20 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
       );
     }
     function onUp() {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
     }
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
   }
 
   function onResizeStart(e: React.PointerEvent<HTMLDivElement>) {
-    e.preventDefault();
     e.stopPropagation();
     const container = containerRef.current?.parentElement;
     if (!container) return;
     const startX = e.clientX, startY = e.clientY;
     const startW = boxW, startH = boxH;
-    function onMove(ev: MouseEvent) {
+    function onMove(ev: PointerEvent) {
       const rect = container!.getBoundingClientRect();
       const dw = ((ev.clientX - startX) / rect.width) * 100;
       const dh = ((ev.clientY - startY) / rect.height) * 100;
@@ -107,11 +105,11 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
       );
     }
     function onUp() {
-      document.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
     }
-    document.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseup", onUp);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
   }
 
   return (
