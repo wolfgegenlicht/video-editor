@@ -1,9 +1,28 @@
 import { useEffect, useRef } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import { fileUrl } from "../../lib/api";
+import type { EffectOverlay, ZoomParams } from "../../types/project";
 import CaptionOverlay from "./CaptionOverlay";
 import TextOverlayRenderer from "./TextOverlayRenderer";
 import VideoTransformOverlay from "./VideoTransformOverlay";
+
+function easeInOut(t: number): number {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function computeZoomScale(effect: EffectOverlay, playheadTime: number): number {
+  const { startTime, endTime, params } = effect;
+  const { scale, rampIn, rampOut } = params as ZoomParams;
+  const duration = endTime - startTime;
+  const progress = playheadTime - startTime;
+  if (rampIn > 0 && progress < rampIn) {
+    return 1 + (scale - 1) * easeInOut(progress / rampIn);
+  }
+  if (rampOut > 0 && progress > duration - rampOut) {
+    return 1 + (scale - 1) * easeInOut((endTime - playheadTime) / rampOut);
+  }
+  return scale;
+}
 
 const RATIO_CLASSES: Record<string, string> = {
   "16:9": "aspect-video",
@@ -19,6 +38,7 @@ interface Props {
 export default function VideoPreview({ videoRef }: Props) {
   const { project, files, playheadTime, isPlaying, selectedClipId, selectClip } = useProjectStore();
   // selectClip(id) — select; deselection happens when user clicks elsewhere in the app (timeline, panels)
+  const effectOverlays = useProjectStore((s) => s.project.effectOverlays);
   const outerRef = useRef<HTMLDivElement>(null);
 
   const videoTracks = project.tracks.filter((t) => t.type !== "audio");
@@ -34,6 +54,11 @@ export default function VideoPreview({ videoRef }: Props) {
       : activeClip.fileId
     : null;
   const effectiveMuted = !!activeClip?.muted || !!activeTrack?.muted;
+
+  const activeEffect = effectOverlays.find(
+    (e) => playheadTime >= e.startTime && playheadTime < e.endTime
+  ) ?? null;
+  const zoomScale = activeEffect ? computeZoomScale(activeEffect, playheadTime) : 1;
 
   useEffect(() => {
     const video = videoRef.current;
@@ -84,20 +109,25 @@ export default function VideoPreview({ videoRef }: Props) {
       {/* Inner canvas — clips video at frame edge */}
       <div className="absolute inset-0 bg-black overflow-hidden">
         {playbackFileId ? (
-          <video
-            ref={videoRef}
-            key={playbackFileId}
-            src={fileUrl(playbackFileId)}
-            className="w-full h-full object-cover"
-            muted={effectiveMuted}
-            style={videoStyle}
-            onPointerDown={(e) => {
-              if (activeClip) {
-                e.stopPropagation();
-                selectClip(activeClip.id);
-              }
-            }}
-          />
+          <div
+            className="absolute inset-0"
+            style={zoomScale !== 1 ? { transform: `scale(${zoomScale})`, transformOrigin: "center center" } : undefined}
+          >
+            <video
+              ref={videoRef}
+              key={playbackFileId}
+              src={fileUrl(playbackFileId)}
+              className="w-full h-full object-cover"
+              muted={effectiveMuted}
+              style={videoStyle}
+              onPointerDown={(e) => {
+                if (activeClip) {
+                  e.stopPropagation();
+                  selectClip(activeClip.id);
+                }
+              }}
+            />
+          </div>
         ) : files.length === 0 ? (
           <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
             Upload media to get started
