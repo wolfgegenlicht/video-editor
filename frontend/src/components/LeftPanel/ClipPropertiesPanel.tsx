@@ -44,6 +44,9 @@ function SliderRow({ label, value, min, max, step, onChange, format }: {
   );
 }
 
+// Module-level map so in-flight job IDs survive component unmount/remount
+const _pendingJobs = new Map<string, string>(); // clipId → jobId
+
 function EyeContactToggle({ clip }: { clip: Clip }) {
   const { setClipEyeContact, setClipEyeContactFileId, setEyeContactStatus, eyeContactStatus } =
     useProjectStore();
@@ -58,12 +61,61 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
     if (clip.eyeContact && clip.eyeContactFileId && !eyeContactStatus[clip.id]) {
       setEyeContactStatus(clip.id, "done");
     }
+    // Re-attach to an in-flight job if user navigated away and back
+    const pendingJobId = _pendingJobs.get(clip.id);
+    if (pendingJobId && eyeContactStatus[clip.id] === "processing") {
+      startedAtRef.current = Date.now();
+      pollJob(clip.id, pendingJobId);
+    }
     return () => { mountedRef.current = false; };
   }, [clip.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const status = eyeContactStatus[clip.id];
   const isProcessing = status === "processing";
   const isOn = !!clip.eyeContact && (status === "done" || (!!clip.eyeContactFileId && status !== "error"));
+
+  async function pollJob(clipId: string, jobId: string) {
+    let polls = 0;
+    const maxPolls = 900; // 30 minutes at 2s intervals
+    try {
+      while (mountedRef.current && polls < maxPolls) {
+        await new Promise<void>((r) => setTimeout(r, 2000));
+        if (!mountedRef.current) break;
+        polls++;
+        const s = await api.getEyeContactStatus(jobId);
+        console.log("[eye-contact] poll", polls, s);
+        if (s.progress != null) {
+          setProgress(s.progress);
+          if (s.progress > 0.05) {
+            const elapsed = (Date.now() - startedAtRef.current) / 1000;
+            setEta(Math.round(elapsed / s.progress * (1 - s.progress)));
+          }
+        }
+        if (s.status === "done" && s.correctedFileId) {
+          _pendingJobs.delete(clipId);
+          setClipEyeContactFileId(clipId, s.correctedFileId);
+          setEyeContactStatus(clipId, "done");
+          setProgress(1);
+          setEta(null);
+          toast.success("Eye contact correction done");
+          return;
+        }
+        if (s.status === "error") throw new Error(s.error ?? "Processing failed");
+      }
+      if (polls >= maxPolls) throw new Error("Processing timed out after 30 minutes");
+    } catch (e) {
+      if (mountedRef.current) {
+        const msg = e instanceof Error ? e.message : "Failed";
+        console.error("[eye-contact] error", msg);
+        _pendingJobs.delete(clipId);
+        setClipEyeContact(clipId, false);
+        setEyeContactStatus(clipId, "error");
+        setErrorMsg(msg);
+        setProgress(0);
+        setEta(null);
+      }
+    }
+  }
 
   async function handleToggle() {
     if (isProcessing) return;
@@ -84,46 +136,16 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
     setProgress(0);
     setEta(null);
     startedAtRef.current = Date.now();
-    try {
-      const { jobId } = await api.startEyeContactJob(clip.fileId);
-      console.log("[eye-contact] job started", jobId);
-      let polls = 0;
-      const maxPolls = 150;
-      while (mountedRef.current && polls < maxPolls) {
-        await new Promise<void>((r) => setTimeout(r, 2000));
-        if (!mountedRef.current) break;
-        polls++;
-        const s = await api.getEyeContactStatus(jobId);
-        console.log("[eye-contact] poll", polls, s);
-        if (s.progress != null) {
-          setProgress(s.progress);
-          if (s.progress > 0.05) {
-            const elapsed = (Date.now() - startedAtRef.current) / 1000;
-            setEta(Math.round(elapsed / s.progress * (1 - s.progress)));
-          }
-        }
-        if (s.status === "done" && s.correctedFileId) {
-          setClipEyeContactFileId(clip.id, s.correctedFileId);
-          setEyeContactStatus(clip.id, "done");
-          setProgress(1);
-          setEta(null);
-          toast.success("Eye contact correction done");
-          break;
-        }
-        if (s.status === "error") throw new Error(s.error ?? "Processing failed");
-        if (polls >= maxPolls) throw new Error("Processing timed out");
-      }
-    } catch (e) {
-      if (mountedRef.current) {
-        const msg = e instanceof Error ? e.message : "Failed";
-        console.error("[eye-contact] error", msg);
-        setClipEyeContact(clip.id, false);
-        setEyeContactStatus(clip.id, "error");
-        setErrorMsg(msg);
-        setProgress(0);
-        setEta(null);
-      }
-    }
+    const { jobId } = await api.startEyeContactJob(clip.fileId).catch((e) => {
+      setClipEyeContact(clip.id, false);
+      setEyeContactStatus(clip.id, "error");
+      setErrorMsg(e instanceof Error ? e.message : "Failed to start job");
+      return { jobId: null as unknown as string };
+    });
+    if (!jobId) return;
+    console.log("[eye-contact] job started", jobId);
+    _pendingJobs.set(clip.id, jobId);
+    pollJob(clip.id, jobId);
   }
 
   const pct = Math.round(progress * 100);
