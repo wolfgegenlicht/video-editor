@@ -112,3 +112,28 @@ export async function deleteProject(id: string): Promise<void> {
   const res = await fetch(`/projects/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete project failed: ${res.status}`);
 }
+
+export async function startEyeContactJob(fileId: string): Promise<{ jobId: string }> {
+  const res = await fetch("/eye-contact/process", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileId }),
+  });
+  if (!res.ok) throw new Error(`Eye contact job failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getEyeContactStatus(jobId: string): Promise<{
+  status: "processing" | "done" | "error";
+  correctedFileId?: string;
+  progress?: number;
+  error?: string;
+}> {
+  const res = await fetch(`/eye-contact/status/${jobId}`);
+  if (!res.ok) throw new Error(`Status check failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteEyeContactFile(fileId: string): Promise<void> {
+  await fetch(`/eye-contact/files/${fileId}`, { method: "DELETE" });
+}
