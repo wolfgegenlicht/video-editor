@@ -34,9 +34,6 @@ export default function VideoPreview({ videoRef, toggle: _toggle }: Props) {
       ? activeClip.eyeContactFileId
       : activeClip.fileId
     : null;
-  const activeFile = playbackFileId
-    ? (files.find((f) => f.id === playbackFileId) ?? { id: playbackFileId } as import("../../types/project").UploadedFile)
-    : null;
   const effectiveMuted = !!activeClip?.muted || !!activeTrack?.muted;
 
   useEffect(() => {
@@ -87,11 +84,11 @@ export default function VideoPreview({ videoRef, toggle: _toggle }: Props) {
     >
       {/* Inner canvas — clips video at frame edge */}
       <div className="absolute inset-0 bg-black overflow-hidden">
-        {activeFile ? (
+        {playbackFileId ? (
           <video
             ref={videoRef}
-            key={playbackFileId ?? undefined}
-            src={fileUrl(playbackFileId!)}
+            key={playbackFileId}
+            src={fileUrl(playbackFileId)}
             className="w-full h-full object-cover"
             muted={effectiveMuted}
             style={videoStyle}
