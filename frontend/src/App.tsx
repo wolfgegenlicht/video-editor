@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Toaster } from "sonner";
 import Header from "./components/Header/Header";
 import LeftPanel from "./components/LeftPanel/LeftPanel";
 import VideoPreview from "./components/Preview/VideoPreview";
@@ -58,5 +59,10 @@ export default function App() {
     );
   }
 
-  return activeProjectId ? <Editor /> : <ProjectPicker />;
+  return (
+    <>
+      <Toaster position="bottom-right" toastOptions={{ duration: 4000 }} />
+      {activeProjectId ? <Editor /> : <ProjectPicker />}
+    </>
+  );
 }

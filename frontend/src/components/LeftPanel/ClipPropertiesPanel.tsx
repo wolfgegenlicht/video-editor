@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { toast } from "sonner";
 import { useProjectStore } from "../../store/useProjectStore";
 import * as api from "../../lib/api";
 import type { Clip } from "../../types/project";
@@ -88,6 +89,7 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
         if (s.status === "done" && s.correctedFileId) {
           setClipEyeContactFileId(clip.id, s.correctedFileId);
           setEyeContactStatus(clip.id, "done");
+          toast.success("Eye contact correction done");
           break;
         }
         if (s.status === "error") throw new Error(s.error ?? "Processing failed");
