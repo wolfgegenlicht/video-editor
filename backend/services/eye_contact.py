@@ -82,22 +82,26 @@ def _process_video(input_path: str, output_path: str, state: _JobState, job_id: 
     print(f"{tag} processing {total_frames} frames at {fps:.1f}fps ({w}×{h})", flush=True)
     last_logged_pct = -1
     frame_idx = 0
+    frames_with_faces = 0
     try:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
                 break
-            corrected = corrector.correct_frame(frame)
+            corrected, faces = corrector.correct_frame(frame)
+            if faces:
+                frames_with_faces += 1
             writer.write(corrected)
             frame_idx += 1
             state.progress = (frame_idx / total_frames) * 0.9  # reserve last 10% for re-encode
             pct = int(state.progress * 100)
             if pct // 10 > last_logged_pct // 10:
-                print(f"{tag} {pct}%", flush=True)
+                print(f"{tag} {pct}% (faces so far: {frames_with_faces}/{frame_idx})", flush=True)
                 last_logged_pct = pct
     finally:
         cap.release()
         writer.release()
+    print(f"{tag} face detection: {frames_with_faces}/{frame_idx} frames had detectable faces", flush=True)
 
     # Merge corrected video with original audio track
     print(f"{tag} re-encoding with audio…", flush=True)

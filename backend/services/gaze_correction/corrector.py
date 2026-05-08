@@ -112,22 +112,19 @@ class GazeCorrector:
         self._L_sess, self._L_t = _load_eye_model("L", conf)
         self._R_sess, self._R_t = _load_eye_model("R", conf)
 
-    def correct_frame(self, frame: np.ndarray) -> np.ndarray:
-        """Return frame with gaze corrected to face the camera. If no face detected, returns frame unchanged."""
-        size_df = (320, 240)
-        x_ratio = frame.shape[1] / size_df[0]
-        y_ratio = frame.shape[0] / size_df[1]
+    def correct_frame(self, frame: np.ndarray) -> tuple[np.ndarray, int]:
+        """Return (corrected_frame, faces_detected). If no face found, frame is unchanged."""
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        small_gray = cv2.resize(gray, size_df)
-        detections = self._detector(small_gray, 0)
+        # Run detection on full-res image with 1 upsample pass so small/distant faces are found
+        detections = self._detector(gray, 1)
         # alpha=[0,0] means "look straight at camera"
         alpha = np.array([[0, 0]], dtype=np.float32)
         pc = _PIXEL_CUT
 
         for bx in detections:
             target = dlib.rectangle(
-                left=int(bx.left() * x_ratio), right=int(bx.right() * x_ratio),
-                top=int(bx.top() * y_ratio), bottom=int(bx.bottom() * y_ratio),
+                left=bx.left(), right=bx.right(),
+                top=bx.top(), bottom=bx.bottom(),
             )
             shape = self._predictor(gray, target)
 
@@ -152,7 +149,7 @@ class GazeCorrector:
                     lt[0] + pc[0]: lt[0] + ori_size[0] - pc[0],
                     lt[1] + pc[1]: lt[1] + ori_size[1] - pc[1],
                 ] = out[pc[0]: -pc[0], pc[1]: -pc[1]] * 255
-        return frame
+        return frame, len(detections)
 
 
 _corrector: GazeCorrector | None = None
