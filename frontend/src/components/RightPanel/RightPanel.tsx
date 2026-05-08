@@ -1,12 +1,22 @@
 import { useProjectStore } from "../../store/useProjectStore";
 import ClipPropertiesPanel from "../LeftPanel/ClipPropertiesPanel";
 import MediaTab from "../LeftPanel/MediaTab";
+import EffectsTab from "./EffectsTab";
+import EffectPropertiesPanel from "./EffectPropertiesPanel";
 
 function PropertiesIcon({ active }: { active: boolean }) {
   return (
     <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke={active ? "#0f766e" : "#94a3b8"} strokeWidth="1.6" strokeLinecap="round">
       <circle cx="10" cy="10" r="3" />
       <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.22 4.22l1.42 1.42M14.36 14.36l1.42 1.42M14.36 5.64l1.42-1.42M4.22 15.78l1.42-1.42" />
+    </svg>
+  );
+}
+
+function EffectsIcon({ active }: { active: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke={active ? "#7c3aed" : "#94a3b8"} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10 2l1.8 5.4H17l-4.3 3.2 1.6 5L10 13l-4.3 2.6 1.6-5L3 7.4h5.2L10 2z" />
     </svg>
   );
 }
@@ -27,14 +37,19 @@ const TABS = [
     icon: (active: boolean) => <PropertiesIcon active={active} />,
   },
   {
+    id: "effects" as const,
+    label: "Effects",
+    icon: (active: boolean) => <EffectsIcon active={active} />,
+  },
+  {
     id: "media" as const,
     label: "Media",
     icon: (active: boolean) => <MediaIcon active={active} />,
   },
-];
+] as const;
 
 export default function RightPanel() {
-  const { rightPanelTab, setRightPanelTab } = useProjectStore();
+  const { rightPanelTab, setRightPanelTab, selectedEffectOverlayId } = useProjectStore();
 
   return (
     <div className="flex flex-shrink-0">
@@ -56,7 +71,13 @@ export default function RightPanel() {
             </span>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
-            {rightPanelTab === "properties" ? <ClipPropertiesPanel /> : <MediaTab />}
+            {rightPanelTab === "properties" ? (
+              selectedEffectOverlayId ? <EffectPropertiesPanel /> : <ClipPropertiesPanel />
+            ) : rightPanelTab === "effects" ? (
+              <EffectsTab />
+            ) : (
+              <MediaTab />
+            )}
           </div>
         </div>
       )}
