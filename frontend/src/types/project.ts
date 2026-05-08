@@ -28,6 +28,13 @@ export interface UploadedFile {
   height: number;
 }
 
+export interface ClipTransform {
+  x: number;        // % offset from center (positive = right), relative to canvas width
+  y: number;        // % offset from center (positive = down), relative to canvas height
+  scale: number;    // multiplier; min 1.0 = fills canvas; max 5.0
+  rotation: number; // degrees; free range
+}
+
 export interface Clip {
   id: string;
   fileId: string;
@@ -45,6 +52,7 @@ export interface Clip {
   saturation?: number;
   eyeContact?: boolean;
   eyeContactFileId?: string;
+  transform?: ClipTransform;
 }
 
 export interface Track {
