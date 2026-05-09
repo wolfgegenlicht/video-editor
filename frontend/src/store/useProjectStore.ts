@@ -94,6 +94,7 @@ interface ProjectStore {
   splitClip: (clipId: string, atTime: number) => void;
   duplicateClip: (clipId: string) => void;
   deleteClip: (clipId: string) => void;
+  deleteTrack: (trackId: string) => void;
 
   setClipSpeed: (clipId: string, speed: number) => void;
   setClipVolume: (clipId: string, volume: number) => void;
@@ -127,6 +128,7 @@ interface ProjectStore {
   setEffectLaneHidden: (type: EffectType, hidden: boolean) => void;
 
   setCaption: (captions: Caption[], sourceFileId?: string) => void;
+  deleteCaption: (id: string) => void;
 
   setPlayhead: (time: number) => void;
   setIsPlaying: (playing: boolean) => void;
@@ -411,11 +413,48 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     });
   },
 
+  deleteTrack: (trackId) => {
+    const track = get().project.tracks.find((t) => t.id === trackId);
+    if (!track) return;
+    const clipIds = new Set(track.clips.map((c) => c.id));
+    const transitionIds = new Set((get().project.clipTransitions ?? []).filter((t) => t.trackId === trackId).map((t) => t.id));
+    withHistory(set, get, (p) => ({
+      ...p,
+      tracks: p.tracks.filter((t) => t.id !== trackId),
+      clipTransitions: (p.clipTransitions ?? []).filter((t) => t.trackId !== trackId),
+    }));
+    set((s) => {
+      const updates: Partial<typeof s> = {};
+      if (s.selectedClipId && clipIds.has(s.selectedClipId)) updates.selectedClipId = null;
+      const staleIds = new Set([...clipIds, ...transitionIds]);
+      if ([...staleIds].some((id) => s.selectedItemIds.has(id))) {
+        const next = new Set(s.selectedItemIds);
+        staleIds.forEach((id) => next.delete(id));
+        updates.selectedItemIds = next;
+      }
+      return updates;
+    });
+  },
+
   setCaption: (captions, sourceFileId) => withHistory(set, get, (p) => ({
     ...p,
     captions,
     ...(sourceFileId !== undefined ? { captionSourceFileId: sourceFileId } : {}),
   })),
+
+  deleteCaption: (id) => {
+    withHistory(set, get, (p) => ({ ...p, captions: p.captions.filter((c) => c.id !== id) }));
+    set((s) => {
+      const updates: Partial<typeof s> = {};
+      if (s.selectedCaptionId === id) updates.selectedCaptionId = null;
+      if (s.selectedItemIds.has(id)) {
+        const next = new Set(s.selectedItemIds);
+        next.delete(id);
+        updates.selectedItemIds = next;
+      }
+      return updates;
+    });
+  },
 
   setTrackMuted: (trackId, muted) => withHistory(set, get, (p) => ({
     ...p,

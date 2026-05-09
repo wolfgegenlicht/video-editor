@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 
 interface Props {
@@ -8,7 +9,19 @@ interface Props {
 }
 
 export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height }: Props) {
-  const { project, selectedCaptionId, selectCaption, selectedItemIds, toggleItemSelection } = useProjectStore();
+  const { project, selectedCaptionId, selectCaption, deleteCaption, selectedItemIds, toggleItemSelection } = useProjectStore();
+
+  useEffect(() => {
+    if (!selectedCaptionId) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        deleteCaption(selectedCaptionId!);
+      }
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [selectedCaptionId, deleteCaption]);
 
   return (
     <div className="relative border-b border-slate-100" style={{ width: totalWidth, height }}>

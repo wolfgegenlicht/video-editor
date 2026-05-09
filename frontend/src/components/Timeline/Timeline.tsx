@@ -46,7 +46,7 @@ interface Props {
 }
 
 export default function Timeline({ toggle, seek }: Props) {
-  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple } = useProjectStore();
+  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deleteTrack } = useProjectStore();
   const [height, setHeight] = useState(260);
   const [labelWidth, setLabelWidth] = useState(LABEL_WIDTH);
   const [contextMenu, setContextMenu] = useState<{ trackId: string; x: number; y: number } | null>(null);
@@ -513,6 +513,12 @@ export default function Timeline({ toggle, seek }: Props) {
             onClick={() => startRename(contextMenu.trackId)}
           >
             Rename
+          </button>
+          <button
+            className="w-full text-left px-3 py-1.5 text-[13px] text-red-600 hover:bg-red-50 transition-colors"
+            onClick={() => { deleteTrack(contextMenu.trackId); setContextMenu(null); }}
+          >
+            Delete
           </button>
         </div>
       )}
