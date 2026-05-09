@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useProjectStore } from "../../store/useProjectStore";
+import { useProjectStore, getItemStartTime } from "../../store/useProjectStore";
 import type { Clip, TrackType } from "../../types/project";
 import ClipContextMenu from "./ClipContextMenu";
 import WaveformCanvas from "./WaveformCanvas";
@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeight }: Props) {
-  const { moveClip, trimClip, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, toggleItemSelection, files, playheadTime, selectedClipId, selectedItemIds } = useProjectStore();
+  const { moveClip, trimClip, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, toggleItemSelection, moveSelectedItemsLive, moveSelectedItems, files, playheadTime, selectedClipId, selectedItemIds } = useProjectStore();
   const isAudioTrack = trackType === "audio";
   const isSelected = selectedClipId === clip.id;
   const isMultiSelected = selectedItemIds.size > 1 && selectedItemIds.has(clip.id);
@@ -48,9 +48,26 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
     dragStartSourceStart.current = clip.sourceStart;
     dragStartSourceEnd.current = clip.sourceEnd;
 
+    // Snapshot multi-select state at drag start
+    const { selectedItemIds: ids, project } = useProjectStore.getState();
+    const isMultiDrag = type === "move" && ids.has(clip.id) && ids.size > 1;
+    const origPositions = isMultiDrag
+      ? new Map([...ids].map((id) => [id, getItemStartTime(project, id)]))
+      : new Map<string, number>();
+    let lastMoves: Array<{ id: string; newStartTime: number }> = [];
+
     function onMove(ev: MouseEvent) {
       const dx = ev.clientX - dragStartX.current;
       const dt = dx / zoom;
+
+      if (isMultiDrag) {
+        lastMoves = [...ids].map((id) => ({
+          id,
+          newStartTime: Math.max(0, (origPositions.get(id) ?? 0) + dt),
+        }));
+        moveSelectedItemsLive(lastMoves);
+        return;
+      }
 
       if (type === "move") {
         moveClip(clip.id, trackId, Math.max(0, dragStartTime.current + dt));
@@ -72,6 +89,9 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
     function onUp() {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      if (isMultiDrag && lastMoves.length > 0) {
+        moveSelectedItems(lastMoves);
+      }
     }
 
     window.addEventListener("mousemove", onMove);

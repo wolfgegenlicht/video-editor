@@ -1,4 +1,4 @@
-import { useProjectStore } from "../../store/useProjectStore";
+import { useProjectStore, getItemStartTime } from "../../store/useProjectStore";
 import type { EffectOverlay, EffectType, FadeParams, ColorGradeParams, SpeedRampParams } from "../../types/project";
 
 const EFFECT_DURATION: Record<EffectType, number> = {
@@ -161,7 +161,7 @@ function EffectBlock({
   onResizeCommit: (newStart: number, newEnd: number) => void;
   onDuplicate: (clone: EffectOverlay) => void;
 }) {
-  const { moveEffectOverlayLive, moveEffectOverlay, selectedItemIds, toggleItemSelection } = useProjectStore();
+  const { moveEffectOverlayLive, moveEffectOverlay, selectedItemIds, toggleItemSelection, moveSelectedItemsLive, moveSelectedItems } = useProjectStore();
   const left = effect.startTime * zoom;
   const width = Math.max((effect.endTime - effect.startTime) * zoom, 8);
   const theme = getTheme(effect.type);
@@ -183,7 +183,15 @@ function EffectBlock({
     let lastStart = origStart;
     let lastEnd = origEnd;
 
-    const isAltDuplicate = e.altKey && mode === "move";
+    // Snapshot multi-select state at drag start
+    const { selectedItemIds: ids, project } = useProjectStore.getState();
+    const isMultiDrag = mode === "move" && ids.has(effect.id) && ids.size > 1;
+    const origPositions = isMultiDrag
+      ? new Map([...ids].map((id) => [id, getItemStartTime(project, id)]))
+      : new Map<string, number>();
+    let lastMoves: Array<{ id: string; newStartTime: number }> = [];
+
+    const isAltDuplicate = !isMultiDrag && e.altKey && mode === "move";
     let cloneId: string | null = null;
     if (isAltDuplicate) {
       const clone: EffectOverlay = { ...effect, id: crypto.randomUUID() };
@@ -193,6 +201,14 @@ function EffectBlock({
 
     function onMouseMove(ev: MouseEvent) {
       const dt = (ev.clientX - startX) / zoom;
+      if (isMultiDrag) {
+        lastMoves = [...ids].map((id) => ({
+          id,
+          newStartTime: Math.max(0, (origPositions.get(id) ?? 0) + dt),
+        }));
+        moveSelectedItemsLive(lastMoves);
+        return;
+      }
       if (mode === "move") {
         lastStart = Math.max(0, origStart + dt);
         lastEnd = lastStart + (origEnd - origStart);
@@ -214,6 +230,10 @@ function EffectBlock({
     function onMouseUp() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
+      if (isMultiDrag && lastMoves.length > 0) {
+        moveSelectedItems(lastMoves);
+        return;
+      }
       if (cloneId) {
         moveEffectOverlay(cloneId, lastStart);
       } else if (mode === "move") {
