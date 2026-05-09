@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import TimelineToolbar from "./TimelineToolbar";
 import TimelineRuler from "./TimelineRuler";
@@ -7,8 +7,27 @@ import TextOverlayTrack from "./TextOverlayTrack";
 import CaptionTimelineTrack from "./CaptionTimelineTrack";
 import EffectOverlayTrack from "./EffectOverlayTrack";
 import { Volume2Icon, VolumeXIcon, EyeIcon, EyeOffIcon } from "../Icons";
+import type { EffectType } from "../../types/project";
 
-const LABEL_WIDTH = 110;
+const EFFECT_LANE_ORDER: EffectType[] = ["zoom", "fade", "blur", "colorgrade", "speedramp"];
+const EFFECT_LANE_COLORS: Record<EffectType, string> = {
+  zoom: "bg-violet-500",
+  fade: "bg-amber-400",
+  blur: "bg-sky-500",
+  colorgrade: "bg-rose-400",
+  speedramp: "bg-orange-500",
+};
+const EFFECT_LANE_LABELS: Record<EffectType, string> = {
+  zoom: "zoom",
+  fade: "fade",
+  blur: "blur",
+  colorgrade: "color",
+  speedramp: "speed",
+};
+
+const LABEL_WIDTH = 140;
+const MIN_LABEL_WIDTH = 60;
+const MAX_LABEL_WIDTH = 260;
 const MAX_HEIGHT = 600;
 const DEFAULT_TRACK_H = 40;
 const MIN_TRACK_H = 28;
@@ -27,11 +46,17 @@ interface Props {
 }
 
 export default function Timeline({ toggle, seek }: Props) {
-  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden } = useProjectStore();
+  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple } = useProjectStore();
   const [height, setHeight] = useState(260);
+  const [labelWidth, setLabelWidth] = useState(LABEL_WIDTH);
+  const [contextMenu, setContextMenu] = useState<{ trackId: string; x: number; y: number } | null>(null);
+  const [renamingTrackId, setRenamingTrackId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
   const [trackHeights, setTrackHeights] = useState<Record<string, number>>({});
+  const [lastClickedTrackIndex, setLastClickedTrackIndex] = useState<number | null>(null);
   const dragState = useRef<{ startY: number; startHeight: number } | null>(null);
   const dragTrackRef = useRef<{ key: string; startY: number; startH: number } | null>(null);
+  const dragLabelRef = useRef<{ startX: number; startW: number } | null>(null);
 
   const trackH = (key: string) => trackHeights[key] ?? DEFAULT_TRACK_H;
 
@@ -73,9 +98,100 @@ export default function Timeline({ toggle, seek }: Props) {
     document.addEventListener("mouseup", onMouseUp);
   }
 
+  useEffect(() => {
+    if (!contextMenu) return;
+    function dismiss() { setContextMenu(null); }
+    document.addEventListener("mousedown", dismiss);
+    return () => document.removeEventListener("mousedown", dismiss);
+  }, [contextMenu]);
+
+  function openContextMenu(trackId: string, e: React.MouseEvent) {
+    e.preventDefault();
+    setContextMenu({ trackId, x: e.clientX, y: e.clientY });
+  }
+
+  function startRename(trackId: string) {
+    const track = project.tracks.find((t) => t.id === trackId);
+    if (!track) return;
+    setContextMenu(null);
+    setRenamingTrackId(trackId);
+    setRenameValue(track.label ?? track.type);
+  }
+
+  function commitRename() {
+    if (renamingTrackId) {
+      const trimmed = renameValue.trim();
+      if (trimmed) setTrackLabel(renamingTrackId, trimmed);
+    }
+    setRenamingTrackId(null);
+  }
+
+  function onLabelResizeDown(e: React.MouseEvent) {
+    e.preventDefault();
+    dragLabelRef.current = { startX: e.clientX, startW: labelWidth };
+    function onMove(ev: MouseEvent) {
+      if (!dragLabelRef.current) return;
+      const newW = Math.min(MAX_LABEL_WIDTH, Math.max(MIN_LABEL_WIDTH, dragLabelRef.current.startW + ev.clientX - dragLabelRef.current.startX));
+      setLabelWidth(newW);
+    }
+    function onUp() {
+      dragLabelRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+
+  const activeLanes = EFFECT_LANE_ORDER.filter((t) =>
+    project.effectOverlays.some((e) => e.type === t)
+  );
+
+  const trackRowKeys = [
+    ...project.tracks.map((t) => t.id),
+    ...(project.textOverlays.length > 0 ? ["text"] : []),
+    ...(project.captions.length > 0 ? ["captions"] : []),
+    ...activeLanes.map((type) => `fx-${type}`),
+  ];
+
+  function getItemsInRow(key: string): string[] {
+    const track = project.tracks.find((t) => t.id === key);
+    if (track) return track.clips.map((c) => c.id);
+    if (key === "text") return project.textOverlays.map((o) => o.id);
+    if (key === "captions") return project.captions.map((c) => c.id);
+    if (key.startsWith("fx-")) {
+      const type = key.slice(3) as EffectType;
+      return project.effectOverlays.filter((e) => e.type === type).map((e) => e.id);
+    }
+    return [];
+  }
+
+  function onTrackLabelClick(e: React.MouseEvent, rowIndex: number) {
+    e.stopPropagation();
+    if (e.shiftKey && lastClickedTrackIndex !== null) {
+      const from = Math.min(lastClickedTrackIndex, rowIndex);
+      const to = Math.max(lastClickedTrackIndex, rowIndex);
+      const ids: string[] = [];
+      for (let i = from; i <= to; i++) ids.push(...getItemsInRow(trackRowKeys[i]));
+      selectMultiple(new Set(ids));
+    } else if (e.metaKey) {
+      const current = new Set(useProjectStore.getState().selectedItemIds);
+      const rowIds = getItemsInRow(trackRowKeys[rowIndex]);
+      const allIn = rowIds.every((id) => current.has(id));
+      if (allIn) rowIds.forEach((id) => current.delete(id));
+      else rowIds.forEach((id) => current.add(id));
+      selectMultiple(current);
+      setLastClickedTrackIndex(rowIndex);
+    } else {
+      selectMultiple(new Set(getItemsInRow(trackRowKeys[rowIndex])));
+      setLastClickedTrackIndex(rowIndex);
+    }
+  }
+
   const minHeight = CHROME_H
     + project.tracks.reduce((sum, t) => sum + trackH(t.id), 0)
-    + trackH("text") + trackH("captions") + trackH("fx");
+    + trackH("text") + trackH("captions")
+    + activeLanes.reduce((sum, t) => sum + trackH(`fx-${t}`), 0);
 
   const totalDuration = Math.max(
     30,
@@ -124,18 +240,31 @@ export default function Timeline({ toggle, seek }: Props) {
       <TimelineToolbar onSplit={handleSplit} toggle={toggle} seek={seek} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Track labels */}
-        <div className="flex-shrink-0 bg-slate-50 border-r border-slate-200" style={{ width: LABEL_WIDTH }}>
+        <div className="flex-shrink-0 bg-slate-50 border-r border-slate-200 relative" style={{ width: labelWidth }}>
           <div className="h-6 border-b border-slate-200" />
           {project.tracks.map((track) => (
             <div
               key={track.id}
-              className="relative flex items-center gap-1.5 px-2 border-b border-slate-100"
+              className="relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer hover:bg-slate-100 select-none"
               style={{ height: trackH(track.id) }}
+              onContextMenu={(e) => openContextMenu(track.id, e)}
+              onClick={(e) => onTrackLabelClick(e, trackRowKeys.indexOf(track.id))}
             >
               <div className={`w-2 h-2 rounded-full flex-shrink-0 ${TRACK_DOT_COLORS[track.type] ?? "bg-slate-400"}`} />
-              <span className="text-[10px] font-bold tracking-wide uppercase text-slate-500 flex-1 truncate">
-                {track.type}
-              </span>
+              {renamingTrackId === track.id ? (
+                <input
+                  autoFocus
+                  className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
+                />
+              ) : (
+                <span className="text-[10px] font-bold text-slate-500 flex-1 truncate">
+                  {track.label ?? track.type}
+                </span>
+              )}
               <button
                 title={track.muted ? "Unmute track" : "Mute track"}
                 onClick={() => setTrackMuted(track.id, !track.muted)}
@@ -161,9 +290,10 @@ export default function Timeline({ toggle, seek }: Props) {
             </div>
           ))}
           {project.textOverlays.length > 0 && (
-            <div className="relative flex items-center gap-1.5 px-2 border-b border-slate-100" style={{ height: trackH("text") }}>
+            <div className="relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer hover:bg-slate-100 select-none" style={{ height: trackH("text") }}
+              onClick={(e) => onTrackLabelClick(e, trackRowKeys.indexOf("text"))}>
               <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
-              <span className="text-[10px] font-bold tracking-wide uppercase text-slate-500 flex-1">text</span>
+              <span className="text-[10px] font-bold text-slate-500 flex-1">text</span>
               <div
                 className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("text", e)}
@@ -171,23 +301,44 @@ export default function Timeline({ toggle, seek }: Props) {
             </div>
           )}
           {project.captions.length > 0 && (
-            <div className="relative flex items-center gap-1.5 px-2 border-b border-slate-100" style={{ height: trackH("captions") }}>
+            <div className="relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer hover:bg-slate-100 select-none" style={{ height: trackH("captions") }}
+              onClick={(e) => onTrackLabelClick(e, trackRowKeys.indexOf("captions"))}>
               <div className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
-              <span className="text-[10px] font-bold tracking-wide uppercase text-slate-500 flex-1">captions</span>
+              <span className="text-[10px] font-bold text-slate-500 flex-1">captions</span>
               <div
                 className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("captions", e)}
               />
             </div>
           )}
-          <div className="relative flex items-center gap-1.5 px-2 border-b border-slate-100" style={{ height: trackH("fx") }}>
-            <div className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
-            <span className="text-[10px] font-bold tracking-wide uppercase text-slate-500 flex-1">fx</span>
-            <div
-              className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
-              onMouseDown={(e) => onTrackResizeDown("fx", e)}
-            />
-          </div>
+          {activeLanes.map((effectType) => {
+            const isHidden = !!project.hiddenEffectLanes?.[effectType];
+            return (
+              <div key={effectType} className="relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer hover:bg-slate-100 select-none" style={{ height: trackH(`fx-${effectType}`) }}
+                onClick={(e) => onTrackLabelClick(e, trackRowKeys.indexOf(`fx-${effectType}`))}>
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${EFFECT_LANE_COLORS[effectType]} ${isHidden ? "opacity-40" : ""}`} />
+                <span className={`text-[10px] font-bold flex-1 ${isHidden ? "text-slate-300" : "text-slate-500"}`}>
+                  {EFFECT_LANE_LABELS[effectType]}
+                </span>
+                <button
+                  title={isHidden ? "Enable effects" : "Disable effects"}
+                  onClick={() => setEffectLaneHidden(effectType, !isHidden)}
+                  className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+                >
+                  {isHidden ? <EyeOffIcon /> : <EyeIcon />}
+                </button>
+                <div
+                  className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
+                  onMouseDown={(e) => onTrackResizeDown(`fx-${effectType}`, e)}
+                />
+              </div>
+            );
+          })}
+          {/* Label column right-border resize handle */}
+          <div
+            className="absolute top-0 right-0 bottom-0 w-1 cursor-ew-resize hover:bg-teal-400 transition-colors z-20"
+            onMouseDown={onLabelResizeDown}
+          />
         </div>
 
         {/* Scrollable timeline */}
@@ -206,7 +357,16 @@ export default function Timeline({ toggle, seek }: Props) {
             {project.captions.length > 0 && (
               <CaptionTimelineTrack zoom={zoom} totalWidth={totalWidth} seek={seek} height={trackH("captions")} />
             )}
-            <EffectOverlayTrack zoom={zoom} totalWidth={totalWidth} height={trackH("fx")} />
+            {activeLanes.map((effectType) => (
+              <EffectOverlayTrack
+                key={effectType}
+                effectType={effectType}
+                hidden={!!project.hiddenEffectLanes?.[effectType]}
+                zoom={zoom}
+                totalWidth={totalWidth}
+                height={trackH(`fx-${effectType}`)}
+              />
+            ))}
             {/* Playhead */}
             <div
               className="absolute top-0 bottom-0 w-px bg-red-500 pointer-events-none z-10"
@@ -215,6 +375,21 @@ export default function Timeline({ toggle, seek }: Props) {
           </div>
         </div>
       </div>
+      {/* Track context menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[140px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full text-left px-3 py-1.5 text-[13px] text-slate-700 hover:bg-slate-100 transition-colors"
+            onClick={() => startRename(contextMenu.trackId)}
+          >
+            Rename
+          </button>
+        </div>
+      )}
     </div>
   );
 }
