@@ -377,7 +377,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       ...p,
       tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => c.id !== clipId) })),
     }));
-    set((s) => s.selectedClipId === clipId ? { selectedClipId: null } : {});
+    set((s) => {
+      const updates: Partial<typeof s> = {};
+      if (s.selectedClipId === clipId) updates.selectedClipId = null;
+      if (s.selectedItemIds.has(clipId)) {
+        const next = new Set(s.selectedItemIds);
+        next.delete(clipId);
+        updates.selectedItemIds = next;
+      }
+      return updates;
+    });
     set((s) => {
       const { [clipId]: _, ...rest } = s.eyeContactStatus;
       return { eyeContactStatus: rest };
@@ -514,7 +523,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       ...p,
       textOverlays: p.textOverlays.filter((o) => o.id !== id),
     }));
-    set((s) => s.selectedOverlayId === id ? { selectedOverlayId: null } : {});
+    set((s) => {
+      const updates: Partial<typeof s> = {};
+      if (s.selectedOverlayId === id) updates.selectedOverlayId = null;
+      if (s.selectedItemIds.has(id)) {
+        const next = new Set(s.selectedItemIds);
+        next.delete(id);
+        updates.selectedItemIds = next;
+      }
+      return updates;
+    });
   },
 
   selectOverlay: (id) =>
@@ -575,10 +593,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     },
   })),
 
-  deleteEffectOverlay: (id) => withHistory(set, get, (p) => ({
-    ...p,
-    effectOverlays: p.effectOverlays.filter((e) => e.id !== id),
-  })),
+  deleteEffectOverlay: (id) => {
+    withHistory(set, get, (p) => ({
+      ...p,
+      effectOverlays: p.effectOverlays.filter((e) => e.id !== id),
+    }));
+    set((s) => {
+      if (!s.selectedItemIds.has(id)) return {};
+      const next = new Set(s.selectedItemIds);
+      next.delete(id);
+      return { selectedItemIds: next };
+    });
+  },
 
   updateEffectOverlayParams: (id, params) => withHistory(set, get, (p) => ({
     ...p,
@@ -603,7 +629,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       ...p,
       clipTransitions: (p.clipTransitions ?? []).filter((t) => t.id !== id),
     }));
-    set((s) => s.selectedTransitionId === id ? { selectedTransitionId: null } : {});
+    set((s) => {
+      const updates: Partial<typeof s> = {};
+      if (s.selectedTransitionId === id) updates.selectedTransitionId = null;
+      if (s.selectedItemIds.has(id)) {
+        const next = new Set(s.selectedItemIds);
+        next.delete(id);
+        updates.selectedItemIds = next;
+      }
+      return updates;
+    });
   },
   updateClipTransition: (id, patch) => withHistory(set, get, (p) => ({
     ...p,
@@ -643,6 +678,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       if (next.has(id)) next.delete(id); else next.add(id);
       return { selectedItemIds: next };
     }),
+  // Low-level: only updates selectedItemIds. Use selectMultiple when single-select fields should also be cleared.
   setSelectedItemIds: (ids) => set({ selectedItemIds: ids }),
   selectMultiple: (ids) =>
     set({
