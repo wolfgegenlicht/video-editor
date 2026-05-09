@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams } from "../types/project";
+import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType } from "../types/project";
 import { saveProject, deleteEyeContactFile } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
@@ -38,6 +38,8 @@ function makeDefaultProject(): Project {
     captions: [],
     textOverlays: [],
     effectOverlays: [],
+    clipTransitions: [],
+    hiddenEffectLanes: {},
   };
 }
 
@@ -64,6 +66,10 @@ interface ProjectStore {
   selectedEffectOverlayId: string | null;
   transcriptSelection: { startTime: number; endTime: number } | null;
   eyeContactStatus: Record<string, "processing" | "done" | "error">;
+  selectedItemIds: Set<string>;
+  toggleItemSelection: (id: string) => void;
+  setSelectedItemIds: (ids: Set<string>) => void;
+  selectMultiple: (ids: Set<string>) => void;
 
   setProjectName: (name: string) => void;
   setAspectRatio: (ratio: AspectRatio) => void;
@@ -75,9 +81,11 @@ interface ProjectStore {
   removeFile: (fileId: string) => void;
 
   addTrack: (type?: TrackType) => void;
+  addTrackWithClip: (type: TrackType, clip: Omit<Clip, "id">) => void;
   detachAudio: (clipId: string) => void;
   setTrackMuted: (trackId: string, muted: boolean) => void;
   setTrackHidden: (trackId: string, hidden: boolean) => void;
+  setTrackLabel: (trackId: string, label: string) => void;
   addClip: (trackId: string, clip: Omit<Clip, "id">) => void;
   moveClip: (clipId: string, toTrackId: string, newStartTime: number) => void;
   trimClip: (clipId: string, newStartTime: number, newDuration: number, newSourceStart: number, newSourceEnd: number) => void;
@@ -92,7 +100,7 @@ interface ProjectStore {
   setClipTransform: (clipId: string, transform: Partial<ClipTransform>) => void;
   setClipTransformLive: (clipId: string, transform: Partial<ClipTransform>) => void;
   setClipEyeContact: (clipId: string, enabled: boolean) => void;
-  setClipEyeContactFileId: (clipId: string, fileId: string) => void;
+  setClipEyeContactFileId: (clipId: string, fileId: string | null) => void;
   setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   addTextOverlay: (overlay: Omit<TextOverlay, "id">) => void;
   updateTextOverlay: (id: string, patch: Partial<Omit<TextOverlay, "id">>) => void;
@@ -105,8 +113,16 @@ interface ProjectStore {
   resizeEffectOverlay: (id: string, newStartTime: number, newEndTime: number) => void;
   resizeEffectOverlayLive: (id: string, newStartTime: number, newEndTime: number) => void;
   deleteEffectOverlay: (id: string) => void;
-  updateEffectOverlayParams: (id: string, params: Partial<ZoomParams>) => void;
+  updateEffectOverlayParams: (id: string, params: Partial<ZoomParams> | Partial<FadeParams> | Partial<BlurParams> | Partial<ColorGradeParams> | Partial<SpeedRampParams>) => void;
   selectEffectOverlay: (id: string | null) => void;
+
+  selectedTransitionId: string | null;
+  addClipTransition: (t: Omit<ClipTransition, "id">) => void;
+  removeClipTransition: (id: string) => void;
+  updateClipTransition: (id: string, patch: Partial<Pick<ClipTransition, "duration">>) => void;
+  selectTransition: (id: string | null) => void;
+
+  setEffectLaneHidden: (type: EffectType, hidden: boolean) => void;
 
   setCaption: (captions: Caption[], sourceFileId?: string) => void;
 
@@ -173,9 +189,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   selectedOverlayId: null,
   selectedCaptionId: null,
   selectedEffectOverlayId: null,
+  selectedTransitionId: null,
   rightPanelTab: null,
   transcriptSelection: null,
   eyeContactStatus: {},
+  selectedItemIds: new Set<string>(),
 
   setProjectName: (name) => withHistory(set, get, (p) => ({ ...p, name })),
   setAspectRatio: (aspectRatio) => withHistory(set, get, (p) => ({ ...p, aspectRatio })),
@@ -209,6 +227,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     ...p,
     tracks: [...p.tracks, { id: uuid(), type, clips: [] }],
   })),
+
+  addTrackWithClip: (type, clip) => withHistory(set, get, (p) => {
+    const trackId = uuid();
+    return {
+      ...p,
+      tracks: [...p.tracks, { id: trackId, type, clips: [{ ...clip, id: uuid() }] }],
+    };
+  }),
 
   detachAudio: (clipId) => withHistory(set, get, (p) => {
     let targetClip: Clip | null = null;
@@ -372,6 +398,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     ...p,
     tracks: p.tracks.map((t) => t.id === trackId ? { ...t, hidden } : t),
   })),
+  setTrackLabel: (trackId, label) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => t.id === trackId ? { ...t, label } : t),
+  })),
 
   setClipSpeed: (clipId, speed) => withHistory(set, get, (p) => ({
     ...p,
@@ -445,7 +475,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     })),
   })),
 
-  setClipEyeContactFileId: (clipId, eyeContactFileId) => {
+  setClipEyeContactFileId: (clipId, fileId) => {
+    const eyeContactFileId = fileId ?? undefined;
     set((s) => ({
       project: {
         ...s.project,
@@ -486,7 +517,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((s) => s.selectedOverlayId === id ? { selectedOverlayId: null } : {});
   },
 
-  selectOverlay: (selectedOverlayId) => set(selectedOverlayId ? { selectedOverlayId, selectedClipId: null, selectedCaptionId: null, selectedEffectOverlayId: null, rightPanelTab: "properties" as const } : { selectedOverlayId }),
+  selectOverlay: (id) =>
+    set(
+      id
+        ? { selectedOverlayId: id, selectedClipId: null, selectedCaptionId: null, selectedEffectOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set([id]), rightPanelTab: "properties" as const }
+        : { selectedOverlayId: null, selectedItemIds: new Set() }
+    ),
 
   addEffectOverlay: (overlay) => withHistory(set, get, (p) => ({
     ...p,
@@ -554,16 +590,70 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   selectEffectOverlay: (id) =>
     set(
       id
-        ? { selectedEffectOverlayId: id, selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, rightPanelTab: "properties" as const }
-        : { selectedEffectOverlayId: null }
+        ? { selectedEffectOverlayId: id, selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set([id]), rightPanelTab: "properties" as const }
+        : { selectedEffectOverlayId: null, selectedItemIds: new Set() }
     ),
+
+  addClipTransition: (t) => withHistory(set, get, (p) => ({
+    ...p,
+    clipTransitions: [...(p.clipTransitions ?? []), { ...t, id: uuid() }],
+  })),
+  removeClipTransition: (id) => {
+    withHistory(set, get, (p) => ({
+      ...p,
+      clipTransitions: (p.clipTransitions ?? []).filter((t) => t.id !== id),
+    }));
+    set((s) => s.selectedTransitionId === id ? { selectedTransitionId: null } : {});
+  },
+  updateClipTransition: (id, patch) => withHistory(set, get, (p) => ({
+    ...p,
+    clipTransitions: (p.clipTransitions ?? []).map((t) => t.id === id ? { ...t, ...patch } : t),
+  })),
+  selectTransition: (id) =>
+    set(
+      id
+        ? { selectedTransitionId: id, selectedEffectOverlayId: null, selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, selectedItemIds: new Set([id]), rightPanelTab: "properties" as const }
+        : { selectedTransitionId: null, selectedItemIds: new Set() }
+    ),
+
+  setEffectLaneHidden: (type, hidden) => withHistory(set, get, (p) => ({
+    ...p,
+    hiddenEffectLanes: { ...(p.hiddenEffectLanes ?? {}), [type]: hidden },
+  })),
 
   setPlayhead: (playheadTime) => set({ playheadTime }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(500, zoom)) }),
-  selectClip: (selectedClipId) => set(selectedClipId ? { selectedClipId, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, rightPanelTab: "properties" as const } : { selectedClipId }),
-  selectCaption: (selectedCaptionId) => set(selectedCaptionId ? { selectedCaptionId, selectedClipId: null, selectedOverlayId: null, selectedEffectOverlayId: null, rightPanelTab: "properties" as const } : { selectedCaptionId }),
-  deselectAll: () => set({ selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null }),
+  selectClip: (id) =>
+    set(
+      id
+        ? { selectedClipId: id, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set([id]), rightPanelTab: "properties" as const }
+        : { selectedClipId: null, selectedItemIds: new Set() }
+    ),
+  selectCaption: (id) =>
+    set(
+      id
+        ? { selectedCaptionId: id, selectedClipId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set([id]), rightPanelTab: "properties" as const }
+        : { selectedCaptionId: null, selectedItemIds: new Set() }
+    ),
+  deselectAll: () => set({ selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set() }),
+  toggleItemSelection: (id) =>
+    set((s) => {
+      const next = new Set(s.selectedItemIds);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return { selectedItemIds: next };
+    }),
+  setSelectedItemIds: (ids) => set({ selectedItemIds: ids }),
+  selectMultiple: (ids) =>
+    set({
+      selectedItemIds: ids,
+      selectedClipId: null,
+      selectedCaptionId: null,
+      selectedOverlayId: null,
+      selectedEffectOverlayId: null,
+      selectedTransitionId: null,
+      rightPanelTab: ids.size > 0 ? ("properties" as const) : null,
+    }),
   setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
   setTranscriptSelection: (transcriptSelection) => set({ transcriptSelection }),
   deleteTimeRange: (dStart, dEnd) => withHistory(set, get, (p) => {
@@ -688,6 +778,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       ...project,
       textOverlays: project.textOverlays ?? [],
       effectOverlays: (project as any).effectOverlays ?? [],
+      clipTransitions: (project as any).clipTransitions ?? [],
+      hiddenEffectLanes: (project as any).hiddenEffectLanes ?? {},
       captionTrackStyle: {
         ...makeDefaultCaptionStyle(),
         ...((project as any).captionX !== undefined ? { x: (project as any).captionX } : {}),
@@ -745,6 +837,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         ...parsed,
         textOverlays: parsed.textOverlays ?? [],
         effectOverlays: (parsed as any).effectOverlays ?? [],
+        clipTransitions: (parsed as any).clipTransitions ?? [],
+        hiddenEffectLanes: (parsed as any).hiddenEffectLanes ?? {},
         captionTrackStyle: {
           ...makeDefaultCaptionStyle(),
           ...((parsed as any).captionX !== undefined ? { x: (parsed as any).captionX } : {}),
