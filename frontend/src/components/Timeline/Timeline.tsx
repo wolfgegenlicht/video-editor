@@ -209,7 +209,8 @@ export default function Timeline({ toggle, seek }: Props) {
     let y2 = y1;
 
     function onMouseMove(ev: MouseEvent) {
-      x2 = ev.clientX - rect.left + scrollLeft;
+      const currentScroll = scrollAreaRef.current?.scrollLeft ?? scrollLeft;
+      x2 = ev.clientX - rect.left + currentScroll;
       y2 = ev.clientY - rect.top;
       if (!moved && (Math.abs(x2 - x1) > 3 || Math.abs(y2 - y1) > 3)) moved = true;
       if (moved) setRubberBand({ x1, y1, x2, y2 });
@@ -251,7 +252,7 @@ export default function Timeline({ toggle, seek }: Props) {
         }
       }
 
-      if (ids.length > 0) selectMultiple(new Set(ids));
+      selectMultiple(new Set(ids));
     }
 
     document.addEventListener("mousemove", onMouseMove);
@@ -478,11 +479,11 @@ export default function Timeline({ toggle, seek }: Props) {
               const left = Math.min(rubberBand.x1, rubberBand.x2);
               const top = Math.min(rubberBand.y1, rubberBand.y2);
               const width = Math.abs(rubberBand.x2 - rubberBand.x1);
-              const height = Math.abs(rubberBand.y2 - rubberBand.y1);
+              const bandHeight = Math.abs(rubberBand.y2 - rubberBand.y1);
               return (
                 <div
                   className="absolute pointer-events-none z-20 border border-blue-400 bg-blue-400/10"
-                  style={{ left, top, width, height }}
+                  style={{ left, top, width, height: bandHeight }}
                 />
               );
             })()}
