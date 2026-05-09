@@ -1,8 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import type { AspectRatio } from "../../types/project";
-import { exportProject } from "../../lib/api";
 import { UndoIcon, RedoIcon, ChevronLeftIcon } from "../Icons";
+import ExportDialog from "./ExportDialog";
 
 const ASPECT_RATIOS: AspectRatio[] = ["16:9", "9:16", "1:1", "4:3"];
 
@@ -10,20 +10,7 @@ export default function Header() {
   const { project, setProjectName, setAspectRatio, undo, redo, history, future, saveAsJson, loadFromJson, closeProject } =
     useProjectStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  async function handleExport() {
-    try {
-      const blob = await exportProject(project);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${project.name}.mp4`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(url), 100);
-    } catch (e) {
-      alert("Export failed: " + String(e));
-    }
-  }
+  const [showExport, setShowExport] = useState(false);
 
   function handleLoadJson(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -93,12 +80,13 @@ export default function Header() {
         </button>
         <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleLoadJson} />
         <button
-          onClick={handleExport}
+          onClick={() => setShowExport(true)}
           className="px-3 py-0.5 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 font-semibold cursor-pointer transition-colors"
         >
           Export
         </button>
       </div>
+      {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
     </header>
   );
 }

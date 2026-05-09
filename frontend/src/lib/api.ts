@@ -68,6 +68,55 @@ export async function exportProject(project: Project): Promise<Blob> {
   return res.blob();
 }
 
+export interface ExportOptions {
+  resolution: 1080 | 720 | 480;
+  burn_captions: boolean;
+  preset: string;
+}
+
+export interface ExportJobResponse {
+  jobId: string;
+  filename: string;
+}
+
+export interface ExportStatusResponse {
+  status: "queued" | "processing" | "done" | "error";
+  progress: number;
+  error?: string;
+}
+
+export async function startExportJob(
+  project: Project,
+  options: ExportOptions,
+  filename: string
+): Promise<ExportJobResponse> {
+  const res = await fetch("/export/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ project, options, filename }),
+  });
+  if (!res.ok) throw new Error(`Export failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getExportStatus(jobId: string): Promise<ExportStatusResponse> {
+  const res = await fetch(`/export/status/${jobId}`);
+  if (!res.ok) throw new Error(`Export status failed: ${res.status}`);
+  return res.json();
+}
+
+export async function downloadExport(jobId: string, filename: string): Promise<void> {
+  const res = await fetch(`/export/download/${jobId}`);
+  if (!res.ok) throw new Error(`Export download failed: ${res.status}`);
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 100);
+}
+
 export async function deleteFile(fileId: string): Promise<void> {
   const res = await fetch(`/files/${fileId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete failed: ${res.status}`);

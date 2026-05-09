@@ -1,26 +1,45 @@
-from pathlib import Path
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
-from services.ffmpeg import export as ffmpeg_export
+from pydantic import BaseModel
+
+import services.export_job as svc
 
 router = APIRouter()
-UPLOADS = Path(__file__).parent.parent / "uploads"
 
-@router.delete("/files/{file_id}")
-async def delete_file(file_id: str):
-    matches = list(UPLOADS.glob(f"{file_id}.*"))
-    if not matches:
-        raise HTTPException(404, "File not found")
-    for f in matches:
-        f.unlink()
-    return {"deleted": file_id}
 
-@router.post("/export")
-async def export_project(project: dict = Body(...)):
-    try:
-        out_path = ffmpeg_export(project, UPLOADS)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-    except RuntimeError as e:
-        raise HTTPException(500, str(e))
-    return FileResponse(str(out_path), filename="export.mp4", media_type="video/mp4")
+class ExportOptions(BaseModel):
+    resolution: int = 1080
+    burn_captions: bool = False
+    preset: str = "fast"
+
+
+class ExportStartRequest(BaseModel):
+    project: dict
+    options: ExportOptions = ExportOptions()
+    filename: str = "export.mp4"
+
+
+@router.post("/export/start")
+async def start_export(req: ExportStartRequest):
+    job_id = svc.start_job(req.project, req.options.model_dump(), req.filename)
+    return {"jobId": job_id, "filename": req.filename}
+
+
+@router.get("/export/status/{job_id}")
+async def export_status(job_id: str):
+    state = svc.get_job(job_id)
+    if not state:
+        raise HTTPException(404, "Job not found")
+    return {"status": state.status, "progress": state.progress, "error": state.error}
+
+
+@router.get("/export/download/{job_id}")
+async def download_export(job_id: str):
+    state = svc.get_job(job_id)
+    if not state or state.status != "done":
+        raise HTTPException(404, "Export not ready")
+    return FileResponse(
+        str(state.output_path),
+        filename=state.filename,
+        media_type="video/mp4",
+    )
