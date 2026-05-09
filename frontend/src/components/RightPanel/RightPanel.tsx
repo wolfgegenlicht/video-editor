@@ -3,6 +3,7 @@ import ClipPropertiesPanel from "../LeftPanel/ClipPropertiesPanel";
 import MediaTab from "../LeftPanel/MediaTab";
 import EffectsTab from "./EffectsTab";
 import EffectPropertiesPanel from "./EffectPropertiesPanel";
+import TransitionPropertiesPanel from "./TransitionPropertiesPanel";
 
 function PropertiesIcon({ active }: { active: boolean }) {
   return (
@@ -49,7 +50,7 @@ const TABS = [
 ] as const;
 
 export default function RightPanel() {
-  const { rightPanelTab, setRightPanelTab, selectedEffectOverlayId } = useProjectStore();
+  const { rightPanelTab, setRightPanelTab, selectedEffectOverlayId, selectedTransitionId, selectedItemIds } = useProjectStore();
 
   return (
     <div className="flex flex-shrink-0">
@@ -66,13 +67,24 @@ export default function RightPanel() {
                 <path d="M9 2L4 7l5 5" />
               </svg>
             </button>
-            <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+            <span className="text-[11px] text-slate-400 font-normal">
               {TABS.find((t) => t.id === rightPanelTab)?.label}
             </span>
           </div>
           <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
             {rightPanelTab === "properties" ? (
-              selectedEffectOverlayId ? <EffectPropertiesPanel /> : <ClipPropertiesPanel />
+              selectedItemIds.size > 1 ? (
+                <div className="flex flex-col items-center justify-center flex-1 gap-2 text-slate-400 p-6">
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" />
+                    <rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+                  </svg>
+                  <span className="text-[13px] font-medium">{selectedItemIds.size} items selected</span>
+                  <span className="text-[11px] text-center">Drag any selected item to move them all</span>
+                </div>
+              ) : selectedEffectOverlayId ? <EffectPropertiesPanel />
+              : selectedTransitionId ? <TransitionPropertiesPanel />
+              : <ClipPropertiesPanel />
             ) : rightPanelTab === "effects" ? (
               <EffectsTab />
             ) : (
@@ -97,7 +109,7 @@ export default function RightPanel() {
               title={label}
             >
               {icon(active)}
-              <span className={`text-[9px] font-bold leading-none tracking-wide uppercase ${active ? "text-teal-700" : "text-slate-400"}`}>
+              <span className={`text-[11px] font-normal leading-none ${active ? "text-teal-700" : "text-slate-400"}`}>
                 {label}
               </span>
             </button>
