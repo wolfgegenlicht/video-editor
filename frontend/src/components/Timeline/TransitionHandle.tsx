@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function TransitionHandle({ transition, zoom }: Props) {
-  const { selectedTransitionId, selectTransition, removeClipTransition, updateClipTransition, selectedItemIds } = useProjectStore();
+  const { selectedTransitionId, selectTransition, removeClipTransition, updateClipTransition, selectedItemIds, toggleItemSelection } = useProjectStore();
   const selected = transition.id === selectedTransitionId;
   const left = (transition.atTime - transition.duration / 2) * zoom;
   const width = Math.max(transition.duration * zoom, 8);
@@ -52,7 +52,11 @@ export default function TransitionHandle({ transition, zoom }: Props) {
         ${selected ? "opacity-100" : "opacity-70 hover:opacity-100"}
         ${selectedItemIds.size > 1 && selectedItemIds.has(transition.id) ? "ring-2 ring-blue-400" : ""}`}
       style={{ left, width }}
-      onMouseDown={(e) => { e.stopPropagation(); selectTransition(transition.id); }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        if (e.metaKey) { toggleItemSelection(transition.id); return; }
+        selectTransition(transition.id);
+      }}
     >
       {/* Diagonal stripe pattern */}
       <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">

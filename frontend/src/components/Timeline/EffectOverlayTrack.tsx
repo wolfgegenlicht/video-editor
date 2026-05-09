@@ -161,7 +161,7 @@ function EffectBlock({
   onResizeCommit: (newStart: number, newEnd: number) => void;
   onDuplicate: (clone: EffectOverlay) => void;
 }) {
-  const { moveEffectOverlayLive, moveEffectOverlay, selectedItemIds } = useProjectStore();
+  const { moveEffectOverlayLive, moveEffectOverlay, selectedItemIds, toggleItemSelection } = useProjectStore();
   const left = effect.startTime * zoom;
   const width = Math.max((effect.endTime - effect.startTime) * zoom, 8);
   const theme = getTheme(effect.type);
@@ -170,6 +170,11 @@ function EffectBlock({
   const fadeDir = isFade ? (effect.params as FadeParams).direction : null;
 
   function startDrag(e: React.MouseEvent, mode: "move" | "left" | "right") {
+    if (mode === "move" && e.metaKey) {
+      e.stopPropagation();
+      toggleItemSelection(effect.id);
+      return;
+    }
     e.stopPropagation();
     onSelect();
     const startX = e.clientX;

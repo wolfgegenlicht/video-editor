@@ -3,7 +3,7 @@ import { useProjectStore } from "../../store/useProjectStore";
 interface Props { zoom: number; totalWidth: number; height: number }
 
 export default function TextOverlayTrack({ zoom, totalWidth, height }: Props) {
-  const { project, selectOverlay, selectedOverlayId, selectedItemIds } = useProjectStore();
+  const { project, selectOverlay, selectedOverlayId, selectedItemIds, toggleItemSelection } = useProjectStore();
   const overlays = project.textOverlays;
 
   return (
@@ -22,7 +22,11 @@ export default function TextOverlayTrack({ zoom, totalWidth, height }: Props) {
               ${selectedOverlayId === o.id ? "border-white ring-2 ring-amber-300 bg-amber-500" : "border-amber-500"}
               ${selectedItemIds.size > 1 && selectedItemIds.has(o.id) ? "ring-2 ring-blue-400" : ""}`}
             style={{ left, width }}
-            onMouseDown={(e) => { e.stopPropagation(); selectOverlay(o.id); }}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              if (e.metaKey) { toggleItemSelection(o.id); return; }
+              selectOverlay(o.id);
+            }}
           >
             <span className="px-2 text-[10px] text-white font-semibold truncate flex-1">
               T {o.text}

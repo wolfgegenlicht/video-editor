@@ -15,7 +15,7 @@ interface Props {
 }
 
 export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeight }: Props) {
-  const { moveClip, trimClip, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, files, playheadTime, selectedClipId, selectedItemIds } = useProjectStore();
+  const { moveClip, trimClip, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, toggleItemSelection, files, playheadTime, selectedClipId, selectedItemIds } = useProjectStore();
   const isAudioTrack = trackType === "audio";
   const isSelected = selectedClipId === clip.id;
   const isMultiSelected = selectedItemIds.size > 1 && selectedItemIds.has(clip.id);
@@ -33,6 +33,11 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
   const width = Math.max(clip.duration * zoom, 4);
 
   function startDrag(e: React.MouseEvent, type: "move" | "trim-left" | "trim-right") {
+    if (type === "move" && e.metaKey) {
+      e.stopPropagation();
+      toggleItemSelection(clip.id);
+      return;
+    }
     e.stopPropagation();
     e.preventDefault();
     selectClip(clip.id);
