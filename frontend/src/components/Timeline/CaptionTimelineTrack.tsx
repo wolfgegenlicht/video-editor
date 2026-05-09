@@ -8,7 +8,7 @@ interface Props {
 }
 
 export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height }: Props) {
-  const { project, selectedCaptionId, selectCaption } = useProjectStore();
+  const { project, selectedCaptionId, selectCaption, selectedItemIds } = useProjectStore();
 
   return (
     <div className="relative border-b border-slate-100" style={{ width: totalWidth, height }}>
@@ -24,7 +24,8 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height }:
               flex items-center overflow-hidden px-1
               ${isSelected
                 ? "bg-violet-600 ring-1 ring-violet-400"
-                : "bg-violet-400 hover:bg-violet-500"}`}
+                : "bg-violet-400 hover:bg-violet-500"}
+              ${selectedItemIds.size > 1 && selectedItemIds.has(cap.id) ? "ring-2 ring-blue-400" : ""}`}
             style={{ left, width }}
             onClick={() => {
               selectCaption(cap.id);

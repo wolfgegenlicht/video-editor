@@ -3,7 +3,7 @@ import { useProjectStore } from "../../store/useProjectStore";
 interface Props { zoom: number; totalWidth: number; height: number }
 
 export default function TextOverlayTrack({ zoom, totalWidth, height }: Props) {
-  const { project, selectOverlay, selectedOverlayId } = useProjectStore();
+  const { project, selectOverlay, selectedOverlayId, selectedItemIds } = useProjectStore();
   const overlays = project.textOverlays;
 
   return (
@@ -19,7 +19,8 @@ export default function TextOverlayTrack({ zoom, totalWidth, height }: Props) {
           <div
             key={o.id}
             className={`absolute top-1 bottom-1 rounded bg-amber-400 border flex items-center overflow-hidden select-none cursor-pointer hover:bg-amber-500 group
-              ${selectedOverlayId === o.id ? "border-white ring-2 ring-amber-300 bg-amber-500" : "border-amber-500"}`}
+              ${selectedOverlayId === o.id ? "border-white ring-2 ring-amber-300 bg-amber-500" : "border-amber-500"}
+              ${selectedItemIds.size > 1 && selectedItemIds.has(o.id) ? "ring-2 ring-blue-400" : ""}`}
             style={{ left, width }}
             onMouseDown={(e) => { e.stopPropagation(); selectOverlay(o.id); }}
           >

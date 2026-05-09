@@ -15,9 +15,10 @@ interface Props {
 }
 
 export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeight }: Props) {
-  const { moveClip, trimClip, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, files, playheadTime, selectedClipId } = useProjectStore();
+  const { moveClip, trimClip, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, files, playheadTime, selectedClipId, selectedItemIds } = useProjectStore();
   const isAudioTrack = trackType === "audio";
   const isSelected = selectedClipId === clip.id;
+  const isMultiSelected = selectedItemIds.size > 1 && selectedItemIds.has(clip.id);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const dragStartX = useRef(0);
   const dragStartTime = useRef(0);
@@ -121,7 +122,8 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
               : isSelected
                 ? "bg-teal-600 border-2 border-white ring-2 ring-teal-500"
                 : "bg-teal-500 border border-teal-600"
-          }`}
+          }
+          ${isMultiSelected ? "ring-2 ring-blue-400" : ""}`}
         style={{ left, width }}
         draggable
         onDragStart={onDragStart}
