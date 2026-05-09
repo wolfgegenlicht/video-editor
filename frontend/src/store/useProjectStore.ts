@@ -694,7 +694,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((s) => {
       const next = new Set(s.selectedItemIds);
       if (next.has(id)) next.delete(id); else next.add(id);
-      return { selectedItemIds: next };
+      return {
+        selectedItemIds: next,
+        selectedClipId: null,
+        selectedCaptionId: null,
+        selectedOverlayId: null,
+        selectedEffectOverlayId: null,
+        selectedTransitionId: null,
+      };
     }),
   // Low-level: only updates selectedItemIds. Use selectMultiple when single-select fields should also be cleared.
   setSelectedItemIds: (ids) => set({ selectedItemIds: ids }),

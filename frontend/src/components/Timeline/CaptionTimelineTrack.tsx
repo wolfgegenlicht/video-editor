@@ -28,7 +28,8 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height }:
               ${selectedItemIds.size > 1 && selectedItemIds.has(cap.id) ? "ring-2 ring-blue-400" : ""}`}
             style={{ left, width }}
             onMouseDown={(e) => {
-              if (e.metaKey) { e.stopPropagation(); toggleItemSelection(cap.id); }
+              e.stopPropagation();
+              if (e.metaKey) { toggleItemSelection(cap.id); }
             }}
             onClick={(e) => {
               if (e.metaKey) return;
