@@ -694,13 +694,45 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     set((s) => {
       const next = new Set(s.selectedItemIds);
       if (next.has(id)) next.delete(id); else next.add(id);
+
+      if (next.size === 0) {
+        return {
+          selectedItemIds: next,
+          selectedClipId: null, selectedCaptionId: null,
+          selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null,
+        };
+      }
+
+      if (next.size === 1) {
+        const [remainingId] = [...next];
+        const p = s.project;
+        for (const track of p.tracks) {
+          if (track.clips.some((c) => c.id === remainingId)) {
+            return { selectedItemIds: next, selectedClipId: remainingId, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, rightPanelTab: "properties" as const };
+          }
+        }
+        if (p.effectOverlays.some((e) => e.id === remainingId)) {
+          return { selectedItemIds: next, selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: remainingId, selectedTransitionId: null, rightPanelTab: "properties" as const };
+        }
+        if (p.textOverlays.some((o) => o.id === remainingId)) {
+          return { selectedItemIds: next, selectedClipId: null, selectedCaptionId: null, selectedOverlayId: remainingId, selectedEffectOverlayId: null, selectedTransitionId: null, rightPanelTab: "properties" as const };
+        }
+        if (p.captions.some((c) => c.id === remainingId)) {
+          return { selectedItemIds: next, selectedClipId: null, selectedCaptionId: remainingId, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, rightPanelTab: "properties" as const };
+        }
+        const transitions = p.clipTransitions ?? [];
+        if (transitions.some((t) => t.id === remainingId)) {
+          return { selectedItemIds: next, selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: remainingId, rightPanelTab: "properties" as const };
+        }
+        // Unknown ID (stale) — just update the set
+        return { selectedItemIds: next };
+      }
+
+      // size > 1: clear all single-select fields
       return {
         selectedItemIds: next,
-        selectedClipId: null,
-        selectedCaptionId: null,
-        selectedOverlayId: null,
-        selectedEffectOverlayId: null,
-        selectedTransitionId: null,
+        selectedClipId: null, selectedCaptionId: null,
+        selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null,
       };
     }),
   // Low-level: only updates selectedItemIds. Use selectMultiple when single-select fields should also be cleared.
@@ -937,7 +969,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (!history.length) return;
     const prev = history[history.length - 1];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prev));
-    set({ project: prev, history: history.slice(0, -1), future: [project, ...future] });
+    set({
+      project: prev, history: history.slice(0, -1), future: [project, ...future],
+      selectedItemIds: new Set<string>(),
+      selectedClipId: null, selectedCaptionId: null,
+      selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null,
+    });
     if (activeProjectId) _scheduleSave(activeProjectId, prev);
   },
 
@@ -946,7 +983,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (!future.length) return;
     const next = future[0];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    set({ project: next, history: [...history, project], future: future.slice(1) });
+    set({
+      project: next, history: [...history, project], future: future.slice(1),
+      selectedItemIds: new Set<string>(),
+      selectedClipId: null, selectedCaptionId: null,
+      selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null,
+    });
     if (activeProjectId) _scheduleSave(activeProjectId, next);
   },
 

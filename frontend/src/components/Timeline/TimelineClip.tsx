@@ -92,6 +92,9 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
       if (isMultiDrag && lastMoves.length > 0) {
+        // Reset to original positions first so withHistory snapshots the pre-drag state
+        const originalMoves = [...origPositions.entries()].map(([id, newStartTime]) => ({ id, newStartTime }));
+        moveSelectedItemsLive(originalMoves);
         moveSelectedItems(lastMoves);
       }
     }

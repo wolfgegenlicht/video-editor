@@ -158,7 +158,13 @@ export default function Timeline({ toggle, seek }: Props) {
 
   function getItemsInRow(key: string): string[] {
     const track = project.tracks.find((t) => t.id === key);
-    if (track) return track.clips.map((c) => c.id);
+    if (track) {
+      const clipIds = track.clips.map((c) => c.id);
+      const transitionIds = (project.clipTransitions ?? [])
+        .filter((t) => t.trackId === track.id)
+        .map((t) => t.id);
+      return [...clipIds, ...transitionIds];
+    }
     if (key === "text") return project.textOverlays.map((o) => o.id);
     if (key === "captions") return project.captions.map((c) => c.id);
     if (key.startsWith("fx-")) {
@@ -235,6 +241,11 @@ export default function Timeline({ toggle, seek }: Props) {
         if (track) {
           for (const clip of track.clips) {
             if (clip.startTime < selTimeEnd && clip.startTime + clip.duration > selTimeStart) ids.push(clip.id);
+          }
+          for (const trans of (project.clipTransitions ?? []).filter((t) => t.trackId === track.id)) {
+            const tStart = trans.atTime - trans.duration / 2;
+            const tEnd = trans.atTime + trans.duration / 2;
+            if (tStart < selTimeEnd && tEnd > selTimeStart) ids.push(trans.id);
           }
         } else if (row.key === "text") {
           for (const o of project.textOverlays) {

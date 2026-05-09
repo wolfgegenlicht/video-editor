@@ -234,6 +234,9 @@ function EffectBlock({
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
       if (isMultiDrag && lastMoves.length > 0) {
+        // Reset to original positions first so withHistory snapshots the pre-drag state
+        const originalMoves = [...origPositions.entries()].map(([id, newStartTime]) => ({ id, newStartTime }));
+        moveSelectedItemsLive(originalMoves);
         moveSelectedItems(lastMoves);
         return;
       }
