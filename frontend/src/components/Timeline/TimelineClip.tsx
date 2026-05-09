@@ -40,21 +40,23 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
     }
     e.stopPropagation();
     e.preventDefault();
-    selectClip(clip.id);
 
-    dragStartX.current = e.clientX;
-    dragStartTime.current = clip.startTime;
-    dragStartDuration.current = clip.duration;
-    dragStartSourceStart.current = clip.sourceStart;
-    dragStartSourceEnd.current = clip.sourceEnd;
-
-    // Snapshot multi-select state at drag start
+    // Snapshot BEFORE selectClip (which resets selectedItemIds to a single-element set)
     const { selectedItemIds: ids, project } = useProjectStore.getState();
     const isMultiDrag = type === "move" && ids.has(clip.id) && ids.size > 1;
     const origPositions = isMultiDrag
       ? new Map([...ids].map((id) => [id, getItemStartTime(project, id)]))
       : new Map<string, number>();
     let lastMoves: Array<{ id: string; newStartTime: number }> = [];
+
+    // Only select the single clip when NOT doing a multi-drag
+    if (!isMultiDrag) selectClip(clip.id);
+
+    dragStartX.current = e.clientX;
+    dragStartTime.current = clip.startTime;
+    dragStartDuration.current = clip.duration;
+    dragStartSourceStart.current = clip.sourceStart;
+    dragStartSourceEnd.current = clip.sourceEnd;
 
     function onMove(ev: MouseEvent) {
       const dx = ev.clientX - dragStartX.current;

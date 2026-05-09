@@ -176,20 +176,23 @@ function EffectBlock({
       return;
     }
     e.stopPropagation();
-    onSelect();
-    const startX = e.clientX;
-    const origStart = effect.startTime;
-    const origEnd = effect.endTime;
-    let lastStart = origStart;
-    let lastEnd = origEnd;
 
-    // Snapshot multi-select state at drag start
+    // Snapshot BEFORE onSelect() (which resets selectedItemIds via selectEffectOverlay)
     const { selectedItemIds: ids, project } = useProjectStore.getState();
     const isMultiDrag = mode === "move" && ids.has(effect.id) && ids.size > 1;
     const origPositions = isMultiDrag
       ? new Map([...ids].map((id) => [id, getItemStartTime(project, id)]))
       : new Map<string, number>();
     let lastMoves: Array<{ id: string; newStartTime: number }> = [];
+
+    // Only select the single effect when NOT doing a multi-drag
+    if (!isMultiDrag) onSelect();
+
+    const startX = e.clientX;
+    const origStart = effect.startTime;
+    const origEnd = effect.endTime;
+    let lastStart = origStart;
+    let lastEnd = origEnd;
 
     const isAltDuplicate = !isMultiDrag && e.altKey && mode === "move";
     let cloneId: string | null = null;
