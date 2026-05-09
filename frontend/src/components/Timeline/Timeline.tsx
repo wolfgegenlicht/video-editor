@@ -57,6 +57,8 @@ export default function Timeline({ toggle, seek }: Props) {
   const dragState = useRef<{ startY: number; startHeight: number } | null>(null);
   const dragTrackRef = useRef<{ key: string; startY: number; startH: number } | null>(null);
   const dragLabelRef = useRef<{ startX: number; startW: number } | null>(null);
+  const [rubberBand, setRubberBand] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
 
   const trackH = (key: string) => trackHeights[key] ?? DEFAULT_TRACK_H;
 
@@ -164,6 +166,96 @@ export default function Timeline({ toggle, seek }: Props) {
       return project.effectOverlays.filter((e) => e.type === type).map((e) => e.id);
     }
     return [];
+  }
+
+  const RULER_H = 24;
+  function getTrackRowYRanges(): Array<{ key: string; top: number; bottom: number }> {
+    let y = RULER_H;
+    const ranges: Array<{ key: string; top: number; bottom: number }> = [];
+    for (const track of project.tracks) {
+      const h = trackH(track.id);
+      ranges.push({ key: track.id, top: y, bottom: y + h });
+      y += h;
+    }
+    if (project.textOverlays.length > 0) {
+      const h = trackH("text");
+      ranges.push({ key: "text", top: y, bottom: y + h });
+      y += h;
+    }
+    if (project.captions.length > 0) {
+      const h = trackH("captions");
+      ranges.push({ key: "captions", top: y, bottom: y + h });
+      y += h;
+    }
+    for (const type of activeLanes) {
+      const h = trackH(`fx-${type}`);
+      ranges.push({ key: `fx-${type}`, top: y, bottom: y + h });
+      y += h;
+    }
+    return ranges;
+  }
+
+  function onContentMouseDown(e: React.MouseEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
+    const scrollEl = scrollAreaRef.current;
+    if (!scrollEl) return;
+    const rect = scrollEl.getBoundingClientRect();
+    const scrollLeft = scrollEl.scrollLeft;
+    const x1 = e.clientX - rect.left + scrollLeft;
+    const y1 = e.clientY - rect.top;
+
+    let moved = false;
+    let x2 = x1;
+    let y2 = y1;
+
+    function onMouseMove(ev: MouseEvent) {
+      x2 = ev.clientX - rect.left + scrollLeft;
+      y2 = ev.clientY - rect.top;
+      if (!moved && (Math.abs(x2 - x1) > 3 || Math.abs(y2 - y1) > 3)) moved = true;
+      if (moved) setRubberBand({ x1, y1, x2, y2 });
+    }
+
+    function onMouseUp() {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+      setRubberBand(null);
+      if (!moved) return;
+
+      const selTimeStart = Math.min(x1, x2) / zoom;
+      const selTimeEnd = Math.max(x1, x2) / zoom;
+      const selYTop = Math.min(y1, y2);
+      const selYBot = Math.max(y1, y2);
+      const rowRanges = getTrackRowYRanges();
+      const ids: string[] = [];
+
+      for (const row of rowRanges) {
+        if (row.bottom <= selYTop || row.top >= selYBot) continue;
+        const track = project.tracks.find((t) => t.id === row.key);
+        if (track) {
+          for (const clip of track.clips) {
+            if (clip.startTime < selTimeEnd && clip.startTime + clip.duration > selTimeStart) ids.push(clip.id);
+          }
+        } else if (row.key === "text") {
+          for (const o of project.textOverlays) {
+            if (o.startTime < selTimeEnd && o.endTime > selTimeStart) ids.push(o.id);
+          }
+        } else if (row.key === "captions") {
+          for (const c of project.captions) {
+            if (c.startTime < selTimeEnd && c.endTime > selTimeStart) ids.push(c.id);
+          }
+        } else if (row.key.startsWith("fx-")) {
+          const type = row.key.slice(3) as EffectType;
+          for (const eff of project.effectOverlays) {
+            if (eff.type === type && eff.startTime < selTimeEnd && eff.endTime > selTimeStart) ids.push(eff.id);
+          }
+        }
+      }
+
+      if (ids.length > 0) selectMultiple(new Set(ids));
+    }
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
   }
 
   function onTrackLabelClick(e: React.MouseEvent, rowKey: string) {
@@ -352,10 +444,11 @@ export default function Timeline({ toggle, seek }: Props) {
 
         {/* Scrollable timeline */}
         <div
+          ref={scrollAreaRef}
           className="flex-1 overflow-x-auto overflow-y-hidden relative"
           onWheel={handleWheelZoom}
         >
-          <div style={{ width: totalWidth, position: "relative" }}>
+          <div style={{ width: totalWidth, position: "relative" }} onMouseDown={onContentMouseDown}>
             <TimelineRuler totalWidth={totalWidth} zoom={zoom} seek={seek} />
             {project.tracks.map((track) => (
               <TimelineTrack key={track.id} track={track} zoom={zoom} height={trackH(track.id)} />
@@ -381,6 +474,18 @@ export default function Timeline({ toggle, seek }: Props) {
               className="absolute top-0 bottom-0 w-px bg-red-500 pointer-events-none z-10"
               style={{ left: playheadX }}
             />
+            {rubberBand && (() => {
+              const left = Math.min(rubberBand.x1, rubberBand.x2);
+              const top = Math.min(rubberBand.y1, rubberBand.y2);
+              const width = Math.abs(rubberBand.x2 - rubberBand.x1);
+              const height = Math.abs(rubberBand.y2 - rubberBand.y1);
+              return (
+                <div
+                  className="absolute pointer-events-none z-20 border border-blue-400 bg-blue-400/10"
+                  style={{ left, top, width, height }}
+                />
+              );
+            })()}
           </div>
         </div>
       </div>
