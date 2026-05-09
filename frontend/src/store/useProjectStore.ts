@@ -70,6 +70,8 @@ interface ProjectStore {
   toggleItemSelection: (id: string) => void;
   setSelectedItemIds: (ids: Set<string>) => void;
   selectMultiple: (ids: Set<string>) => void;
+  moveSelectedItemsLive: (moves: Array<{ id: string; newStartTime: number }>) => void;
+  moveSelectedItems: (moves: Array<{ id: string; newStartTime: number }>) => void;
 
   setProjectName: (name: string) => void;
   setAspectRatio: (ratio: AspectRatio) => void;
@@ -152,6 +154,22 @@ function findClip(project: Project, clipId: string): { track: Track; clip: Clip 
     if (clip) return { track, clip };
   }
   return null;
+}
+
+export function getItemStartTime(project: Project, id: string): number {
+  for (const track of project.tracks) {
+    const clip = track.clips.find((c) => c.id === id);
+    if (clip) return clip.startTime;
+  }
+  const effect = project.effectOverlays.find((e) => e.id === id);
+  if (effect) return effect.startTime;
+  const overlay = project.textOverlays.find((o) => o.id === id);
+  if (overlay) return overlay.startTime;
+  const caption = project.captions.find((c) => c.id === id);
+  if (caption) return caption.startTime;
+  const transition = (project.clipTransitions ?? []).find((t) => t.id === id);
+  if (transition) return transition.atTime;
+  return 0;
 }
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -689,6 +707,77 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       selectedEffectOverlayId: null,
       selectedTransitionId: null,
       rightPanelTab: ids.size > 0 ? ("properties" as const) : null,
+    }),
+  moveSelectedItemsLive: (moves) =>
+    set((s) => {
+      const map = new Map(moves.map((m) => [m.id, m.newStartTime]));
+      const p = s.project;
+      return {
+        project: {
+          ...p,
+          tracks: p.tracks.map((track) => ({
+            ...track,
+            clips: track.clips.map((clip) =>
+              map.has(clip.id) ? { ...clip, startTime: map.get(clip.id)! } : clip
+            ),
+          })),
+          effectOverlays: p.effectOverlays.map((e) => {
+            if (!map.has(e.id)) return e;
+            const dur = e.endTime - e.startTime;
+            const ns = map.get(e.id)!;
+            return { ...e, startTime: ns, endTime: ns + dur };
+          }),
+          textOverlays: p.textOverlays.map((o) => {
+            if (!map.has(o.id)) return o;
+            const dur = o.endTime - o.startTime;
+            const ns = map.get(o.id)!;
+            return { ...o, startTime: ns, endTime: ns + dur };
+          }),
+          captions: p.captions.map((c) => {
+            if (!map.has(c.id)) return c;
+            const dur = c.endTime - c.startTime;
+            const ns = map.get(c.id)!;
+            return { ...c, startTime: ns, endTime: ns + dur };
+          }),
+          clipTransitions: (p.clipTransitions ?? []).map((t) =>
+            map.has(t.id) ? { ...t, atTime: map.get(t.id)! } : t
+          ),
+        },
+      };
+    }),
+  moveSelectedItems: (moves) =>
+    withHistory(set, get, (p) => {
+      const map = new Map(moves.map((m) => [m.id, m.newStartTime]));
+      return {
+        ...p,
+        tracks: p.tracks.map((track) => ({
+          ...track,
+          clips: track.clips.map((clip) =>
+            map.has(clip.id) ? { ...clip, startTime: map.get(clip.id)! } : clip
+          ),
+        })),
+        effectOverlays: p.effectOverlays.map((e) => {
+          if (!map.has(e.id)) return e;
+          const dur = e.endTime - e.startTime;
+          const ns = map.get(e.id)!;
+          return { ...e, startTime: ns, endTime: ns + dur };
+        }),
+        textOverlays: p.textOverlays.map((o) => {
+          if (!map.has(o.id)) return o;
+          const dur = o.endTime - o.startTime;
+          const ns = map.get(o.id)!;
+          return { ...o, startTime: ns, endTime: ns + dur };
+        }),
+        captions: p.captions.map((c) => {
+          if (!map.has(c.id)) return c;
+          const dur = c.endTime - c.startTime;
+          const ns = map.get(c.id)!;
+          return { ...c, startTime: ns, endTime: ns + dur };
+        }),
+        clipTransitions: (p.clipTransitions ?? []).map((t) =>
+          map.has(t.id) ? { ...t, atTime: map.get(t.id)! } : t
+        ),
+      };
     }),
   setRightPanelTab: (rightPanelTab) => set({ rightPanelTab }),
   setTranscriptSelection: (transcriptSelection) => set({ transcriptSelection }),
