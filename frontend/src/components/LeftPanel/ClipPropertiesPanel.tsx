@@ -10,7 +10,7 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="px-3 pt-3 pb-4 space-y-3">
-      <p className="text-[10px] font-bold tracking-widest uppercase text-slate-400">{title}</p>
+      <p className="text-[10px] font-bold text-slate-400">{title}</p>
       {children}
     </div>
   );
@@ -117,21 +117,7 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
     }
   }
 
-  async function handleToggle() {
-    if (isProcessing) return;
-    setErrorMsg(null);
-    const enabling = !clip.eyeContact;
-    setClipEyeContact(clip.id, enabling);
-    if (!enabling) {
-      setEyeContactStatus(clip.id, undefined);
-      setProgress(0);
-      setEta(null);
-      return;
-    }
-    if (clip.eyeContactFileId) {
-      setEyeContactStatus(clip.id, "done");
-      return;
-    }
+  async function startJob() {
     setEyeContactStatus(clip.id, "processing");
     setProgress(0);
     setEta(null);
@@ -146,6 +132,32 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
     console.log("[eye-contact] job started", jobId);
     _pendingJobs.set(clip.id, jobId);
     pollJob(clip.id, jobId);
+  }
+
+  async function handleToggle() {
+    if (isProcessing) return;
+    setErrorMsg(null);
+    const enabling = !clip.eyeContact;
+    setClipEyeContact(clip.id, enabling);
+    if (!enabling) {
+      setEyeContactStatus(clip.id, undefined);
+      setProgress(0);
+      setEta(null);
+      return;
+    }
+    if (clip.eyeContactFileId) {
+      setEyeContactStatus(clip.id, "done");
+      setProgress(1);
+      return;
+    }
+    await startJob();
+  }
+
+  async function handleReprocess() {
+    if (isProcessing) return;
+    setErrorMsg(null);
+    setClipEyeContactFileId(clip.id, null);
+    await startJob();
   }
 
   const pct = Math.round(progress * 100);
@@ -189,7 +201,22 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
       ) : errorMsg ? (
         <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
       ) : (
-        <p className="text-[11px] text-slate-400">AI gaze correction</p>
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-slate-400">AI gaze correction</p>
+          {isOn && clip.eyeContactFileId && (
+            <button
+              onClick={handleReprocess}
+              title="Re-process"
+              className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-0.5"
+            >
+              <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
+                <path d="M11 5h2.5V2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Re-process
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -465,7 +492,7 @@ export default function ClipPropertiesPanel() {
 
       {/* Effects */}
       <div className="px-3 py-3 space-y-2">
-        <p className="text-[10px] font-bold tracking-widest uppercase text-slate-400">Effects</p>
+        <p className="text-[10px] font-bold text-slate-400">Effects</p>
         <EyeContactToggle clip={clip} />
       </div>
     </div>

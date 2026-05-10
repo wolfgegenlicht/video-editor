@@ -58,6 +58,7 @@ export interface Clip {
 export interface Track {
   id: string;
   type: TrackType;
+  label?: string;
   clips: Clip[];
   muted?: boolean;
   hidden?: boolean;
@@ -90,7 +91,7 @@ export interface TextOverlay {
   background: string;
 }
 
-export type EffectType = "zoom";
+export type EffectType = "zoom" | "fade" | "blur" | "colorgrade" | "speedramp";
 
 export interface ZoomParams {
   scale: number;   // 1.0–3.0
@@ -98,12 +99,39 @@ export interface ZoomParams {
   rampOut: number; // seconds to ramp from scale back to 1×
 }
 
+export interface FadeParams {
+  direction: "in" | "out";
+}
+
+export interface BlurParams {
+  intensity: number; // 0–20 (gaussian blur radius in px)
+}
+
+export interface ColorGradeParams {
+  preset: "warm" | "cool" | "bw" | "vintage";
+  intensity: number; // 0–1 blend strength
+}
+
+export interface SpeedRampParams {
+  startSpeed: number; // 0.25–4.0
+  endSpeed: number;   // 0.25–4.0
+  easing: "linear" | "ease";
+}
+
 export interface EffectOverlay {
   id: string;
   type: EffectType;
   startTime: number;
   endTime: number;
-  params: ZoomParams;
+  params: ZoomParams | FadeParams | BlurParams | ColorGradeParams | SpeedRampParams;
+}
+
+export interface ClipTransition {
+  id: string;
+  trackId: string;
+  atTime: number;   // cut point (clip A end / clip B start)
+  type: "dissolve";
+  duration: number; // total duration (half on each side of atTime)
 }
 
 export interface Project {
@@ -115,5 +143,7 @@ export interface Project {
   captions: Caption[];
   textOverlays: TextOverlay[];
   effectOverlays: EffectOverlay[];
+  clipTransitions: ClipTransition[];
+  hiddenEffectLanes?: Partial<Record<EffectType, boolean>>;
   captionSourceFileId?: string;
 }

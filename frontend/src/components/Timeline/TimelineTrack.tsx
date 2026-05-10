@@ -1,11 +1,14 @@
 import type { Track } from "../../types/project";
 import { useProjectStore } from "../../store/useProjectStore";
 import TimelineClip from "./TimelineClip";
+import TransitionHandle from "./TransitionHandle";
 
 interface Props { track: Track; zoom: number; height: number }
 
 export default function TimelineTrack({ track, zoom, height }: Props) {
   const { moveClip, addClip, selectClip, files } = useProjectStore();
+  const allTransitions = useProjectStore((s) => s.project.clipTransitions);
+  const clipTransitions = (allTransitions ?? []).filter((t) => t.trackId === track.id);
 
   function onDragOver(e: React.DragEvent) {
     e.preventDefault();
@@ -46,6 +49,9 @@ export default function TimelineTrack({ track, zoom, height }: Props) {
     >
       {track.clips.map((clip) => (
         <TimelineClip key={clip.id} clip={clip} trackId={track.id} trackType={track.type} zoom={zoom} trackHeight={height} />
+      ))}
+      {clipTransitions.map((t) => (
+        <TransitionHandle key={t.id} transition={t} zoom={zoom} />
       ))}
     </div>
   );

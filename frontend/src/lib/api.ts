@@ -22,6 +22,7 @@ export interface ProjectSummary {
 export interface ProjectData {
   project: Project;
   files: UploadedFile[];
+  missingFileIds?: string[];
 }
 
 export interface EyeContactStatusResponse {
@@ -143,7 +144,7 @@ export async function loadProject(id: string): Promise<ProjectData> {
   const res = await fetch(`/projects/${id}`);
   if (!res.ok) throw new Error(`Load project failed: ${res.status}`);
   const data = await res.json();
-  return { project: data.project, files: data.files.map(mapFile) };
+  return { project: data.project, files: data.files.map(mapFile), missingFileIds: data.missingFileIds ?? [] };
 }
 
 export async function saveProject(id: string, project: Project): Promise<void> {

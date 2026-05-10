@@ -1,0 +1,14 @@
+{"type":"server-started","port":60946,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:60946","screen_dir":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/content","state_dir":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/state"}
+{"type":"screen-added","file":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/content/interaction-model.html"}
+{"type":"screen-added","file":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/content/scope.html"}
+{"type":"screen-added","file":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/content/transform-caps.html"}
+{"type":"screen-added","file":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/content/overflow.html"}
+{"type":"screen-added","file":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/content/final-design.html"}
+{"type":"screen-added","file":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/content/final-design-v2.html"}
+{"source":"user-event","type":"click","text":"✓\n    Looks good, write the specScale min=100%, move free, rotate free","choice":"approve","id":null,"timestamp":1778222354163}
+{"source":"user-event","type":"click","text":"✓\n    Looks good, write the specScale min=100%, move free, rotate free","choice":"approve","id":null,"timestamp":1778222358211}
+{"source":"user-event","type":"click","text":"↩\n    Adjust somethingTell me in the terminal","choice":"change","id":null,"timestamp":1778222373123}
+{"type":"screen-added","file":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/content/handles-overflow.html"}
+{"source":"user-event","type":"click","text":"✓\n    Yes, that's what I meantHandles always visible outside the canvas","choice":"approve","id":null,"timestamp":1778222522331}
+{"type":"screen-added","file":"/Users/wolfgangstefani/Documents/GitHub/video-editor/.superpowers/brainstorm/88588-1778221972/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

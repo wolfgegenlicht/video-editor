@@ -155,8 +155,8 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
 
     n = len(clips)
     filter_complex = ";".join(filter_parts)
-    concat_str = "".join(concat_v) + "".join(concat_a)
-    filter_complex += f";{concat_str}concat=n={n}:v=1:a=1[vout][aout]"
+    concat_str = "".join(f"[v{i}][a{i}]" for i in range(n))
+    filter_complex += f";{concat_str}concat=n={n}:v=1:a=1[vout_c][aout];[vout_c]null[vout]"
 
     # Captions
     captions = project.get("captions", [])
@@ -165,7 +165,6 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         fs = int(style.get("fontSize", 36) * H / 1080)
         color_hex = style.get("color", "#ffffff").lstrip("#")
         color = color_hex if re.match(r'^[0-9a-fA-F]{6}$', color_hex) else "ffffff"
-        bold = 1 if style.get("fontWeight") == "bold" else 0
         outline_w = int(style.get("outlineWidth", 0))
         outline_hex = style.get("outlineColor", "#000000").lstrip("#")
         outline_color = outline_hex if re.match(r'^[0-9a-fA-F]{6}$', outline_hex) else "000000"
@@ -187,7 +186,7 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             t_start, t_end = cap["startTime"], cap["endTime"]
             enable = f"between(t,{t_start},{t_end})"
             drawtext_filters.append(
-                f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:bold={bold}"
+                f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}"
                 f"{border_part}{box_part}{shadow_part}"
                 f":x=w*{cap_x_pct:.4f}:y=h*{cap_y_pct:.4f}:enable='{enable}'"
             )

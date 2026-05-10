@@ -69,6 +69,17 @@ def create_project(body: CreateProjectBody):
     return {"project": project, "files": []}
 
 
+def _collect_file_ids(project: dict) -> set[str]:
+    ids: set[str] = set()
+    for track in project.get("tracks", []):
+        for clip in track.get("clips", []):
+            if fid := clip.get("fileId"):
+                ids.add(fid)
+            if fid := clip.get("eyeContactFileId"):
+                ids.add(fid)
+    return ids
+
+
 @router.get("/projects/{project_id}")
 def get_project(project_id: str):
     with get_db() as conn:
@@ -80,9 +91,12 @@ def get_project(project_id: str):
         file_rows = conn.execute(
             "SELECT * FROM files WHERE project_id = ?", (project_id,)
         ).fetchall()
+    project = json.loads(row["project_json"])
+    missing = [fid for fid in _collect_file_ids(project) if not list(UPLOADS.glob(f"{fid}.*"))]
     return {
-        "project": json.loads(row["project_json"]),
+        "project": project,
         "files": [_row_to_file(f) for f in file_rows],
+        "missingFileIds": missing,
     }
 
 

@@ -3,3 +3,4 @@ __pycache__/
 *.pyo
 .env
 .DS_Store
+backend/services/gaze_correction/face_landmarker.task

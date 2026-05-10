@@ -1,9 +1,9 @@
+import concurrent.futures
 import os
 import sys
 import threading
 from pathlib import Path
 
-# Must be set before TF is imported so tf.compat.v1.layers resolves to tf_keras (legacy Keras).
 os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
 
 import cv2
@@ -16,12 +16,18 @@ tf.compat.v1.disable_eager_execution()
 _BASE = Path(__file__).parent
 sys.path.insert(0, str(_BASE))
 
-import flx as _flx_model  # noqa: E402 (needs sys.path set first)
+import flx as _flx_model  # noqa: E402
 
 _LANDMARK_PATH = str(_BASE / "lm_feat" / "shape_predictor_68_face_landmarks.dat")
 _MODEL_DIR = str(_BASE / "weights" / "warping_model" / "flx" / "12") + "/"
-_SIZE_I = (48, 64)   # model input: height, width
-_PIXEL_CUT = (3, 4)  # border pixels to trim when pasting corrected eye back
+_SIZE_I = (48, 64)
+_PIXEL_CUT = (10, 12)
+
+_IRIS_SCALE = 150.0
+_CORRECTION_STRENGTH = 0.8
+_MAX_ANGLE_DEG = 12.0
+_DETECT_SCALE = 0.5   # run face detection at this fraction of full resolution
+_INFER_EVERY_N = 3    # run TF model every N frames, reuse cached patches otherwise
 
 
 def _load_eye_model(side: str, conf):
@@ -50,10 +56,10 @@ def _load_eye_model(side: str, conf):
             raise RuntimeError(f"No checkpoint found at {_MODEL_DIR}{side}/")
     return sess, {
         "input_img": input_img,
-        "input_fp": input_fp,
+        "input_fp":  input_fp,
         "input_ang": input_ang,
         "phase_train": phase_train,
-        "img_pred": img_pred,
+        "img_pred":  img_pred,
     }
 
 
@@ -100,58 +106,143 @@ def _get_eye_inputs(frame, shape, pos):
     return img_eye / 255.0, ach_map, ori_size, lt
 
 
+def _iris_offset(eye_patch_norm: np.ndarray) -> tuple[float, float]:
+    """
+    Return iris centre offset from patch centre as fractions of patch w/h.
+    Positive dx = iris right, positive dy = iris below centre.
+    """
+    gray = cv2.cvtColor((eye_patch_norm * 255).astype(np.uint8), cv2.COLOR_BGR2GRAY)
+    threshold = float(np.percentile(gray, 20))
+    mask = (gray <= threshold).astype(np.uint8)
+    M = cv2.moments(mask)
+    if M["m00"] == 0:
+        return 0.0, 0.0
+    h, w = gray.shape
+    cx = M["m10"] / M["m00"]
+    cy = M["m01"] / M["m00"]
+    return (cx - w / 2.0) / w, (cy - h / 2.0) / h
+
+
+def _make_blend_mask(ori_size, pc) -> np.ndarray:
+    mask = np.zeros((ori_size[0], ori_size[1]), dtype=np.float32)
+    mask[pc[0]: ori_size[0] - pc[0], pc[1]: ori_size[1] - pc[1]] = 1.0
+    return cv2.GaussianBlur(mask, (0, 0), max(pc[0], pc[1]) * 1.5)[:, :, np.newaxis]
+
+
 class GazeCorrector:
     """Thread-safe gaze corrector. Load once via get_corrector()."""
 
     def __init__(self):
-        from config import get_config  # noqa (config.py is in the same dir on sys.path)
+        from config import get_config  # noqa
         conf, _ = get_config()
         self._conf = conf
         self._detector = dlib.get_frontal_face_detector()
         self._predictor = dlib.shape_predictor(_LANDMARK_PATH)
         self._L_sess, self._L_t = _load_eye_model("L", conf)
         self._R_sess, self._R_t = _load_eye_model("R", conf)
+        self._infer_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+        self._frame_idx = 0
+        # list of (out_u8, mask3, y1, y2, x1, x2) for the last inferred frame
+        self._patch_cache: list[tuple] = []
+
+    def _infer_eye(self, sess, t, img, fp, alpha) -> np.ndarray:
+        return sess.run(t["img_pred"], feed_dict={
+            t["input_img"]: np.expand_dims(img, 0),
+            t["input_fp"]:  np.expand_dims(fp, 0),
+            t["input_ang"]: alpha,
+            t["phase_train"]: False,
+        })
 
     def correct_frame(self, frame: np.ndarray) -> tuple[np.ndarray, int]:
-        """Return (corrected_frame, faces_detected). If no face found, frame is unchanged."""
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        # Run detection on full-res image with 1 upsample pass so small/distant faces are found
-        detections = self._detector(gray, 1)
-        # alpha=[0,0] means "look straight at camera"
-        alpha = np.array([[0, 0]], dtype=np.float32)
-        pc = _PIXEL_CUT
+        """Return (corrected_frame, faces_detected). Frame modified in-place."""
+        h, w = frame.shape[:2]
+        run_infer = (self._frame_idx % _INFER_EVERY_N == 0)
+        self._frame_idx += 1
 
-        for bx in detections:
-            target = dlib.rectangle(
-                left=bx.left(), right=bx.right(),
-                top=bx.top(), bottom=bx.bottom(),
-            )
-            shape = self._predictor(gray, target)
+        if run_infer:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            for sess, t, pos in [
-                (self._L_sess, self._L_t, "L"),
-                (self._R_sess, self._R_t, "R"),
-            ]:
-                img, fp, ori_size, lt = _get_eye_inputs(frame, shape, pos)
-                if img is None:
+            # Detect at reduced resolution
+            dw, dh = max(1, int(w * _DETECT_SCALE)), max(1, int(h * _DETECT_SCALE))
+            small_gray = cv2.resize(gray, (dw, dh))
+            raw_dets = self._detector(small_gray, 0)
+            inv = 1.0 / _DETECT_SCALE
+            detections = [dlib.rectangle(
+                left=int(bx.left() * inv), right=int(bx.right() * inv),
+                top=int(bx.top() * inv), bottom=int(bx.bottom() * inv),
+            ) for bx in raw_dets]
+
+            self._patch_cache = []
+            pc = _PIXEL_CUT
+
+            for bx in detections:
+                shape = self._predictor(gray, bx)
+
+                eye_data: dict[str, tuple] = {}
+                for pos in ("L", "R"):
+                    result = _get_eye_inputs(frame, shape, pos)
+                    if result[0] is not None:
+                        eye_data[pos] = result
+
+                if not eye_data:
                     continue
-                pred = sess.run(t["img_pred"], feed_dict={
-                    t["input_img"]: np.expand_dims(img, 0),
-                    t["input_fp"]: np.expand_dims(fp, 0),
-                    t["input_ang"]: alpha,
-                    t["phase_train"]: False,
-                })
-                out = cv2.resize(
-                    pred.reshape(_SIZE_I[0], _SIZE_I[1], 3),
-                    (ori_size[1], ori_size[0]),
-                )
-                frame[
-                    lt[0] + pc[0]: lt[0] + ori_size[0] - pc[0],
-                    lt[1] + pc[1]: lt[1] + ori_size[1] - pc[1],
-                ] = out[pc[0]: -pc[0], pc[1]: -pc[1]] * 255
-        return frame, len(detections)
+
+                offsets = [_iris_offset(d[0]) for d in eye_data.values()]
+                dx = sum(o[0] for o in offsets) / len(offsets)
+                dy = sum(o[1] for o in offsets) / len(offsets)
+                a_h = max(-_MAX_ANGLE_DEG, min(_MAX_ANGLE_DEG, -dx * _IRIS_SCALE * _CORRECTION_STRENGTH))
+                a_v = max(-_MAX_ANGLE_DEG, min(_MAX_ANGLE_DEG, -dy * _IRIS_SCALE * _CORRECTION_STRENGTH))
+
+                _gaze_log["total"] += 1
+                _gaze_log["av_sum"] += abs(a_v)
+                _gaze_log["ah_sum"] += abs(a_h)
+                if _gaze_log["total"] % 100 == 0:
+                    n = _gaze_log["total"]
+                    print(
+                        f"[gaze] frames={n} "
+                        f"avg|a_v|={_gaze_log['av_sum']/n:.1f}° "
+                        f"avg|a_h|={_gaze_log['ah_sum']/n:.1f}°",
+                        flush=True,
+                    )
+
+                alpha = np.array([[a_v, a_h]], dtype=np.float32)
+
+                # Run L and R inference in parallel
+                sess_map = {"L": (self._L_sess, self._L_t), "R": (self._R_sess, self._R_t)}
+                futures = {
+                    pos: self._infer_pool.submit(self._infer_eye, sess, t, img, fp, alpha)
+                    for pos, (img, fp, _, _lt) in eye_data.items()
+                    for sess, t in [sess_map[pos]]
+                }
+
+                for pos, fut in futures.items():
+                    pred = fut.result()
+                    img, fp, ori_size, lt = eye_data[pos]
+                    out = cv2.resize(
+                        pred.reshape(_SIZE_I[0], _SIZE_I[1], 3),
+                        (ori_size[1], ori_size[0]),
+                        interpolation=cv2.INTER_LINEAR,
+                    )
+                    out_u8 = np.clip(out * 255, 0, 255).astype(np.uint8)
+                    mask3 = _make_blend_mask(ori_size, pc)
+                    y1, y2 = lt[0], lt[0] + ori_size[0]
+                    x1, x2 = lt[1], lt[1] + ori_size[1]
+                    self._patch_cache.append((out_u8, mask3, y1, y2, x1, x2))
+
+        # Apply cached patches (from this frame or the last inferred frame)
+        fh, fw = frame.shape[:2]
+        for out_u8, mask3, y1, y2, x1, x2 in self._patch_cache:
+            if y1 >= 0 and x1 >= 0 and y2 <= fh and x2 <= fw:
+                orig = frame[y1:y2, x1:x2].astype(np.float32)
+                frame[y1:y2, x1:x2] = np.clip(
+                    out_u8.astype(np.float32) * mask3 + orig * (1.0 - mask3),
+                    0, 255,
+                ).astype(np.uint8)
+
+        return frame, len(self._patch_cache)
 
 
+_gaze_log: dict[str, float] = {"total": 0, "av_sum": 0.0, "ah_sum": 0.0}
 _corrector: GazeCorrector | None = None
 _corrector_lock = threading.Lock()
 

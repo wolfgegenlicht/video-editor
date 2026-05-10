@@ -21,6 +21,7 @@ export default function Header() {
   }
 
   return (
+    <>
     <header className="h-9 flex items-center px-3 gap-2 flex-shrink-0 bg-white border-b border-slate-200">
       {/* Left group */}
       <div className="flex items-center gap-2 flex-1">
@@ -86,7 +87,8 @@ export default function Header() {
           Export
         </button>
       </div>
-      {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
     </header>
+    {showExport && <ExportDialog onClose={() => setShowExport(false)} />}
+    </>
   );
 }

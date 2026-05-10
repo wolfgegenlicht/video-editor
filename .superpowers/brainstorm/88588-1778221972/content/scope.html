@@ -1,0 +1,66 @@
+<h2>Position per clip, or per track?</h2>
+<p class="subtitle">Where does the transform live in the data model?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+      <!-- timeline with 3 clips, each with different positions -->
+      <div style="display:flex;gap:3px;width:200px;">
+        <div style="flex:1;background:#0d9488;border-radius:3px;padding:4px;position:relative;">
+          <div style="font-size:8px;color:white;font-weight:600;">Clip A</div>
+          <div style="font-size:7px;color:#99f6e4;">↖ top-left</div>
+        </div>
+        <div style="flex:1;background:#0d9488;border-radius:3px;padding:4px;position:relative;border:1.5px solid #22d3ee;">
+          <div style="font-size:8px;color:white;font-weight:600;">Clip B ✓</div>
+          <div style="font-size:7px;color:#99f6e4;">↗ top-right</div>
+        </div>
+        <div style="flex:1;background:#0d9488;border-radius:3px;padding:4px;">
+          <div style="font-size:8px;color:white;font-weight:600;">Clip C</div>
+          <div style="font-size:7px;color:#99f6e4;">→ centered</div>
+        </div>
+      </div>
+      <!-- preview showing clip B selected, offset -->
+      <div style="position:relative;width:140px;height:80px;background:#1e293b;border:1.5px solid #334155;border-radius:4px;overflow:hidden;">
+        <div style="position:absolute;top:4px;right:6px;width:100px;height:62px;background:linear-gradient(135deg,#0d9488,#0891b2);border-radius:3px;box-shadow:0 0 0 1.5px #22d3ee;">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:600;">Clip B offset</div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:#64748b;">Each clip remembers its own position</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Per clip</h3>
+      <p>Each clip on the timeline has its own X/Y offset and scale. Selecting clip B and dragging only moves clip B — clip A and C are unaffected. Most flexible.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f172a;padding:16px;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;">
+      <!-- timeline with 3 clips, one track position -->
+      <div style="display:flex;gap:3px;width:200px;">
+        <div style="flex:1;background:#0d9488;border-radius:3px;padding:4px;">
+          <div style="font-size:8px;color:white;font-weight:600;">Clip A</div>
+        </div>
+        <div style="flex:1;background:#0d9488;border-radius:3px;padding:4px;">
+          <div style="font-size:8px;color:white;font-weight:600;">Clip B</div>
+        </div>
+        <div style="flex:1;background:#0d9488;border-radius:3px;padding:4px;">
+          <div style="font-size:8px;color:white;font-weight:600;">Clip C</div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:#22d3ee;text-align:center;">↕ one track-level offset</div>
+      <!-- preview showing all offset the same -->
+      <div style="position:relative;width:140px;height:80px;background:#1e293b;border:1.5px solid #334155;border-radius:4px;overflow:hidden;">
+        <div style="position:absolute;top:10px;left:20px;width:110px;height:55px;background:linear-gradient(135deg,#0d9488,#0891b2);border-radius:3px;box-shadow:0 0 0 1.5px #22d3ee;">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;color:white;font-weight:600;">all clips move together</div>
+        </div>
+      </div>
+      <div style="font-size:9px;color:#64748b;">One position for all clips on the track</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Per track (global)</h3>
+      <p>One position setting for the whole video track. Moving the video moves all clips at once. Simpler — good if you just want a static offset or zoom for the whole video.</p>
+    </div>
+  </div>
+
+</div>

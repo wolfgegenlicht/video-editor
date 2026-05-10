@@ -9,6 +9,7 @@ from typing import Literal, Optional
 
 import cv2
 
+from database import get_db
 from services.gaze_correction.corrector import get_corrector
 
 UPLOADS = Path(__file__).parent.parent / "uploads"
@@ -47,6 +48,24 @@ def get_job(job_id: str) -> Optional[_JobState]:
         return _jobs.get(job_id)
 
 
+def _register_corrected_file(source_file_id: str, corrected_id: str, output_path: str) -> None:
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT project_id, original_name, duration, width, height FROM files WHERE id = ?",
+                (source_file_id,),
+            ).fetchone()
+            if not row:
+                return
+            corrected_name = Path(row["original_name"]).stem + "_eyecontact.mp4"
+            conn.execute(
+                "INSERT OR IGNORE INTO files (id, project_id, original_name, duration, width, height, path) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (corrected_id, row["project_id"], corrected_name, row["duration"], row["width"], row["height"], output_path),
+            )
+    except Exception as exc:
+        print(f"[eye-contact] warning: could not register corrected file in DB — {exc}", flush=True)
+
+
 def _run_job(job_id: str, file_id: str, state: _JobState) -> None:
     print(f"[eye-contact] job {job_id[:8]}: starting for file {file_id[:8]}", flush=True)
     try:
@@ -58,6 +77,7 @@ def _run_job(job_id: str, file_id: str, state: _JobState) -> None:
         output_path = str(UPLOADS / f"{corrected_id}.mp4")
         _process_video(input_path, output_path, state, job_id)
         state.corrected_file_id = corrected_id
+        _register_corrected_file(file_id, corrected_id, output_path)
         state.status = "done"
         state.progress = 1.0
         print(f"[eye-contact] job {job_id[:8]}: done → {corrected_id[:8]}", flush=True)
@@ -122,7 +142,7 @@ def _process_video(input_path: str, output_path: str, state: _JobState, job_id: 
                 "ffmpeg", "-y",
                 "-i", temp_path,
                 "-i", input_path,
-                "-c:v", "libx264", "-preset", "fast",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "15",
                 "-c:a", "aac",
                 "-map", "0:v:0",
                 "-map", "1:a:0?",  # optional audio stream (some clips have none)

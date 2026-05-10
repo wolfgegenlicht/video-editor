@@ -1,0 +1,76 @@
+<h2>Multi-select Design Overview</h2>
+<p class="subtitle">Four ways to select, one unified selection set. Does this match your vision?</p>
+
+<div class="section">
+  <h3>Selection mechanisms</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+    <div style="background:#1a1a2e;border-radius:8px;padding:14px;border:1px solid #333;">
+      <div style="color:#60a5fa;font-weight:600;margin-bottom:6px;font-size:13px;">① Cmd+click on item</div>
+      <div style="font-size:12px;color:#ccc;">Toggles that item in/out of selection. Existing selection preserved. Works on any item type.</div>
+    </div>
+    <div style="background:#1a1a2e;border-radius:8px;padding:14px;border:1px solid #333;">
+      <div style="color:#60a5fa;font-weight:600;margin-bottom:6px;font-size:13px;">② Rubber-band drag</div>
+      <div style="font-size:12px;color:#ccc;">Drag on empty timeline background → blue selection rect. All items whose time range intersects the rect get selected on mouseup.</div>
+    </div>
+    <div style="background:#1a1a2e;border-radius:8px;padding:14px;border:1px solid #333;">
+      <div style="color:#60a5fa;font-weight:600;margin-bottom:6px;font-size:13px;">③ Track label click</div>
+      <div style="font-size:12px;color:#ccc;">Click the label strip on the left of any track → selects ALL items in that track. Cmd+click label adds/removes that track's items.</div>
+    </div>
+    <div style="background:#1a1a2e;border-radius:8px;padding:14px;border:1px solid #333;">
+      <div style="color:#60a5fa;font-weight:600;margin-bottom:6px;font-size:13px;">④ Shift+click track label</div>
+      <div style="font-size:12px;color:#ccc;">Click label on track 1, Shift+click label on track 3 → selects all items in tracks 1, 2, and 3.</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Visual mockup — selected state</h3>
+  <div style="background:#111;border-radius:8px;padding:16px;font-family:monospace;font-size:12px;">
+
+    <!-- Track label + items: video track selected -->
+    <div style="display:flex;align-items:center;margin-bottom:6px;">
+      <div style="width:80px;background:#1e3a5f;border:1px solid #3b82f6;border-radius:4px;padding:4px 8px;color:#93c5fd;font-size:11px;cursor:pointer;margin-right:8px;">▶ Video 1</div>
+      <div style="flex:1;position:relative;height:32px;display:flex;gap:4px;align-items:center;">
+        <div style="background:#3b5bdb;border:2px solid #60a5fa;box-shadow:0 0 0 1px #60a5fa44;border-radius:4px;padding:0 10px;height:100%;display:flex;align-items:center;color:#fff;font-size:11px;width:35%;">clip-A ✓</div>
+        <div style="background:#3b5bdb;border:2px solid #60a5fa;box-shadow:0 0 0 1px #60a5fa44;border-radius:4px;padding:0 10px;height:100%;display:flex;align-items:center;color:#fff;font-size:11px;width:25%;">clip-B ✓</div>
+      </div>
+    </div>
+
+    <!-- Effects — not selected -->
+    <div style="display:flex;align-items:center;margin-bottom:6px;">
+      <div style="width:80px;background:#1a1a2e;border:1px solid #333;border-radius:4px;padding:4px 8px;color:#888;font-size:11px;cursor:pointer;margin-right:8px;">⚡ Effects</div>
+      <div style="flex:1;position:relative;height:20px;display:flex;gap:4px;align-items:center;">
+        <div style="background:#e67e22;border-radius:3px;padding:0 8px;height:100%;display:flex;align-items:center;color:#fff;font-size:10px;width:20%;">zoom</div>
+      </div>
+    </div>
+
+    <!-- Audio — not selected -->
+    <div style="display:flex;align-items:center;margin-bottom:6px;">
+      <div style="width:80px;background:#1a1a2e;border:1px solid #333;border-radius:4px;padding:4px 8px;color:#888;font-size:11px;cursor:pointer;margin-right:8px;">♫ Audio 1</div>
+      <div style="flex:1;position:relative;height:24px;display:flex;align-items:center;">
+        <div style="background:#2d6a4f;border-radius:4px;padding:0 10px;height:100%;display:flex;align-items:center;color:#fff;font-size:11px;width:55%;">music.mp3</div>
+      </div>
+    </div>
+
+    <div style="color:#60a5fa;font-size:11px;margin-top:8px;">↑ Track label highlighted blue = track selected. Items in track show blue ring.</div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Movement</h3>
+  <div style="background:#1a1a2e;border-radius:8px;padding:14px;font-size:12px;color:#ccc;">
+    Drag any selected item → all selected items shift by the same time delta, each staying in its own track. Uses existing <code style="color:#93c5fd;">*Live()</code> pattern during drag, commits to history on mouseup.
+  </div>
+</div>
+
+<div class="section">
+  <h3>Properties panel</h3>
+  <div style="background:#1a1a2e;border-radius:8px;padding:14px;font-size:12px;color:#ccc;">
+    Single item selected → normal properties as today. Multiple items selected → panel shows "<em>N items selected</em>" (no properties). Plain click without Cmd clears multi-select and restores normal single-select behavior.
+  </div>
+</div>
+
+<div style="margin-top:20px;padding:14px;background:#1a2e1a;border-radius:8px;border:1px solid #2d6a4f;">
+  <div style="color:#4ade80;font-weight:600;margin-bottom:6px;">Approach A — parallel selection layer</div>
+  <div style="font-size:12px;color:#ccc;">Existing <code style="color:#93c5fd;">selectedClipId</code>, <code style="color:#93c5fd;">selectedOverlayId</code> etc. stay untouched for the Properties panel. New <code style="color:#93c5fd;">selectedItemIds: Set&lt;string&gt;</code> added to store for multi-select. Low regression risk.</div>
+</div>

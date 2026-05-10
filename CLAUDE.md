@@ -116,6 +116,8 @@ All endpoints proxied by Vite's custom `backendProxy` plugin in `vite.config.ts`
 - `routes/export_.py` — delegates to `services/ffmpeg.py`
 - `services/transcription.py` — lazy-loads `faster-whisper` model (singleton, thread-safe); uses `base` model on CPU with `int8`. Returns word-level timestamps (`word_timestamps=True`).
 - `services/ffmpeg.py` — builds an FFmpeg `filter_complex` that trims clips (`-ss`/`-to` per input), scales/pads to the target aspect ratio, concatenates them, and optionally burns captions via `drawtext`.
+- `services/eye_contact.py` — background job queue (one job at a time via ThreadPoolExecutor). Runs `GazeCorrector` frame-by-frame, then re-encodes with FFmpeg to merge corrected video with original audio (`-crf 15`). Job state (`processing` / `done` / `error` + `progress` 0–1) polled by the frontend every 2s.
+- `services/gaze_correction/corrector.py` — the actual eye contact correction. Uses dlib for face detection (at `_DETECT_SCALE=0.5` resolution for speed) + 68-point landmarks, then finds iris centre via dark-pixel centroid in the eye patch (`_iris_offset`), maps offset to gaze angle, and runs the FLX/DeepWarp TF1 model. L and R eye sessions run in parallel threads. TF inference runs every `_INFER_EVERY_N=3` frames with cached patches reused for intermediate frames (reduce to 2 if fast head movements cause shimmer). Output blended back with Lanczos upsampling + Gaussian-feathered mask.
 
 ### Transcript Panel (`src/components/LeftPanel/TranscriptTab.tsx`)
 

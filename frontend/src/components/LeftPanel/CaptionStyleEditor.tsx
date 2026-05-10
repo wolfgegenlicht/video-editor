@@ -19,11 +19,11 @@ export default function CaptionStyleEditor() {
 
   return (
     <div className="flex-1 overflow-y-auto p-3 space-y-4">
-      <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium">Caption Style</p>
+      <p className="text-[10px] text-gray-400 font-medium">Caption Style</p>
 
       {/* Font family */}
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">Font</label>
+        <label className="text-[10px] text-gray-400 block mb-1">Font</label>
         <select
           value={s.fontFamily}
           onChange={(e) => set("fontFamily", e.target.value)}
@@ -37,7 +37,7 @@ export default function CaptionStyleEditor() {
 
       {/* Font size */}
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
+        <label className="text-[10px] text-gray-400 block mb-1">
           Size — {s.fontSize}px
         </label>
         <input
@@ -50,7 +50,7 @@ export default function CaptionStyleEditor() {
 
       {/* Font weight */}
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">Weight</label>
+        <label className="text-[10px] text-gray-400 block mb-1">Weight</label>
         <div className="flex gap-2">
           {(["normal", "bold"] as const).map((w) => (
             <button
@@ -69,7 +69,7 @@ export default function CaptionStyleEditor() {
 
       {/* Text align */}
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">Align</label>
+        <label className="text-[10px] text-gray-400 block mb-1">Align</label>
         <div className="flex gap-2">
           {(["left", "center", "right"] as const).map((a) => (
             <button
@@ -88,7 +88,7 @@ export default function CaptionStyleEditor() {
 
       {/* Letter spacing */}
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
+        <label className="text-[10px] text-gray-400 block mb-1">
           Letter spacing — {s.letterSpacing}px
         </label>
         <input
@@ -101,7 +101,7 @@ export default function CaptionStyleEditor() {
 
       {/* Text color */}
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">Color</label>
+        <label className="text-[10px] text-gray-400 block mb-1">Color</label>
         <input
           type="color"
           value={s.color}
@@ -112,7 +112,7 @@ export default function CaptionStyleEditor() {
 
       {/* Background */}
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">Background</label>
+        <label className="text-[10px] text-gray-400 block mb-1">Background</label>
         <div className="flex gap-2">
           <button
             onClick={() => set("backgroundColor", "transparent")}
@@ -135,7 +135,7 @@ export default function CaptionStyleEditor() {
 
       {/* Text shadow */}
       <div className="flex items-center justify-between">
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide">Text Shadow</label>
+        <label className="text-[10px] text-gray-400">Text Shadow</label>
         <button
           onClick={() => set("textShadow", !s.textShadow)}
           className={`w-10 h-5 rounded-full transition-colors relative ${s.textShadow ? "bg-blue-600" : "bg-gray-300"}`}
@@ -146,7 +146,7 @@ export default function CaptionStyleEditor() {
 
       {/* Outline */}
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
+        <label className="text-[10px] text-gray-400 block mb-1">
           Outline — {s.outlineWidth}px
         </label>
         <div className="flex gap-2 items-center">
@@ -170,7 +170,7 @@ export default function CaptionStyleEditor() {
 
       {/* Highlight mode */}
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">Highlight</label>
+        <label className="text-[10px] text-gray-400 block mb-1">Highlight</label>
         <div className="flex gap-2">
           {(["none", "karaoke"] as const).map((m) => (
             <button
@@ -190,7 +190,7 @@ export default function CaptionStyleEditor() {
       {/* Highlight color (karaoke only) */}
       {s.highlightMode === "karaoke" && (
         <div>
-          <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">Highlight Color</label>
+          <label className="text-[10px] text-gray-400 block mb-1">Highlight Color</label>
           <input
             type="color"
             value={s.highlightColor}
@@ -201,10 +201,10 @@ export default function CaptionStyleEditor() {
       )}
 
       {/* Position */}
-      <p className="text-[10px] text-gray-400 uppercase tracking-wide font-medium pt-1 border-t border-gray-100">Position</p>
+      <p className="text-[10px] text-gray-400 font-medium pt-1 border-t border-gray-100">Position</p>
 
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
+        <label className="text-[10px] text-gray-400 block mb-1">
           X — {s.x.toFixed(0)}%
         </label>
         <input
@@ -216,7 +216,7 @@ export default function CaptionStyleEditor() {
       </div>
 
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
+        <label className="text-[10px] text-gray-400 block mb-1">
           Y — {s.y.toFixed(0)}%
         </label>
         <input
@@ -228,7 +228,7 @@ export default function CaptionStyleEditor() {
       </div>
 
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
+        <label className="text-[10px] text-gray-400 block mb-1">
           Width — {s.boxW.toFixed(0)}%
         </label>
         <input
@@ -240,7 +240,7 @@ export default function CaptionStyleEditor() {
       </div>
 
       <div>
-        <label className="text-[10px] text-gray-400 uppercase tracking-wide block mb-1">
+        <label className="text-[10px] text-gray-400 block mb-1">
           Height — {s.boxH.toFixed(0)}%
         </label>
         <input

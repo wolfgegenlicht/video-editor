@@ -65,6 +65,7 @@ interface VideoLayerProps {
 function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalRef, speedRampEffect, onSelect }: VideoLayerProps) {
   const internalRef = useRef<HTMLVideoElement>(null);
   const videoRef = isPrimary && externalRef ? externalRef : internalRef;
+  const missingFileIds = useProjectStore((s) => s.missingFileIds);
 
   const playbackFileId = clip.eyeContact && clip.eyeContactFileId ? clip.eyeContactFileId : clip.fileId;
 
@@ -123,6 +124,14 @@ function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalR
     fadeOpacity = 1 - elapsed / clip.fadeIn;
   } else if (clip.fadeOut && remaining < clip.fadeOut) {
     fadeOpacity = 1 - remaining / clip.fadeOut;
+  }
+
+  if (missingFileIds.has(playbackFileId)) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-neutral-900 text-neutral-400 text-sm select-none" onPointerDown={(e) => { e.stopPropagation(); onSelect(); }}>
+        File not found — re-upload to restore
+      </div>
+    );
   }
 
   return (

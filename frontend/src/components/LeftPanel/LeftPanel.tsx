@@ -50,7 +50,7 @@ export default function LeftPanel({ seek }: Props) {
   return (
     <div className="flex flex-shrink-0 border-r border-slate-200">
       {/* Vertical icon strip */}
-      <div className="w-[60px] flex flex-col items-center pt-3 gap-0.5 bg-white border-r border-slate-100">
+      <div className="w-[80px] flex flex-col items-center pt-3 p-8 gap-0.5 bg-white border-r border-slate-100">
         <button
           onClick={() => setOpen((v) => !v)}
           className={`w-[52px] flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg transition-colors cursor-pointer
@@ -60,7 +60,7 @@ export default function LeftPanel({ seek }: Props) {
           title="Transcript"
         >
           <TranscriptIcon active={open} />
-          <span className={`text-[9px] font-bold leading-none tracking-wide uppercase ${open ? "text-teal-700" : "text-slate-400"}`}>
+          <span className={`text-[11px] font-normal leading-none ${open ? "text-teal-700" : "text-slate-400"}`}>
             Transcript
           </span>
         </button>

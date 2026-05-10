@@ -2,7 +2,7 @@ import { useRef, useState, useEffect } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import { startExportJob, getExportStatus, downloadExport, type ExportOptions } from "../../lib/api";
 
-type DialogState = "idle" | "exporting" | "done" | "error";
+type DialogState = "idle" | "submitting" | "exporting" | "done" | "error";
 type SpeedLabel = "Fast" | "Balanced" | "Small";
 
 const SPEED_PRESETS: Record<SpeedLabel, string> = {
@@ -39,6 +39,7 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
       burn_captions: burnCaptions,
       preset: SPEED_PRESETS[speed],
     };
+    setDialogState("submitting");
     try {
       const { jobId: id } = await startExportJob(project, options, finalFilename);
       setJobId(id);
@@ -174,6 +175,13 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
             >
               Export
             </button>
+          </div>
+        )}
+
+        {dialogState === "submitting" && (
+          <div className="py-4 text-center space-y-3">
+            <div className="w-5 h-5 border-2 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-slate-500">Starting export…</p>
           </div>
         )}
 
