@@ -109,16 +109,21 @@ export default function Timeline({ toggle, seek }: Props) {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (!(e.metaKey || e.ctrlKey) || e.key !== "d") return;
       if (!lastClickedRowKey) return;
       const track = useProjectStore.getState().project.tracks.find((t) => t.id === lastClickedRowKey);
       if (!track) return;
-      e.preventDefault();
-      duplicateTrack(lastClickedRowKey);
+      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
+        e.preventDefault();
+        duplicateTrack(lastClickedRowKey);
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        e.preventDefault();
+        deleteTrack(lastClickedRowKey);
+        setLastClickedRowKey(null);
+      }
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [lastClickedRowKey, duplicateTrack]);
+  }, [lastClickedRowKey, duplicateTrack, deleteTrack]);
 
   function openContextMenu(trackId: string, e: React.MouseEvent) {
     e.preventDefault();
