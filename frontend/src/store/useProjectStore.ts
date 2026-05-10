@@ -53,6 +53,7 @@ function isValidProject(p: unknown): p is Project {
 interface ProjectStore {
   project: Project;
   files: UploadedFile[];
+  missingFileIds: Set<string>;
   history: Project[];
   future: Project[];
   playheadTime: number;
@@ -67,6 +68,8 @@ interface ProjectStore {
   transcriptSelection: { startTime: number; endTime: number } | null;
   eyeContactStatus: Record<string, "processing" | "done" | "error">;
   selectedItemIds: Set<string>;
+  focusedTrackId: string | null;
+  setFocusedTrackId: (id: string | null) => void;
   toggleItemSelection: (id: string) => void;
   setSelectedItemIds: (ids: Set<string>) => void;
   selectMultiple: (ids: Set<string>) => void;
@@ -200,6 +203,7 @@ function withHistory(set: any, _get: any, updater: (p: Project) => Project) {
 export const useProjectStore = create<ProjectStore>((set, get) => ({
   project: makeDefaultProject(),
   files: [],
+  missingFileIds: new Set(),
   history: [],
   future: [],
   playheadTime: 0,
@@ -215,6 +219,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   transcriptSelection: null,
   eyeContactStatus: {},
   selectedItemIds: new Set<string>(),
+  focusedTrackId: null,
 
   setProjectName: (name) => withHistory(set, get, (p) => ({ ...p, name })),
   setAspectRatio: (aspectRatio) => withHistory(set, get, (p) => ({ ...p, aspectRatio })),
@@ -735,8 +740,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   selectClip: (id) =>
     set(
       id
-        ? { selectedClipId: id, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set([id]), rightPanelTab: "properties" as const }
-        : { selectedClipId: null, selectedItemIds: new Set() }
+        ? { selectedClipId: id, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set([id]), rightPanelTab: "properties" as const, focusedTrackId: null }
+        : { selectedClipId: null, selectedItemIds: new Set(), focusedTrackId: null }
     ),
   selectCaption: (id) =>
     set(
@@ -744,7 +749,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
         ? { selectedCaptionId: id, selectedClipId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set([id]), rightPanelTab: "properties" as const }
         : { selectedCaptionId: null, selectedItemIds: new Set() }
     ),
-  deselectAll: () => set({ selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set() }),
+  setFocusedTrackId: (id) => set({ focusedTrackId: id }),
+  deselectAll: () => set({ selectedClipId: null, selectedCaptionId: null, selectedOverlayId: null, selectedEffectOverlayId: null, selectedTransitionId: null, selectedItemIds: new Set(), focusedTrackId: null }),
   toggleItemSelection: (id) =>
     set((s) => {
       const next = new Set(s.selectedItemIds);
@@ -992,7 +998,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     return { ...p, tracks: newTracks, captions: newCaptions, textOverlays: newTextOverlays };
   }),
 
-  openProject: ({ project, files }) => {
+  openProject: ({ project, files, missingFileIds }) => {
     const normalized: Project = {
       ...project,
       textOverlays: project.textOverlays ?? [],
@@ -1011,12 +1017,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
     localStorage.setItem("video-editor-active-project", normalized.id);
-    set({ project: normalized, files, activeProjectId: normalized.id, history: [], future: [], playheadTime: 0, isPlaying: false });
+    set({ project: normalized, files, missingFileIds: new Set(missingFileIds ?? []), activeProjectId: normalized.id, history: [], future: [], playheadTime: 0, isPlaying: false });
   },
 
   closeProject: () => {
     localStorage.removeItem("video-editor-active-project");
-    set({ activeProjectId: null, files: [], history: [], future: [], playheadTime: 0, isPlaying: false });
+    set({ activeProjectId: null, files: [], missingFileIds: new Set(), history: [], future: [], playheadTime: 0, isPlaying: false });
   },
 
   undo: () => {

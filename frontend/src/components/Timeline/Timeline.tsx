@@ -46,7 +46,7 @@ interface Props {
 }
 
 export default function Timeline({ toggle, seek }: Props) {
-  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, duplicateTrack, selectedItemIds } = useProjectStore();
+  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, setFocusedTrackId, selectedItemIds } = useProjectStore();
   const [height, setHeight] = useState(260);
   const [labelWidth, setLabelWidth] = useState(LABEL_WIDTH);
   const [contextMenu, setContextMenu] = useState<{ trackId: string; x: number; y: number } | null>(null);
@@ -106,24 +106,6 @@ export default function Timeline({ toggle, seek }: Props) {
     document.addEventListener("mousedown", dismiss);
     return () => document.removeEventListener("mousedown", dismiss);
   }, [contextMenu]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (!lastClickedRowKey) return;
-      const track = useProjectStore.getState().project.tracks.find((t) => t.id === lastClickedRowKey);
-      if (!track) return;
-      if ((e.metaKey || e.ctrlKey) && e.key === "d") {
-        e.preventDefault();
-        duplicateTrack(lastClickedRowKey);
-      } else if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        deleteTrack(lastClickedRowKey);
-        setLastClickedRowKey(null);
-      }
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [lastClickedRowKey, duplicateTrack, deleteTrack]);
 
   function openContextMenu(trackId: string, e: React.MouseEvent) {
     e.preventDefault();
@@ -290,13 +272,14 @@ export default function Timeline({ toggle, seek }: Props) {
 
   function onTrackLabelClick(e: React.MouseEvent, rowKey: string) {
     e.stopPropagation();
+    const isRealTrack = project.tracks.some((t) => t.id === rowKey);
     if (e.shiftKey && lastClickedRowKey !== null) {
       const anchorIdx = trackRowKeys.indexOf(lastClickedRowKey);
       const clickedIdx = trackRowKeys.indexOf(rowKey);
       if (anchorIdx === -1 || clickedIdx === -1) {
-        // anchor or target row no longer exists — fall back to single select
         selectMultiple(new Set(getItemsInRow(rowKey)));
         setLastClickedRowKey(rowKey);
+        setFocusedTrackId(isRealTrack ? rowKey : null);
         return;
       }
       const from = Math.min(anchorIdx, clickedIdx);
@@ -306,16 +289,18 @@ export default function Timeline({ toggle, seek }: Props) {
       selectMultiple(new Set(ids));
     } else if (e.metaKey || e.ctrlKey) {
       const rowIds = getItemsInRow(rowKey);
-      if (rowIds.length === 0) { setLastClickedRowKey(rowKey); return; }
+      if (rowIds.length === 0) { setLastClickedRowKey(rowKey); setFocusedTrackId(isRealTrack ? rowKey : null); return; }
       const current = new Set(useProjectStore.getState().selectedItemIds);
       const allIn = rowIds.every((id) => current.has(id));
       if (allIn) rowIds.forEach((id) => current.delete(id));
       else rowIds.forEach((id) => current.add(id));
       selectMultiple(current);
       setLastClickedRowKey(rowKey);
+      setFocusedTrackId(isRealTrack ? rowKey : null);
     } else {
       selectMultiple(new Set(getItemsInRow(rowKey)));
       setLastClickedRowKey(rowKey);
+      setFocusedTrackId(isRealTrack ? rowKey : null);
     }
   }
 

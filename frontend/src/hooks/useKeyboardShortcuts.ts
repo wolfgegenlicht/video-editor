@@ -14,8 +14,12 @@ export function useKeyboardShortcuts(toggle: () => void) {
       }
 
       if (e.code === "Delete" || e.code === "Backspace") {
-        const { selectedClipId, deleteClip, selectedOverlayId, deleteTextOverlay, selectedEffectOverlayId, deleteEffectOverlay } = useProjectStore.getState();
-        if (selectedClipId) {
+        const { focusedTrackId, deleteTrack, setFocusedTrackId, selectedClipId, deleteClip, selectedOverlayId, deleteTextOverlay, selectedEffectOverlayId, deleteEffectOverlay } = useProjectStore.getState();
+        if (focusedTrackId) {
+          e.preventDefault();
+          deleteTrack(focusedTrackId);
+          setFocusedTrackId(null);
+        } else if (selectedClipId) {
           e.preventDefault();
           deleteClip(selectedClipId);
         } else if (selectedOverlayId) {
@@ -41,12 +45,16 @@ export function useKeyboardShortcuts(toggle: () => void) {
 
       if ((e.metaKey || e.ctrlKey) && e.code === "KeyD") {
         e.preventDefault();
-        const { playheadTime, project, duplicateClip } = useProjectStore.getState();
-        const allClips = project.tracks.flatMap((t) => t.clips);
-        const active = allClips.find(
-          (c) => playheadTime >= c.startTime && playheadTime < c.startTime + c.duration
-        );
-        if (active) duplicateClip(active.id);
+        const { focusedTrackId, duplicateTrack, playheadTime, project, duplicateClip } = useProjectStore.getState();
+        if (focusedTrackId) {
+          duplicateTrack(focusedTrackId);
+        } else {
+          const allClips = project.tracks.flatMap((t) => t.clips);
+          const active = allClips.find(
+            (c) => playheadTime >= c.startTime && playheadTime < c.startTime + c.duration
+          );
+          if (active) duplicateClip(active.id);
+        }
         return;
       }
 
