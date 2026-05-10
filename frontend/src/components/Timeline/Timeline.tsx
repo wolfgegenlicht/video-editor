@@ -46,7 +46,7 @@ interface Props {
 }
 
 export default function Timeline({ toggle, seek }: Props) {
-  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, selectedItemIds } = useProjectStore();
+  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, duplicateTrack, selectedItemIds } = useProjectStore();
   const [height, setHeight] = useState(260);
   const [labelWidth, setLabelWidth] = useState(LABEL_WIDTH);
   const [contextMenu, setContextMenu] = useState<{ trackId: string; x: number; y: number } | null>(null);
@@ -106,6 +106,19 @@ export default function Timeline({ toggle, seek }: Props) {
     document.addEventListener("mousedown", dismiss);
     return () => document.removeEventListener("mousedown", dismiss);
   }, [contextMenu]);
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "d") return;
+      if (!lastClickedRowKey) return;
+      const track = useProjectStore.getState().project.tracks.find((t) => t.id === lastClickedRowKey);
+      if (!track) return;
+      e.preventDefault();
+      duplicateTrack(lastClickedRowKey);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [lastClickedRowKey, duplicateTrack]);
 
   function openContextMenu(trackId: string, e: React.MouseEvent) {
     e.preventDefault();

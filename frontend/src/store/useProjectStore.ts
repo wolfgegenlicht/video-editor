@@ -95,6 +95,7 @@ interface ProjectStore {
   duplicateClip: (clipId: string) => void;
   deleteClip: (clipId: string) => void;
   deleteTrack: (trackId: string) => void;
+  duplicateTrack: (trackId: string) => void;
 
   setClipSpeed: (clipId: string, speed: number) => void;
   setClipVolume: (clipId: string, volume: number) => void;
@@ -412,6 +413,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       return { eyeContactStatus: rest };
     });
   },
+
+  duplicateTrack: (trackId) => withHistory(set, get, (p) => {
+    const idx = p.tracks.findIndex((t) => t.id === trackId);
+    if (idx === -1) return p;
+    const orig = p.tracks[idx];
+    const newTrack = {
+      ...orig,
+      id: uuid(),
+      label: (orig.label ?? orig.type) + " copy",
+      clips: orig.clips.map((c) => ({ ...c, id: uuid() })),
+    };
+    const newTracks = [...p.tracks];
+    newTracks.splice(idx + 1, 0, newTrack);
+    return { ...p, tracks: newTracks };
+  }),
 
   deleteTrack: (trackId) => {
     const track = get().project.tracks.find((t) => t.id === trackId);
