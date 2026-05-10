@@ -143,14 +143,14 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
         className={`absolute top-1 bottom-1 rounded flex items-center overflow-hidden select-none group cursor-grab active:cursor-grabbing
           ${isAudioTrack
             ? isSelected
-              ? "bg-emerald-600 border-2 border-white ring-2 ring-emerald-500"
+              ? "bg-emerald-800 border-2 border-emerald-200"
               : "bg-emerald-500 border border-emerald-600"
             : clip.muted
               ? isSelected
-                ? "bg-teal-300 border-2 border-white ring-2 ring-teal-300 opacity-75"
+                ? "bg-teal-400 border-2 border-white opacity-75"
                 : "bg-teal-300 border border-teal-400 opacity-75"
               : isSelected
-                ? "bg-teal-600 border-2 border-white ring-2 ring-teal-500"
+                ? "bg-teal-800 border-2 border-teal-200"
                 : "bg-teal-500 border border-teal-600"
           }
           ${isMultiSelected ? "ring-2 ring-blue-400" : ""}`}

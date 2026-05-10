@@ -19,7 +19,7 @@ export default function TextOverlayTrack({ zoom, totalWidth, height }: Props) {
           <div
             key={o.id}
             className={`absolute top-1 bottom-1 rounded bg-amber-400 border flex items-center overflow-hidden select-none cursor-pointer hover:bg-amber-500 group
-              ${selectedOverlayId === o.id ? "border-white ring-2 ring-amber-300 bg-amber-500" : "border-amber-500"}
+              ${selectedOverlayId === o.id ? "bg-amber-700 border-amber-300 border-2" : "border-amber-500"}
               ${selectedItemIds.size > 1 && selectedItemIds.has(o.id) ? "ring-2 ring-blue-400" : ""}`}
             style={{ left, width }}
             onMouseDown={(e) => {

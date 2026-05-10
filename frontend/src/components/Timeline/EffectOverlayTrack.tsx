@@ -89,31 +89,31 @@ type EffectTheme = { selected: string; base: string; handle: string; label: stri
 function getTheme(type: EffectType): EffectTheme {
   switch (type) {
     case "fade": return {
-      selected: "bg-amber-400/40 border border-white ring-2 ring-amber-400",
+      selected: "bg-amber-500/65 border border-amber-200",
       base: "bg-amber-400/25 border border-amber-400 hover:bg-amber-400/35",
       handle: "hover:bg-amber-500/40",
       label: "text-amber-700",
     };
     case "blur": return {
-      selected: "bg-sky-400/40 border border-white ring-2 ring-sky-400",
+      selected: "bg-sky-500/65 border border-sky-200",
       base: "bg-sky-400/25 border border-sky-400 hover:bg-sky-400/35",
       handle: "hover:bg-sky-500/40",
       label: "text-sky-700",
     };
     case "colorgrade": return {
-      selected: "bg-rose-400/40 border border-white ring-2 ring-rose-400",
+      selected: "bg-rose-500/65 border border-rose-200",
       base: "bg-rose-400/25 border border-rose-400 hover:bg-rose-400/35",
       handle: "hover:bg-rose-500/40",
       label: "text-rose-700",
     };
     case "speedramp": return {
-      selected: "bg-orange-400/40 border border-white ring-2 ring-orange-400",
+      selected: "bg-orange-500/65 border border-orange-200",
       base: "bg-orange-400/25 border border-orange-400 hover:bg-orange-400/35",
       handle: "hover:bg-orange-500/40",
       label: "text-orange-700",
     };
     default: return {
-      selected: "bg-violet-400/40 border border-white ring-2 ring-violet-400",
+      selected: "bg-violet-500/65 border border-violet-200",
       base: "bg-violet-400/25 border border-violet-400 hover:bg-violet-400/35",
       handle: "hover:bg-violet-500/40",
       label: "text-violet-700",

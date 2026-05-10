@@ -46,7 +46,7 @@ interface Props {
 }
 
 export default function Timeline({ toggle, seek }: Props) {
-  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deleteTrack } = useProjectStore();
+  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deleteTrack, selectedItemIds } = useProjectStore();
   const [height, setHeight] = useState(260);
   const [labelWidth, setLabelWidth] = useState(LABEL_WIDTH);
   const [contextMenu, setContextMenu] = useState<{ trackId: string; x: number; y: number } | null>(null);
@@ -355,10 +355,13 @@ export default function Timeline({ toggle, seek }: Props) {
         {/* Track labels */}
         <div className="flex-shrink-0 bg-slate-50 border-r border-slate-200 relative" style={{ width: labelWidth }}>
           <div className="h-6 border-b border-slate-200" />
-          {project.tracks.map((track) => (
+          {project.tracks.map((track) => {
+            const trackSelected = track.clips.some((c) => selectedItemIds.has(c.id));
+            return (
             <div
               key={track.id}
-              className="relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer hover:bg-slate-100 select-none"
+              className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
+                ${trackSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
               style={{ height: trackH(track.id) }}
               onContextMenu={(e) => openContextMenu(track.id, e)}
               onClick={(e) => onTrackLabelClick(e, track.id)}
@@ -401,9 +404,14 @@ export default function Timeline({ toggle, seek }: Props) {
                 onMouseDown={(e) => onTrackResizeDown(track.id, e)}
               />
             </div>
-          ))}
-          {project.textOverlays.length > 0 && (
-            <div className="relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer hover:bg-slate-100 select-none" style={{ height: trackH("text") }}
+            );
+          })}
+          {project.textOverlays.length > 0 && (() => {
+            const rowSelected = project.textOverlays.some((o) => selectedItemIds.has(o.id));
+            return (
+            <div className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
+              ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+              style={{ height: trackH("text") }}
               onClick={(e) => onTrackLabelClick(e, "text")}>
               <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
               <span className="text-[10px] font-bold text-slate-500 flex-1">text</span>
@@ -412,9 +420,14 @@ export default function Timeline({ toggle, seek }: Props) {
                 onMouseDown={(e) => onTrackResizeDown("text", e)}
               />
             </div>
-          )}
-          {project.captions.length > 0 && (
-            <div className="relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer hover:bg-slate-100 select-none" style={{ height: trackH("captions") }}
+            );
+          })()}
+          {project.captions.length > 0 && (() => {
+            const rowSelected = project.captions.some((c) => selectedItemIds.has(c.id));
+            return (
+            <div className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
+              ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+              style={{ height: trackH("captions") }}
               onClick={(e) => onTrackLabelClick(e, "captions")}>
               <div className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
               <span className="text-[10px] font-bold text-slate-500 flex-1">captions</span>
@@ -423,11 +436,15 @@ export default function Timeline({ toggle, seek }: Props) {
                 onMouseDown={(e) => onTrackResizeDown("captions", e)}
               />
             </div>
-          )}
+            );
+          })()}
           {activeLanes.map((effectType) => {
             const isHidden = !!project.hiddenEffectLanes?.[effectType];
+            const rowSelected = project.effectOverlays.filter((e) => e.type === effectType).some((e) => selectedItemIds.has(e.id));
             return (
-              <div key={effectType} className="relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer hover:bg-slate-100 select-none" style={{ height: trackH(`fx-${effectType}`) }}
+              <div key={effectType} className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
+                ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+                style={{ height: trackH(`fx-${effectType}`) }}
                 onClick={(e) => onTrackLabelClick(e, `fx-${effectType}`)}>
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${EFFECT_LANE_COLORS[effectType]} ${isHidden ? "opacity-40" : ""}`} />
                 <span className={`text-[10px] font-bold flex-1 ${isHidden ? "text-slate-300" : "text-slate-500"}`}>

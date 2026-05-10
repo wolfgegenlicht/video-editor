@@ -36,7 +36,7 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height }:
             className={`absolute top-1 bottom-1 rounded cursor-pointer transition-colors select-none
               flex items-center overflow-hidden px-1
               ${isSelected
-                ? "bg-violet-600 ring-1 ring-violet-400"
+                ? "bg-violet-800 border-2 border-violet-300"
                 : "bg-violet-400 hover:bg-violet-500"}
               ${selectedItemIds.size > 1 && selectedItemIds.has(cap.id) ? "ring-2 ring-blue-400" : ""}`}
             style={{ left, width }}
