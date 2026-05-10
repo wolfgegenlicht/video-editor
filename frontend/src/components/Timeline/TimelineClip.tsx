@@ -33,6 +33,31 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
   const width = Math.max(clip.duration * zoom, 4);
 
   function startDrag(e: React.MouseEvent, type: "move" | "trim-left" | "trim-right") {
+    if (type === "move" && e.shiftKey) {
+      e.stopPropagation();
+      const { selectedClipId: anchorId, project, selectMultiple } = useProjectStore.getState();
+      if (!anchorId) { selectClip(clip.id); return; }
+      let anchorTrackIdx = -1, anchorClip = null as typeof clip | null;
+      let targetTrackIdx = -1;
+      for (let i = 0; i < project.tracks.length; i++) {
+        const found = project.tracks[i].clips.find((c) => c.id === anchorId);
+        if (found) { anchorTrackIdx = i; anchorClip = found; }
+        if (project.tracks[i].clips.some((c) => c.id === clip.id)) targetTrackIdx = i;
+      }
+      if (anchorTrackIdx === -1 || targetTrackIdx === -1 || !anchorClip) { selectClip(clip.id); return; }
+      const timeStart = Math.min(anchorClip.startTime, clip.startTime);
+      const timeEnd = Math.max(anchorClip.startTime + anchorClip.duration, clip.startTime + clip.duration);
+      const tMin = Math.min(anchorTrackIdx, targetTrackIdx);
+      const tMax = Math.max(anchorTrackIdx, targetTrackIdx);
+      const ids = new Set<string>();
+      for (let i = tMin; i <= tMax; i++) {
+        for (const c of project.tracks[i].clips) {
+          if (c.startTime < timeEnd && c.startTime + c.duration > timeStart) ids.add(c.id);
+        }
+      }
+      selectMultiple(ids);
+      return;
+    }
     if (type === "move" && e.metaKey) {
       e.stopPropagation();
       toggleItemSelection(clip.id);
