@@ -46,7 +46,7 @@ interface Props {
 }
 
 export default function Timeline({ toggle, seek }: Props) {
-  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deleteTrack, selectedItemIds } = useProjectStore();
+  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, selectedItemIds } = useProjectStore();
   const [height, setHeight] = useState(260);
   const [labelWidth, setLabelWidth] = useState(LABEL_WIDTH);
   const [contextMenu, setContextMenu] = useState<{ trackId: string; x: number; y: number } | null>(null);
@@ -226,7 +226,7 @@ export default function Timeline({ toggle, seek }: Props) {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
       setRubberBand(null);
-      if (!moved) return;
+      if (!moved) { deselectAll(); return; }
 
       const selTimeStart = Math.min(x1, x2) / zoom;
       const selTimeEnd = Math.max(x1, x2) / zoom;
