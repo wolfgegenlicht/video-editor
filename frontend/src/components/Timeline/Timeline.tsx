@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import TimelineToolbar from "./TimelineToolbar";
 import TimelineRuler from "./TimelineRuler";
@@ -46,7 +46,7 @@ interface Props {
 }
 
 export default function Timeline({ toggle, seek }: Props) {
-  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, setFocusedTrackId, selectedItemIds } = useProjectStore();
+  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, reorderTrack, setFocusedTrackId, selectedItemIds } = useProjectStore();
   const [height, setHeight] = useState(260);
   const [labelWidth, setLabelWidth] = useState(LABEL_WIDTH);
   const [contextMenu, setContextMenu] = useState<{ trackId: string; x: number; y: number } | null>(null);
@@ -54,6 +54,8 @@ export default function Timeline({ toggle, seek }: Props) {
   const [renameValue, setRenameValue] = useState("");
   const [trackHeights, setTrackHeights] = useState<Record<string, number>>({});
   const [lastClickedRowKey, setLastClickedRowKey] = useState<string | null>(null);
+  const [draggedTrackId, setDraggedTrackId] = useState<string | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const dragState = useRef<{ startY: number; startHeight: number } | null>(null);
   const dragTrackRef = useRef<{ key: string; startY: number; startH: number } | null>(null);
   const dragLabelRef = useRef<{ startX: number; startW: number } | null>(null);
@@ -356,59 +358,97 @@ export default function Timeline({ toggle, seek }: Props) {
       <TimelineToolbar onSplit={handleSplit} toggle={toggle} seek={seek} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Track labels */}
-        <div className="flex-shrink-0 bg-slate-50 border-r border-slate-200 relative" style={{ width: labelWidth }}>
+        <div
+          className="flex-shrink-0 bg-slate-50 border-r border-slate-200 relative"
+          style={{ width: labelWidth }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIndex(null);
+          }}
+        >
           <div className="h-6 border-b border-slate-200" />
-          {project.tracks.map((track) => {
+          {project.tracks.map((track, trackIdx) => {
             const trackSelected = track.clips.some((c) => selectedItemIds.has(c.id));
             return (
-            <div
-              key={track.id}
-              className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
-                ${trackSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
-              style={{ height: trackH(track.id) }}
-              onContextMenu={(e) => openContextMenu(track.id, e)}
-              onClick={(e) => onTrackLabelClick(e, track.id)}
-            >
-              <div className={`w-2 h-2 rounded-full flex-shrink-0 ${TRACK_DOT_COLORS[track.type] ?? "bg-slate-400"}`} />
-              {renamingTrackId === track.id ? (
-                <input
-                  autoFocus
-                  className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={commitRename}
-                  onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
-                />
-              ) : (
-                <span className="text-[10px] font-bold text-slate-500 flex-1 truncate">
-                  {track.label ?? track.type}
-                </span>
-              )}
-              <button
-                title={track.muted ? "Unmute track" : "Mute track"}
-                onClick={(e) => { e.stopPropagation(); setTrackMuted(track.id, !track.muted); }}
-                className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer
-                  ${track.muted ? "text-amber-500 hover:text-amber-700" : "text-slate-400 hover:text-slate-600"}`}
-              >
-                {track.muted ? <VolumeXIcon /> : <Volume2Icon />}
-              </button>
-              {track.type !== "audio" && (
-                <button
-                  title={track.hidden ? "Show track" : "Hide track"}
-                  onClick={(e) => { e.stopPropagation(); setTrackHidden(track.id, !track.hidden); }}
-                  className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer
-                    ${track.hidden ? "text-slate-500 hover:text-slate-700" : "text-slate-400 hover:text-slate-600"}`}
-                >
-                  {track.hidden ? <EyeOffIcon /> : <EyeIcon />}
-                </button>
+            <React.Fragment key={track.id}>
+              {dragOverIndex === trackIdx && draggedTrackId !== null && (
+                <div className="h-0.5 bg-blue-500 mx-2 flex-shrink-0 rounded-full" />
               )}
               <div
-                className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
-                onMouseDown={(e) => onTrackResizeDown(track.id, e)}
-              />
-            </div>
+                draggable
+                className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-grab active:cursor-grabbing select-none transition-colors
+                  ${trackSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+                style={{ height: trackH(track.id), opacity: draggedTrackId === track.id ? 0.4 : 1 }}
+                onContextMenu={(e) => openContextMenu(track.id, e)}
+                onClick={(e) => onTrackLabelClick(e, track.id)}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData("trackId", track.id);
+                  e.dataTransfer.effectAllowed = "move";
+                  setDraggedTrackId(track.id);
+                }}
+                onDragEnd={() => { setDraggedTrackId(null); setDragOverIndex(null); }}
+                onDragOver={(e) => {
+                  if (!draggedTrackId) return;
+                  e.preventDefault();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const midY = rect.top + rect.height / 2;
+                  setDragOverIndex(e.clientY < midY ? trackIdx : trackIdx + 1);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const id = e.dataTransfer.getData("trackId");
+                  if (id && dragOverIndex !== null) reorderTrack(id, dragOverIndex);
+                  setDraggedTrackId(null);
+                  setDragOverIndex(null);
+                }}
+              >
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${TRACK_DOT_COLORS[track.type] ?? "bg-slate-400"}`} />
+                {renamingTrackId === track.id ? (
+                  <input
+                    draggable={false}
+                    autoFocus
+                    className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
+                  />
+                ) : (
+                  <span className="text-[10px] font-bold text-slate-500 flex-1 truncate pointer-events-none">
+                    {track.label ?? track.type}
+                  </span>
+                )}
+                <button
+                  draggable={false}
+                  title={track.muted ? "Unmute track" : "Mute track"}
+                  onClick={(e) => { e.stopPropagation(); setTrackMuted(track.id, !track.muted); }}
+                  className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer
+                    ${track.muted ? "text-amber-500 hover:text-amber-700" : "text-slate-400 hover:text-slate-600"}`}
+                >
+                  {track.muted ? <VolumeXIcon /> : <Volume2Icon />}
+                </button>
+                {track.type !== "audio" && (
+                  <button
+                    draggable={false}
+                    title={track.hidden ? "Show track" : "Hide track"}
+                    onClick={(e) => { e.stopPropagation(); setTrackHidden(track.id, !track.hidden); }}
+                    className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer
+                      ${track.hidden ? "text-slate-500 hover:text-slate-700" : "text-slate-400 hover:text-slate-600"}`}
+                  >
+                    {track.hidden ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                )}
+                <div
+                  draggable={false}
+                  className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
+                  onMouseDown={(e) => onTrackResizeDown(track.id, e)}
+                />
+              </div>
+            </React.Fragment>
             );
           })}
+          {dragOverIndex === project.tracks.length && draggedTrackId !== null && (
+            <div className="h-0.5 bg-blue-500 mx-2 flex-shrink-0 rounded-full" />
+          )}
           {project.textOverlays.length > 0 && (() => {
             const rowSelected = project.textOverlays.some((o) => selectedItemIds.has(o.id));
             return (

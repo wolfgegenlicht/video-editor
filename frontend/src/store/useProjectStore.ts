@@ -99,6 +99,7 @@ interface ProjectStore {
   deleteClip: (clipId: string) => void;
   deleteTrack: (trackId: string) => void;
   duplicateTrack: (trackId: string) => void;
+  reorderTrack: (trackId: string, toIndex: number) => void;
 
   setClipSpeed: (clipId: string, speed: number) => void;
   setClipVolume: (clipId: string, volume: number) => void;
@@ -431,6 +432,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     };
     const newTracks = [...p.tracks];
     newTracks.splice(idx + 1, 0, newTrack);
+    return { ...p, tracks: newTracks };
+  }),
+
+  reorderTrack: (trackId, toIndex) => withHistory(set, get, (p) => {
+    const fromIdx = p.tracks.findIndex((t) => t.id === trackId);
+    if (fromIdx === -1) return p;
+    const newTracks = [...p.tracks];
+    newTracks.splice(fromIdx, 1);
+    const insertAt = toIndex > fromIdx ? toIndex - 1 : toIndex;
+    newTracks.splice(insertAt, 0, p.tracks[fromIdx]);
     return { ...p, tracks: newTracks };
   }),
 
