@@ -45,9 +45,11 @@ export function useKeyboardShortcuts(toggle: () => void) {
 
       if ((e.metaKey || e.ctrlKey) && e.code === "KeyD") {
         e.preventDefault();
-        const { focusedTrackId, duplicateTrack, playheadTime, project, duplicateClip } = useProjectStore.getState();
+        const { focusedTrackId, duplicateTrack, selectedClipId, playheadTime, project, duplicateClip } = useProjectStore.getState();
         if (focusedTrackId) {
           duplicateTrack(focusedTrackId);
+        } else if (selectedClipId) {
+          duplicateClip(selectedClipId);
         } else {
           const allClips = project.tracks.flatMap((t) => t.clips);
           const active = allClips.find(
