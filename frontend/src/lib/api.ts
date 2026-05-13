@@ -73,6 +73,8 @@ export interface ExportOptions {
   resolution: 1080 | 720 | 480;
   burn_captions: boolean;
   preset: string;
+  preview_width: number;
+  caption_line_breaks: Record<string, number[][]>;
 }
 
 export interface ExportJobResponse {
@@ -189,4 +191,32 @@ export async function getEyeContactStatus(jobId: string): Promise<EyeContactStat
 export async function deleteEyeContactFile(fileId: string): Promise<void> {
   const res = await fetch(`/eye-contact/files/${fileId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete eye contact file failed: ${res.status}`);
+}
+
+export interface AudioEnhanceStatusResponse {
+  status: string;
+  progress?: number;
+  enhancedFileId?: string;
+  error?: string;
+}
+
+export async function startAudioEnhanceJob(fileId: string, type: 'normalize' | 'denoise' | 'clarity'): Promise<{ jobId: string }> {
+  const res = await fetch("/enhance-audio/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileId, type }),
+  });
+  if (!res.ok) throw new Error(`Audio enhance job failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getAudioEnhanceStatus(jobId: string): Promise<AudioEnhanceStatusResponse> {
+  const res = await fetch(`/enhance-audio/status/${jobId}`);
+  if (!res.ok) throw new Error(`Audio enhance status check failed: ${res.status}`);
+  return res.json();
+}
+
+export async function cancelAudioEnhanceJob(jobId: string): Promise<void> {
+  const res = await fetch(`/enhance-audio/cancel/${jobId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Cancel audio enhance job failed: ${res.status}`);
 }

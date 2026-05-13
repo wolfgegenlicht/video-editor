@@ -15,8 +15,7 @@ export interface CaptionTrackStyle {
   x: number;                    // % of video width (top-left)
   y: number;                    // % of video height (top-left)
   boxW: number;                  // % of video width
-  boxH: number;                  // % of video height (karaoke only)
-  highlightMode: "none" | "karaoke";
+  boxH: number;                  // % of video height
   highlightColor: string;
 }
 
@@ -52,6 +51,10 @@ export interface Clip {
   saturation?: number;
   eyeContact?: boolean;
   eyeContactFileId?: string;
+  pan?: number;                // -1 (full left) … 0 (center) … 1 (full right)
+  audioEnhanceType?: 'normalize' | 'denoise' | 'clarity';
+  audioEnhanceEnabled?: boolean;
+  audioEnhanceFileId?: string;
   transform?: ClipTransform;
 }
 
@@ -145,5 +148,6 @@ export interface Project {
   effectOverlays: EffectOverlay[];
   clipTransitions: ClipTransition[];
   hiddenEffectLanes?: Partial<Record<EffectType, boolean>>;
+  rowLabels?: Record<string, string>;
   captionSourceFileId?: string;
 }

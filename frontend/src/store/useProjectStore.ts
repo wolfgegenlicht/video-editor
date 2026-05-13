@@ -23,7 +23,6 @@ export function makeDefaultCaptionStyle(): CaptionTrackStyle {
     y: 78,
     boxW: 80,
     boxH: 18,
-    highlightMode: "karaoke",
     highlightColor: "#fde047",
   };
 }
@@ -43,13 +42,6 @@ function makeDefaultProject(): Project {
   };
 }
 
-function isValidProject(p: unknown): p is Project {
-  if (!p || typeof p !== "object") return false;
-  const proj = p as Record<string, unknown>;
-  return typeof proj.id === "string" && Array.isArray(proj.tracks) && Array.isArray(proj.captions);
-}
-
-
 interface ProjectStore {
   project: Project;
   files: UploadedFile[];
@@ -59,6 +51,10 @@ interface ProjectStore {
   playheadTime: number;
   isPlaying: boolean;
   zoom: number;
+  previewWidth: number;
+  setPreviewWidth: (w: number) => void;
+  draggingEffectType: string | null;
+  setDraggingEffectType: (type: string | null) => void;
   activeProjectId: string | null;
   selectedClipId: string | null;
   selectedOverlayId: string | null;
@@ -67,6 +63,8 @@ interface ProjectStore {
   selectedEffectOverlayId: string | null;
   transcriptSelection: { startTime: number; endTime: number } | null;
   eyeContactStatus: Record<string, "processing" | "done" | "error">;
+  audioEnhanceStatus: Record<string, "processing" | "done" | "error" | undefined>;
+  saveStatus: "saved" | "saving";
   selectedItemIds: Set<string>;
   focusedTrackId: string | null;
   setFocusedTrackId: (id: string | null) => void;
@@ -91,9 +89,15 @@ interface ProjectStore {
   setTrackMuted: (trackId: string, muted: boolean) => void;
   setTrackHidden: (trackId: string, hidden: boolean) => void;
   setTrackLabel: (trackId: string, label: string) => void;
+  setRowLabel: (rowKey: string, label: string) => void;
+  clearAllTextOverlays: () => void;
+  clearAllCaptions: () => void;
+  clearAllTransitions: () => void;
+  clearEffectLane: (type: EffectType) => void;
   addClip: (trackId: string, clip: Omit<Clip, "id">) => void;
   moveClip: (clipId: string, toTrackId: string, newStartTime: number) => void;
   trimClip: (clipId: string, newStartTime: number, newDuration: number, newSourceStart: number, newSourceEnd: number) => void;
+  trimClipLive: (clipId: string, newStartTime: number, newDuration: number, newSourceStart: number, newSourceEnd: number) => void;
   splitClip: (clipId: string, atTime: number) => void;
   duplicateClip: (clipId: string) => void;
   deleteClip: (clipId: string) => void;
@@ -110,6 +114,9 @@ interface ProjectStore {
   setClipEyeContact: (clipId: string, enabled: boolean) => void;
   setClipEyeContactFileId: (clipId: string, fileId: string | null) => void;
   setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
+  setClipPan: (clipId: string, pan: number) => void;
+  setClipAudioEnhance: (clipId: string, type: 'normalize' | 'denoise' | 'clarity', enabled: boolean, fileId?: string | null) => void;
+  setAudioEnhanceStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   addTextOverlay: (overlay: Omit<TextOverlay, "id">) => void;
   updateTextOverlay: (id: string, patch: Partial<Omit<TextOverlay, "id">>) => void;
   deleteTextOverlay: (id: string) => void;
@@ -134,6 +141,8 @@ interface ProjectStore {
 
   setCaption: (captions: Caption[], sourceFileId?: string) => void;
   deleteCaption: (id: string) => void;
+  trimCaptionLive: (id: string, newStartTime: number, newEndTime: number) => void;
+  trimCaption: (id: string, newStartTime: number, newEndTime: number) => void;
 
   setPlayhead: (time: number) => void;
   setIsPlaying: (playing: boolean) => void;
@@ -150,9 +159,6 @@ interface ProjectStore {
 
   undo: () => void;
   redo: () => void;
-
-  saveAsJson: () => void;
-  loadFromJson: (json: string) => void;
 }
 
 function findClip(project: Project, clipId: string): { track: Track; clip: Clip } | null {
@@ -180,11 +186,15 @@ export function getItemStartTime(project: Project, id: string): number {
 }
 
 let _saveTimer: ReturnType<typeof setTimeout> | null = null;
+let _storeSet: ((fn: (s: ProjectStore) => Partial<ProjectStore>) => void) | null = null;
 
 function _scheduleSave(projectId: string, project: Project) {
+  _storeSet?.((s) => ({ ...s, saveStatus: "saving" as const }));
   if (_saveTimer) clearTimeout(_saveTimer);
   _saveTimer = setTimeout(() => {
-    saveProject(projectId, project).catch(console.error);
+    saveProject(projectId, project)
+      .then(() => _storeSet?.((s) => ({ ...s, saveStatus: "saved" as const })))
+      .catch(console.error);
   }, 500);
 }
 
@@ -201,7 +211,9 @@ function withHistory(set: any, _get: any, updater: (p: Project) => Project) {
   if (activeProjectId && newProject) _scheduleSave(activeProjectId, newProject);
 }
 
-export const useProjectStore = create<ProjectStore>((set, get) => ({
+export const useProjectStore = create<ProjectStore>((set, get) => {
+  _storeSet = set as any;
+  return ({
   project: makeDefaultProject(),
   files: [],
   missingFileIds: new Set(),
@@ -210,6 +222,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   playheadTime: 0,
   isPlaying: false,
   zoom: 50,
+  previewWidth: 720,
+  draggingEffectType: null,
   activeProjectId: null,
   selectedClipId: null,
   selectedOverlayId: null,
@@ -219,6 +233,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   rightPanelTab: null,
   transcriptSelection: null,
   eyeContactStatus: {},
+  audioEnhanceStatus: {},
+  saveStatus: "saved" as const,
   selectedItemIds: new Set<string>(),
   focusedTrackId: null,
 
@@ -228,12 +244,18 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     ...p,
     captionTrackStyle: { ...p.captionTrackStyle, ...patch },
   })),
-  setCaptionPosition: (x, y) => set((s) => ({
-    project: { ...s.project, captionTrackStyle: { ...s.project.captionTrackStyle, x, y } },
-  })),
-  setCaptionBox: (boxW, boxH) => set((s) => ({
-    project: { ...s.project, captionTrackStyle: { ...s.project.captionTrackStyle, boxW, boxH } },
-  })),
+  setCaptionPosition: (x, y) => {
+    set((s) => ({ project: { ...s.project, captionTrackStyle: { ...s.project.captionTrackStyle, x, y } } }));
+    const { project, activeProjectId } = get();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    if (activeProjectId) _scheduleSave(activeProjectId, project);
+  },
+  setCaptionBox: (boxW, boxH) => {
+    set((s) => ({ project: { ...s.project, captionTrackStyle: { ...s.project.captionTrackStyle, boxW, boxH } } }));
+    const { project, activeProjectId } = get();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    if (activeProjectId) _scheduleSave(activeProjectId, project);
+  },
 
   addFile: (file) => set((s) => ({ files: [...s.files, file] })),
   removeFile: (fileId) => {
@@ -340,6 +362,21 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             : c
         ),
       })),
+    })),
+
+  trimClipLive: (clipId, newStartTime, newDuration, newSourceStart, newSourceEnd) =>
+    set((s) => ({
+      project: {
+        ...s.project,
+        tracks: s.project.tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId
+              ? { ...c, startTime: newStartTime, duration: newDuration, sourceStart: newSourceStart, sourceEnd: newSourceEnd }
+              : c
+          ),
+        })),
+      },
     })),
 
   splitClip: (clipId, atTime) => withHistory(set, get, (p) => {
@@ -488,6 +525,24 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     });
   },
 
+  trimCaptionLive: (id, newStartTime, newEndTime) =>
+    set((s) => ({
+      project: {
+        ...s.project,
+        captions: s.project.captions.map((c) =>
+          c.id === id ? { ...c, startTime: newStartTime, endTime: newEndTime } : c
+        ),
+      },
+    })),
+
+  trimCaption: (id, newStartTime, newEndTime) =>
+    withHistory(set, get, (p) => ({
+      ...p,
+      captions: p.captions.map((c) =>
+        c.id === id ? { ...c, startTime: newStartTime, endTime: newEndTime } : c
+      ),
+    })),
+
   setTrackMuted: (trackId, muted) => withHistory(set, get, (p) => ({
     ...p,
     tracks: p.tracks.map((t) => t.id === trackId ? { ...t, muted } : t),
@@ -499,6 +554,17 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   setTrackLabel: (trackId, label) => withHistory(set, get, (p) => ({
     ...p,
     tracks: p.tracks.map((t) => t.id === trackId ? { ...t, label } : t),
+  })),
+  setRowLabel: (rowKey, label) => withHistory(set, get, (p) => ({
+    ...p,
+    rowLabels: { ...p.rowLabels, [rowKey]: label },
+  })),
+  clearAllTextOverlays: () => withHistory(set, get, (p) => ({ ...p, textOverlays: [] })),
+  clearAllCaptions: () => withHistory(set, get, (p) => ({ ...p, captions: [] })),
+  clearAllTransitions: () => withHistory(set, get, (p) => ({ ...p, clipTransitions: [] })),
+  clearEffectLane: (type) => withHistory(set, get, (p) => ({
+    ...p,
+    effectOverlays: p.effectOverlays.filter((e) => e.type !== type),
   })),
 
   setClipSpeed: (clipId, speed) => withHistory(set, get, (p) => ({
@@ -595,6 +661,37 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
       return { eyeContactStatus: rest };
     }
     return { eyeContactStatus: { ...s.eyeContactStatus, [clipId]: status } };
+  }),
+
+  setClipPan: (clipId, pan) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, pan } : c),
+    })),
+  })),
+
+  setClipAudioEnhance: (clipId, type, enabled, fileId) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => {
+        if (c.id !== clipId) return c;
+        const updated: typeof c = { ...c, audioEnhanceType: type, audioEnhanceEnabled: enabled };
+        if (fileId !== undefined) {
+          updated.audioEnhanceFileId = fileId ?? undefined;
+        }
+        return updated;
+      }),
+    })),
+  })),
+
+  setAudioEnhanceStatus: (clipId, status) => set((s) => {
+    if (status === undefined) {
+      const { [clipId]: _, ...rest } = s.audioEnhanceStatus;
+      return { audioEnhanceStatus: rest };
+    }
+    return { audioEnhanceStatus: { ...s.audioEnhanceStatus, [clipId]: status } };
   }),
 
   addTextOverlay: (overlay) => withHistory(set, get, (p) => ({
@@ -745,9 +842,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     hiddenEffectLanes: { ...(p.hiddenEffectLanes ?? {}), [type]: hidden },
   })),
 
+  setDraggingEffectType: (type) => set({ draggingEffectType: type }),
   setPlayhead: (playheadTime) => set({ playheadTime }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setZoom: (zoom) => set({ zoom: Math.max(10, Math.min(500, zoom)) }),
+  setPreviewWidth: (w) => set({ previewWidth: w }),
   selectClip: (id) =>
     set(
       id
@@ -848,7 +947,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
             if (!map.has(c.id)) return c;
             const dur = c.endTime - c.startTime;
             const ns = map.get(c.id)!;
-            return { ...c, startTime: ns, endTime: ns + dur };
+            const delta = ns - c.startTime;
+            return { ...c, startTime: ns, endTime: ns + dur, words: c.words?.map((w) => ({ ...w, start: w.start + delta, end: w.end + delta })) };
           }),
           clipTransitions: (p.clipTransitions ?? []).map((t) =>
             map.has(t.id) ? { ...t, atTime: map.get(t.id)! } : t
@@ -883,7 +983,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
           if (!map.has(c.id)) return c;
           const dur = c.endTime - c.startTime;
           const ns = map.get(c.id)!;
-          return { ...c, startTime: ns, endTime: ns + dur };
+          const delta = ns - c.startTime;
+          return { ...c, startTime: ns, endTime: ns + dur, words: c.words?.map((w) => ({ ...w, start: w.start + delta, end: w.end + delta })) };
         }),
         clipTransitions: (p.clipTransitions ?? []).map((t) =>
           map.has(t.id) ? { ...t, atTime: map.get(t.id)! } : t
@@ -1064,41 +1165,5 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     if (activeProjectId) _scheduleSave(activeProjectId, next);
   },
 
-  saveAsJson: () => {
-    const { project } = get();
-    const blob = new Blob([JSON.stringify(project, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `${project.name}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  },
-
-  loadFromJson: (json) => {
-    try {
-      const parsed = JSON.parse(json);
-      if (!isValidProject(parsed)) { alert("Invalid project JSON: missing required fields"); return; }
-      const project: Project = {
-        ...parsed,
-        textOverlays: parsed.textOverlays ?? [],
-        effectOverlays: (parsed as any).effectOverlays ?? [],
-        clipTransitions: (parsed as any).clipTransitions ?? [],
-        hiddenEffectLanes: (parsed as any).hiddenEffectLanes ?? {},
-        captionTrackStyle: {
-          ...makeDefaultCaptionStyle(),
-          ...((parsed as any).captionX !== undefined ? { x: (parsed as any).captionX } : {}),
-          ...((parsed as any).captionY !== undefined ? { y: (parsed as any).captionY } : {}),
-          ...((parsed as any).captionBoxW !== undefined ? { boxW: (parsed as any).captionBoxW } : {}),
-          ...((parsed as any).captionBoxH !== undefined ? { boxH: (parsed as any).captionBoxH } : {}),
-          ...((parsed as any).captionSize !== undefined ? { fontSize: (parsed as any).captionSize } : {}),
-          ...(parsed.captionTrackStyle ?? {}),
-        },
-      };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
-      set({ project, history: [], future: [] });
-    } catch {
-      alert("Invalid project JSON");
-    }
-  },
-}));
+});
+});
