@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType } from "../types/project";
+import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType, AudioEnhanceType } from "../types/project";
 import { saveProject, deleteEyeContactFile } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
@@ -63,7 +63,7 @@ interface ProjectStore {
   selectedEffectOverlayId: string | null;
   transcriptSelection: { startTime: number; endTime: number } | null;
   eyeContactStatus: Record<string, "processing" | "done" | "error">;
-  audioEnhanceStatus: Record<string, "processing" | "done" | "error" | undefined>;
+  audioEnhanceStatus: Record<string, "processing" | "done" | "error">;
   saveStatus: "saved" | "saving";
   selectedItemIds: Set<string>;
   focusedTrackId: string | null;
@@ -115,7 +115,7 @@ interface ProjectStore {
   setClipEyeContactFileId: (clipId: string, fileId: string | null) => void;
   setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   setClipPan: (clipId: string, pan: number) => void;
-  setClipAudioEnhance: (clipId: string, type: 'normalize' | 'denoise' | 'clarity', enabled: boolean, fileId?: string | null) => void;
+  setClipAudioEnhance: (clipId: string, type: AudioEnhanceType, enabled: boolean, fileId?: string | null) => void;
   setAudioEnhanceStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   addTextOverlay: (overlay: Omit<TextOverlay, "id">) => void;
   updateTextOverlay: (id: string, patch: Partial<Omit<TextOverlay, "id">>) => void;

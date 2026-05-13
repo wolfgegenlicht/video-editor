@@ -1,4 +1,4 @@
-import type { UploadedFile, Project } from "../types/project";
+import type { UploadedFile, Project, AudioEnhanceType } from "../types/project";
 
 export interface TranscriptWord {
   text: string;
@@ -194,13 +194,13 @@ export async function deleteEyeContactFile(fileId: string): Promise<void> {
 }
 
 export interface AudioEnhanceStatusResponse {
-  status: string;
+  status: "processing" | "done" | "error";
   progress?: number;
   enhancedFileId?: string;
   error?: string;
 }
 
-export async function startAudioEnhanceJob(fileId: string, type: 'normalize' | 'denoise' | 'clarity'): Promise<{ jobId: string }> {
+export async function startAudioEnhanceJob(fileId: string, type: AudioEnhanceType): Promise<{ jobId: string }> {
   const res = await fetch("/enhance-audio/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

@@ -52,7 +52,7 @@ export interface Clip {
   eyeContact?: boolean;
   eyeContactFileId?: string;
   pan?: number;                // -1 (full left) … 0 (center) … 1 (full right)
-  audioEnhanceType?: 'normalize' | 'denoise' | 'clarity';
+  audioEnhanceType?: AudioEnhanceType;
   audioEnhanceEnabled?: boolean;
   audioEnhanceFileId?: string;
   transform?: ClipTransform;
@@ -93,6 +93,8 @@ export interface TextOverlay {
   fontWeight: "normal" | "bold";
   background: string;
 }
+
+export type AudioEnhanceType = "normalize" | "denoise" | "clarity";
 
 export type EffectType = "zoom" | "fade" | "blur" | "colorgrade" | "speedramp";
 
