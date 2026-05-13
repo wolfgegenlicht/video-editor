@@ -4,6 +4,7 @@ import MediaTab from "../LeftPanel/MediaTab";
 import EffectsTab from "./EffectsTab";
 import EffectPropertiesPanel from "./EffectPropertiesPanel";
 import TransitionPropertiesPanel from "./TransitionPropertiesPanel";
+import AudioPropertiesPanel from "./AudioPropertiesPanel";
 
 function PropertiesIcon({ active }: { active: boolean }) {
   return (
@@ -50,7 +51,12 @@ const TABS = [
 ] as const;
 
 export default function RightPanel() {
-  const { rightPanelTab, setRightPanelTab, selectedEffectOverlayId, selectedTransitionId, selectedItemIds } = useProjectStore();
+  const { rightPanelTab, setRightPanelTab, selectedEffectOverlayId, selectedTransitionId, selectedItemIds, selectedClipId, project } = useProjectStore();
+
+  const selectedTrack = project.tracks.find((t) =>
+    t.clips.some((c) => c.id === selectedClipId)
+  );
+  const isAudioClip = selectedTrack?.type === "audio";
 
   return (
     <div className="flex flex-shrink-0">
@@ -84,6 +90,7 @@ export default function RightPanel() {
                 </div>
               ) : selectedEffectOverlayId ? <EffectPropertiesPanel />
               : selectedTransitionId ? <TransitionPropertiesPanel />
+              : isAudioClip ? <AudioPropertiesPanel />
               : <ClipPropertiesPanel />
             ) : rightPanelTab === "effects" ? (
               <EffectsTab />
