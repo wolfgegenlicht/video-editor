@@ -8,3 +8,5 @@ tensorflow>=2.0
 tf_keras
 mediapipe>=0.10.0
 opencv-python
+deepfilternet
+soundfile
