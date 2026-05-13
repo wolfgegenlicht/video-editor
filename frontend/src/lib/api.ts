@@ -204,7 +204,7 @@ export async function startAudioEnhanceJob(fileId: string, type: AudioEnhanceTyp
   const res = await fetch("/enhance-audio/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileId, type }),
+    body: JSON.stringify({ fileId, enhanceType: type }),
   });
   if (!res.ok) throw new Error(`Audio enhance job failed: ${res.status}`);
   return res.json();

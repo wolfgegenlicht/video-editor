@@ -14,6 +14,23 @@ from database import get_db
 
 UPLOADS = Path(__file__).parent.parent / "uploads"
 _executor = ThreadPoolExecutor(max_workers=1)  # one enhancement job at a time
+
+# DeepFilterNet model singleton — loaded once, reused across jobs
+_df_model = None
+_df_state = None
+_df_lock = threading.Lock()
+
+
+def _get_df_model():
+    global _df_model, _df_state
+    if _df_model is None:
+        with _df_lock:
+            if _df_model is None:
+                from df.enhance import init_df
+                _df_model, _df_state, _ = init_df()
+    return _df_model, _df_state
+
+
 atexit.register(_executor.shutdown, wait=False)
 _jobs: dict[str, "_JobState"] = {}
 _active_file_jobs: dict[str, str] = {}  # f"{file_id}:{enhance_type}" → job_id for in-progress jobs
@@ -150,7 +167,7 @@ def _check_cancelled(state: _JobState, job_id: str) -> None:
 
 def _run_job(job_id: str, file_id: str, enhance_type: str, state: _JobState) -> None:
     print(f"[audio-enhance] job {job_id[:8]}: starting for file {file_id[:8]} ({enhance_type})", flush=True)
-    tmp_dir = tempfile.mkdtemp(dir=str(UPLOADS))
+    tmp_dir = tempfile.mkdtemp()
     tmp_files: list[str] = []
     key = f"{file_id}:{enhance_type}"
     try:
@@ -198,9 +215,9 @@ def _run_job(job_id: str, file_id: str, enhance_type: str, state: _JobState) -> 
         elif enhance_type in ("denoise", "clarity"):
             print(f"[audio-enhance] job {job_id[:8]}: running DeepFilterNet", flush=True)
             import soundfile as sf
-            from df.enhance import enhance, init_df
+            from df.enhance import enhance
 
-            model, df_state, _ = init_df()
+            model, df_state = _get_df_model()
             audio, sr = sf.read(tmp_wav)
             state.progress = 0.3
             _check_cancelled(state, job_id)
