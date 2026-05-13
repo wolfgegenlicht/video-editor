@@ -1,8 +1,10 @@
-import subprocess, uuid, re, math
+import os, subprocess, tempfile, uuid, re, math
 from pathlib import Path
+from services.ass_generator import generate_ass
 
 OUT = Path(__file__).parent.parent / "out"
 OUT.mkdir(exist_ok=True)
+_FONTS_DIR = str(Path(__file__).parent.parent / "fonts")
 
 # Canvas dimensions per aspect ratio and resolution
 CANVAS_SIZES: dict[str, dict[int, tuple[int, int]]] = {
@@ -54,6 +56,14 @@ def _escape(text: str) -> str:
         text = text.replace(ch, "\\" + ch)
     return text
 
+def _build_pan_filter(pan: float) -> str:
+    """Return a pan=stereo filter string for the given pan value (-1..1), or empty string."""
+    if abs(pan) <= 0.01:
+        return ""
+    left_gain = max(0.0, min(1.0, 1.0 - pan))
+    right_gain = max(0.0, min(1.0, 1.0 + pan))
+    return f"pan=stereo|c0={left_gain:.4f}*c0|c1={right_gain:.4f}*c1"
+
 def export(project: dict, uploads_dir: Path, options: dict | None = None, progress_cb=None) -> Path:
     options = options or {}
     resolution = options.get("resolution", 1080)
@@ -68,15 +78,33 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
     tracks = project.get("tracks", [])
 
     clips = []
+    audio_clips = []
     for track in tracks:
         if track.get("hidden"):
             continue
         if track.get("type") == "audio":
-            # Audio-only tracks require timeline-accurate mixing; skip for now.
-            # The corresponding video track clip has volume=0 (muted) when audio is detached.
+            # Collect audio-only clips for timeline-accurate mixing
+            track_muted = track.get("muted", False)
+            for clip in track.get("clips", []):
+                if track_muted or clip.get("muted"):
+                    continue
+                # Enhanced audio file selection
+                if clip.get("audioEnhanceEnabled") and clip.get("audioEnhanceFileId"):
+                    file_id = clip["audioEnhanceFileId"]
+                else:
+                    file_id = clip.get("eyeContactFileId") or clip["fileId"]
+                matches = list(uploads_dir.glob(f"{file_id}.*"))
+                if matches:
+                    audio_clips.append({**clip, "path": str(matches[0]), "track_muted": False})
+                else:
+                    print(f"[ffmpeg export] WARNING: file not found for audio clip {file_id}, skipping")
             continue
         for clip in track.get("clips", []):
-            file_id = clip.get("eyeContactFileId") or clip["fileId"]
+            # Enhanced audio file selection for video clips
+            if clip.get("audioEnhanceEnabled") and clip.get("audioEnhanceFileId"):
+                file_id = clip["audioEnhanceFileId"]
+            else:
+                file_id = clip.get("eyeContactFileId") or clip["fileId"]
             matches = list(uploads_dir.glob(f"{file_id}.*"))
             if matches:
                 clips.append({**clip, "path": str(matches[0]), "track_muted": track.get("muted", False)})
@@ -107,7 +135,7 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         clip_transform = clip.get("transform") or {}
         transform_filter = _build_transform_filter(clip_transform, W, H)
         active_filter = transform_filter if transform_filter else ratio_filter
-        vf = f"[{i}:v]setpts=PTS/{speed}/TB,{active_filter}"
+        vf = f"[{i}:v]setpts=(PTS-STARTPTS)/{speed:.6f},{active_filter}"
 
         brightness = clip.get("brightness")
         contrast = clip.get("contrast")
@@ -134,9 +162,9 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         # Audio filter chain
         # atempo supports 0.5–2.0 per filter; chain for extremes
         if volume == 0 or clip.get("muted") or clip.get("track_muted"):
-            filter_parts.append(f"[{i}:a]volume=0[a{i}]")
+            filter_parts.append(f"[{i}:a]asetpts=PTS-STARTPTS,volume=0[a{i}]")
         else:
-            af = f"[{i}:a]"
+            af = f"[{i}:a]asetpts=PTS-STARTPTS,"
             # Handle speed with atempo (chain if outside 0.5–2 range)
             if speed != 1.0:
                 tempos = []
@@ -149,6 +177,11 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                     s *= 2.0
                 tempos.append(f"atempo={s:.4f}")
                 af += ",".join(tempos) + ","
+            # Pan filter (before volume)
+            pan = clip.get("pan") or 0.0
+            pan_filter = _build_pan_filter(pan)
+            if pan_filter:
+                af += pan_filter + ","
             af += f"volume={volume:.4f}[a{i}]"
             filter_parts.append(af)
         concat_a.append(f"[a{i}]")
@@ -158,41 +191,73 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
     concat_str = "".join(f"[v{i}][a{i}]" for i in range(n))
     filter_complex += f";{concat_str}concat=n={n}:v=1:a=1[vout_c][aout];[vout_c]null[vout]"
 
-    # Captions
+    # Audio-only track clips — delay them to timeline position and amix into main audio
+    if audio_clips:
+        audio_filter_parts = []
+        for j, ac in enumerate(audio_clips):
+            idx = n + j  # input index after all video clips
+            ss_a = ac.get("sourceStart", 0)
+            se_a = ac.get("sourceEnd", ac.get("duration", 0))
+            speed_a = ac.get("speed", 1.0) or 1.0
+            volume_a = ac.get("volume", 1.0)
+            fade_in_a = ac.get("fadeIn", 0) or 0
+            fade_out_a = ac.get("fadeOut", 0) or 0
+            clip_dur_a = (se_a - ss_a) / speed_a
+            start_ms = int(ac.get("startTime", 0) * 1000)
+
+            inputs += ["-ss", str(ss_a), "-to", str(se_a), "-i", ac["path"]]
+
+            af_a = f"[{idx}:a]asetpts=PTS-STARTPTS,"
+            # atempo chain for speed
+            if speed_a != 1.0:
+                tempos = []
+                s = speed_a
+                while s > 2.0:
+                    tempos.append("atempo=2.0")
+                    s /= 2.0
+                while s < 0.5:
+                    tempos.append("atempo=0.5")
+                    s *= 2.0
+                tempos.append(f"atempo={s:.4f}")
+                af_a += ",".join(tempos) + ","
+            # Pan filter (before volume)
+            pan_a = ac.get("pan") or 0.0
+            pan_filter_a = _build_pan_filter(pan_a)
+            if pan_filter_a:
+                af_a += pan_filter_a + ","
+            af_a += f"volume={volume_a:.4f},"
+            if fade_in_a > 0:
+                af_a += f"afade=t=in:st=0:d={fade_in_a},"
+            if fade_out_a > 0:
+                af_a += f"afade=t=out:st={max(0, clip_dur_a - fade_out_a):.4f}:d={fade_out_a},"
+            af_a += f"adelay={start_ms}|{start_ms}:all=1[aa{idx}]"
+            audio_filter_parts.append(af_a)
+
+        filter_complex += ";" + ";".join(audio_filter_parts)
+
+        # Amix main audio output with all audio-only clip streams
+        audio_streams = "[aout]" + "".join(f"[aa{n + j}]" for j in range(len(audio_clips)))
+        mix_count = 1 + len(audio_clips)
+        filter_complex += f";{audio_streams}amix=inputs={mix_count}:duration=first:normalize=0[afinal]"
+
+    # Captions — rendered via ASS subtitle file for proper word-wrap, font, and karaoke support
     captions = project.get("captions", [])
+    ass_path = None
     if burn_captions and captions:
         style = project.get("captionTrackStyle", {})
-        fs = int(style.get("fontSize", 36) * H / 1080)
-        color_hex = style.get("color", "#ffffff").lstrip("#")
-        color = color_hex if re.match(r'^[0-9a-fA-F]{6}$', color_hex) else "ffffff"
-        outline_w = int(style.get("outlineWidth", 0))
-        outline_hex = style.get("outlineColor", "#000000").lstrip("#")
-        outline_color = outline_hex if re.match(r'^[0-9a-fA-F]{6}$', outline_hex) else "000000"
-        cap_x_pct = style.get("x", 5) / 100
-        cap_y_pct = style.get("y", 80) / 100
-        bg_color = style.get("backgroundColor", "transparent")
-
-        border_part = f":borderw={outline_w}:bordercolor=0x{outline_color}" if outline_w > 0 else ""
-        if bg_color != "transparent":
-            raw_bg = bg_color.lstrip("#")
-            box_part = f":box=1:boxcolor=0x{raw_bg}@0.7:boxborderw=5" if re.match(r'^[0-9a-fA-F]{6}$', raw_bg) else ""
-        else:
-            box_part = ""
-        shadow_part = ":shadowx=2:shadowy=2:shadowcolor=0x000000@0.7" if style.get("textShadow") else ""
-
-        drawtext_filters = []
-        for cap in captions:
-            escaped = _escape(cap["text"])
-            t_start, t_end = cap["startTime"], cap["endTime"]
-            enable = f"between(t,{t_start},{t_end})"
-            drawtext_filters.append(
-                f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}"
-                f"{border_part}{box_part}{shadow_part}"
-                f":x=w*{cap_x_pct:.4f}:y=h*{cap_y_pct:.4f}:enable='{enable}'"
-            )
-        if drawtext_filters:
-            chained = "[vcap_pre]" + "[vcap];[vcap]".join(drawtext_filters)
-            filter_complex = filter_complex.replace("[vout]", f"[vcap_pre];{chained}[vout]", 1)
+        ass_content = generate_ass(captions, style, W, H,
+                                   preview_w=options.get("preview_width", 720),
+                                   caption_line_breaks=options.get("caption_line_breaks", {}))
+        ass_fd, ass_path = tempfile.mkstemp(suffix=".ass")
+        os.write(ass_fd, ass_content.encode("utf-8"))
+        os.close(ass_fd)
+        esc = ass_path.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:")
+        esc_fonts = _FONTS_DIR.replace("\\", "\\\\").replace("'", "\\'").replace(":", "\\:")
+        filter_complex = filter_complex.replace(
+            "[vout]",
+            f"[vcap_pre];[vcap_pre]subtitles='{esc}':fontsdir={esc_fonts}[vout]",
+            1,
+        )
 
     # Effect overlays
     effect_overlays = project.get("effectOverlays", [])
@@ -218,9 +283,40 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             st = eff.get("startTime", 0)
             et = max(st + 0.01, eff.get("endTime", st))
             r = max(1, round(eff.get("params", {}).get("intensity", 10)))
+            region = eff.get("params", {}).get("region")
             in_lbl = "vpre_blur" if j == 0 else f"vblur{j}"
             out_lbl = f"vblur{j+1}" if j < len(blur_effects) - 1 else "vout"
-            parts.append(f"[{in_lbl}]boxblur=luma_radius={r}:luma_power=1:enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]")
+            if region:
+                rx = max(0, int(region.get("x", 0) * W))
+                ry = max(0, int(region.get("y", 0) * H))
+                rw = min(W - rx, max(2, int(region.get("width", 1) * W))); rw -= rw % 2
+                rh = min(H - ry, max(2, int(region.get("height", 1) * H))); rh -= rh % 2
+                feather = max(0.0, min(0.5, region.get("feather", 0) or 0))
+                if feather > 0:
+                    fw = max(1, int(feather * rw))
+                    fh = max(1, int(feather * rh))
+                    # feather via RGBA alpha gradient: pixel alpha ramps from 0 at each edge to 255 at fw/fh inward
+                    alpha_expr = (
+                        f"a='255*min("
+                        f"min(X+0.5,{fw})/{fw},"
+                        f"min({rw}-X-0.5,{fw})/{fw},"
+                        f"min(Y+0.5,{fh})/{fh},"
+                        f"min({rh}-Y-0.5,{fh})/{fh})'"
+                    )
+                    parts.append(
+                        f"[{in_lbl}]split[base{j}][bsrc{j}];"
+                        f"[bsrc{j}]crop={rw}:{rh}:{rx}:{ry},boxblur=luma_radius={r}:luma_power=1,"
+                        f"format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':{alpha_expr}[bcrop{j}];"
+                        f"[base{j}][bcrop{j}]overlay={rx}:{ry}:enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
+                    )
+                else:
+                    parts.append(
+                        f"[{in_lbl}]split[base{j}][bsrc{j}];"
+                        f"[bsrc{j}]crop={rw}:{rh}:{rx}:{ry},boxblur=luma_radius={r}:luma_power=1[bcrop{j}];"
+                        f"[base{j}][bcrop{j}]overlay={rx}:{ry}:enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
+                    )
+            else:
+                parts.append(f"[{in_lbl}]boxblur=luma_radius={r}:luma_power=1:enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]")
         filter_complex = filter_complex.replace("[vout]", f"[vpre_blur];{';'.join(parts)}", 1)
 
     # Effect overlays (color grade)
@@ -279,9 +375,8 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             fs = ov.get("fontSize", 32)
             color_raw = ov.get("color", "#ffffff").lstrip("#")
             color = color_raw if re.match(r'^[0-9a-fA-F]{6}$', color_raw) else "ffffff"
-            bold = 1 if ov.get("fontWeight") == "bold" else 0
             ov_filters.append(
-                f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:bold={bold}:"
+                f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:"
                 f"x={px_x}-text_w/2:y={px_y}-text_h/2:enable='{enable}'"
             )
         if ov_filters:
@@ -293,30 +388,35 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         for c in clips
     )
 
+    audio_map = "[afinal]" if audio_clips else "[aout]"
     out_path = OUT / f"{uuid.uuid4()}.mp4"
     cmd = [
         "ffmpeg", "-y",
         *inputs,
         "-filter_complex", filter_complex,
-        "-map", "[vout]", "-map", "[aout]",
+        "-map", "[vout]", "-map", audio_map,
         "-c:v", "libx264", "-preset", preset, "-c:a", "aac",
         str(out_path),
     ]
     time_re = re.compile(r"time=(\d+):(\d+):(\d+\.\d+)")
     try:
-        proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
-    except Exception as e:
-        out_path.unlink(missing_ok=True)
-        raise RuntimeError(f"FFmpeg launch failed: {e}")
-    stderr_lines = []
-    for line in proc.stderr:
-        stderr_lines.append(line)
-        m = time_re.search(line)
-        if m and progress_cb and total_duration > 0:
-            h_t, mn_t, s_t = int(m.group(1)), int(m.group(2)), float(m.group(3))
-            progress_cb(min(0.99, (h_t * 3600 + mn_t * 60 + s_t) / total_duration))
-    proc.wait()
-    if proc.returncode != 0:
-        out_path.unlink(missing_ok=True)
-        raise RuntimeError(f"FFmpeg failed:\n{''.join(stderr_lines[-100:])}")
+        try:
+            proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, stdout=subprocess.DEVNULL, text=True)
+        except Exception as e:
+            out_path.unlink(missing_ok=True)
+            raise RuntimeError(f"FFmpeg launch failed: {e}")
+        stderr_lines = []
+        for line in proc.stderr:
+            stderr_lines.append(line)
+            m = time_re.search(line)
+            if m and progress_cb and total_duration > 0:
+                h_t, mn_t, s_t = int(m.group(1)), int(m.group(2)), float(m.group(3))
+                progress_cb(min(0.99, (h_t * 3600 + mn_t * 60 + s_t) / total_duration))
+        proc.wait()
+        if proc.returncode != 0:
+            out_path.unlink(missing_ok=True)
+            raise RuntimeError(f"FFmpeg failed:\n{''.join(stderr_lines[-100:])}")
+    finally:
+        if ass_path:
+            Path(ass_path).unlink(missing_ok=True)
     return out_path
