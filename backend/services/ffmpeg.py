@@ -102,6 +102,8 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         for clip in track.get("clips", []):
             # Enhanced audio file selection for video clips
             if clip.get("audioEnhanceEnabled") and clip.get("audioEnhanceFileId"):
+                if clip.get("eyeContactFileId"):
+                    print(f"[ffmpeg export] WARNING: clip {clip['id'][:8]} has both eye-contact and audio-enhance enabled; eye-contact correction will be dropped from export", flush=True)
                 file_id = clip["audioEnhanceFileId"]
             else:
                 file_id = clip.get("eyeContactFileId") or clip["fileId"]
@@ -182,7 +184,12 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             pan_filter = _build_pan_filter(pan)
             if pan_filter:
                 af += pan_filter + ","
-            af += f"volume={volume:.4f}[a{i}]"
+            af += f"volume={volume:.4f}"
+            if fade_in > 0:
+                af += f",afade=t=in:st=0:d={fade_in}"
+            if fade_out > 0:
+                af += f",afade=t=out:st={max(0, clip_dur - fade_out):.4f}:d={fade_out}"
+            af += f"[a{i}]"
             filter_parts.append(af)
         concat_a.append(f"[a{i}]")
 
