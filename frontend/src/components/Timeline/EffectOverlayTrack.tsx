@@ -1,5 +1,6 @@
 import { useProjectStore, getItemStartTime } from "../../store/useProjectStore";
-import type { EffectOverlay, EffectType, FadeParams, ColorGradeParams, SpeedRampParams } from "../../types/project";
+import type { EffectOverlay, EffectType, FadeParams, ColorGradeParams, SpeedRampParams, BlurParams } from "../../types/project";
+import { SNAP_PX, findSnap } from "./snapUtils";
 
 const EFFECT_DURATION: Record<EffectType, number> = {
   zoom: 3,
@@ -31,9 +32,10 @@ interface Props {
   totalWidth: number;
   height: number;
   hidden?: boolean;
+  onSnapChange?: (time: number | null) => void;
 }
 
-export default function EffectOverlayTrack({ effectType, zoom, totalWidth, height, hidden }: Props) {
+export default function EffectOverlayTrack({ effectType, zoom, totalWidth, height, hidden, onSnapChange }: Props) {
   const effectOverlays = useProjectStore((s) => s.project.effectOverlays);
   const selectedEffectOverlayId = useProjectStore((s) => s.selectedEffectOverlayId);
   const { addEffectOverlay, addEffectOverlayWithId, moveEffectOverlay, moveEffectOverlayLive, resizeEffectOverlay, resizeEffectOverlayLive, selectEffectOverlay } =
@@ -78,6 +80,7 @@ export default function EffectOverlayTrack({ effectType, zoom, totalWidth, heigh
             addEffectOverlayWithId(clone);
             selectEffectOverlay(clone.id);
           }}
+          onSnapChange={onSnapChange}
         />
       ))}
     </div>
@@ -150,6 +153,7 @@ function EffectBlock({
   onResize,
   onResizeCommit,
   onDuplicate,
+  onSnapChange,
 }: {
   effect: EffectOverlay;
   zoom: number;
@@ -160,8 +164,11 @@ function EffectBlock({
   onResize: (newStart: number, newEnd: number) => void;
   onResizeCommit: (newStart: number, newEnd: number) => void;
   onDuplicate: (clone: EffectOverlay) => void;
+  onSnapChange?: (time: number | null) => void;
 }) {
   const { moveEffectOverlayLive, moveEffectOverlay, selectedItemIds, toggleItemSelection, moveSelectedItemsLive, moveSelectedItems } = useProjectStore();
+  const playheadTime = useProjectStore((s) => s.playheadTime);
+  const setPlayhead = useProjectStore((s) => s.setPlayhead);
   const left = effect.startTime * zoom;
   const width = Math.max((effect.endTime - effect.startTime) * zoom, 8);
   const theme = getTheme(effect.type);
@@ -191,8 +198,18 @@ function EffectBlock({
     const startX = e.clientX;
     const origStart = effect.startTime;
     const origEnd = effect.endTime;
+    const duration = origEnd - origStart;
     let lastStart = origStart;
     let lastEnd = origEnd;
+
+    const excludeIds = isMultiDrag ? ids : new Set([effect.id]);
+    const snapPoints = useProjectStore.getState().project.tracks
+      .flatMap((t) => t.clips)
+      .flatMap((c) => [c.startTime, c.startTime + c.duration]);
+    // Also snap to other effect overlays of all types
+    useProjectStore.getState().project.effectOverlays
+      .filter((eff) => !excludeIds.has(eff.id))
+      .forEach((eff) => { snapPoints.push(eff.startTime, eff.endTime); });
 
     const isAltDuplicate = !isMultiDrag && e.altKey && mode === "move";
     let cloneId: string | null = null;
@@ -205,16 +222,23 @@ function EffectBlock({
     function onMouseMove(ev: MouseEvent) {
       const dt = (ev.clientX - startX) / zoom;
       if (isMultiDrag) {
+        const rawPrimary = Math.max(0, origStart + dt);
+        const { snappedStart, snapTime } = findSnap(rawPrimary, duration, snapPoints, SNAP_PX / zoom);
+        const snappedDt = snappedStart - origStart;
         lastMoves = [...ids].map((id) => ({
           id,
-          newStartTime: Math.max(0, (origPositions.get(id) ?? 0) + dt),
+          newStartTime: Math.max(0, (origPositions.get(id) ?? 0) + snappedDt),
         }));
+        onSnapChange?.(snapTime);
         moveSelectedItemsLive(lastMoves);
         return;
       }
       if (mode === "move") {
-        lastStart = Math.max(0, origStart + dt);
-        lastEnd = lastStart + (origEnd - origStart);
+        const rawStart = Math.max(0, origStart + dt);
+        const { snappedStart, snapTime } = findSnap(rawStart, duration, snapPoints, SNAP_PX / zoom);
+        onSnapChange?.(snapTime);
+        lastStart = snappedStart;
+        lastEnd = lastStart + duration;
         if (cloneId) {
           moveEffectOverlayLive(cloneId, lastStart);
         } else {
@@ -233,6 +257,7 @@ function EffectBlock({
     function onMouseUp() {
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
+      onSnapChange?.(null);
       if (isMultiDrag && lastMoves.length > 0) {
         // Reset to original positions first so withHistory snapshots the pre-drag state
         const originalMoves = [...origPositions.entries()].map(([id, newStartTime]) => ({ id, newStartTime }));
@@ -272,6 +297,30 @@ function EffectBlock({
         className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 ${theme.handle}`}
         onMouseDown={(e) => { e.stopPropagation(); startDrag(e, "left"); }}
       />
+      {effect.type === "blur" &&
+        ((effect.params as BlurParams).keyframes ?? []).map((kf, i) => {
+          const kfLeft = Math.max(4, Math.min(width - 4, kf.time * zoom));
+          const isActive = Math.abs(playheadTime - effect.startTime - kf.time) < 0.05;
+          return (
+            <div
+              key={i}
+              title={`Keyframe ${i + 1}`}
+              className={`absolute top-1/2 z-20 pointer-events-auto cursor-pointer
+                ${isActive ? "outline outline-2 outline-amber-300 outline-offset-1" : ""}`}
+              style={{
+                left: kfLeft,
+                width: 8,
+                height: 8,
+                background: "#f59e0b",
+                transform: "translate(-50%, -50%) rotate(45deg)",
+              }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPlayhead(effect.startTime + kf.time);
+              }}
+            />
+          );
+        })}
       <span className={`px-2 text-[10px] font-semibold truncate flex-1 pointer-events-none ${theme.label}`}>
         {getLabel(effect)}
       </span>
