@@ -337,6 +337,7 @@ function EffectBlock({
                   if (moved) {
                     moveBlurKeyframe(effect.id, i, lastTime);
                   } else {
+                    onSelect();
                     setPlayhead(effect.startTime + origTime);
                   }
                 }
