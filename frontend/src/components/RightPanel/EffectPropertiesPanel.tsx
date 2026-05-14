@@ -1,5 +1,7 @@
 import { useProjectStore } from "../../store/useProjectStore";
-import type { ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams } from "../../types/project";
+import type { ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams, BlurKeyframe } from "../../types/project";
+import type { BlurRegion } from "../../types/project";
+import { interpolateBlurAt } from "../../lib/blurKeyframes";
 
 function SliderRow({ label, value, min, max, step, onChange, format, accentClass = "accent-violet-600" }: {
   label: string;
@@ -34,8 +36,23 @@ function SectionHeader({ label }: { label: string }) {
   return <p className="text-[10px] font-bold text-slate-400">{label}</p>;
 }
 
+function fmtTime(s: number): string {
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
+function kfSummary(kf: BlurKeyframe): string {
+  const r = kf.region;
+  if (!r) return `blur:${kf.intensity.toFixed(0)}`;
+  return `x:${r.x.toFixed(2)} y:${r.y.toFixed(2)} w:${r.width.toFixed(2)} h:${r.height.toFixed(2)}`;
+}
+
 export default function EffectPropertiesPanel() {
-  const { project, selectedEffectOverlayId, updateEffectOverlayParams, resizeEffectOverlay } = useProjectStore();
+  const {
+    project, selectedEffectOverlayId, updateEffectOverlayParams, resizeEffectOverlay,
+    playheadTime, addOrUpdateBlurKeyframe, deleteBlurKeyframe, setPlayhead,
+  } = useProjectStore();
   const effect = project.effectOverlays.find((e) => e.id === selectedEffectOverlayId);
 
   if (!effect) return null;
@@ -85,18 +102,140 @@ export default function EffectPropertiesPanel() {
   // — Blur —
   if (effect.type === "blur") {
     const params = effect.params as BlurParams;
+    const keyframes = params.keyframes ?? [];
+    const relTime = playheadTime - effect.startTime;
+    const activeKfIdx = keyframes.findIndex((k) => Math.abs(k.time - relTime) < 0.05);
+    const effectiveParams = keyframes.length
+      ? interpolateBlurAt(keyframes, relTime, params)
+      : params;
+    const region = effectiveParams.region as BlurRegion | undefined;
+
+    function addKeyframe() {
+      addOrUpdateBlurKeyframe(effect!.id, {
+        time: Math.max(0, relTime),
+        intensity: effectiveParams.intensity,
+        region: effectiveParams.region,
+      });
+    }
+
+    function onIntensityChange(v: number) {
+      if (keyframes.length) {
+        addOrUpdateBlurKeyframe(effect!.id, {
+          time: Math.max(0, relTime),
+          intensity: v,
+          region: effectiveParams.region,
+        });
+      } else {
+        updateEffectOverlayParams(effect!.id, { intensity: v });
+      }
+    }
+
+    function onFeatherChange(v: number) {
+      if (!effectiveParams.region) return;
+      if (keyframes.length) {
+        addOrUpdateBlurKeyframe(effect!.id, {
+          time: Math.max(0, relTime),
+          intensity: effectiveParams.intensity,
+          region: { ...effectiveParams.region, feather: v },
+        });
+      } else {
+        updateEffectOverlayParams(effect!.id, { region: { ...params.region!, feather: v } });
+      }
+    }
+
     return (
       <div className="flex-1 overflow-y-auto">
         <div className="px-3 pt-3 pb-4 space-y-3">
           <SectionHeader label="Blur" />
+
+          {/* ── Keyframes section ── */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-bold text-slate-400">
+                KEYFRAMES{keyframes.length > 0 ? ` (${keyframes.length})` : ""}
+              </p>
+              <button
+                onClick={addKeyframe}
+                className="text-[10px] font-semibold px-2 py-0.5 rounded bg-sky-500 text-white hover:bg-sky-600 transition-colors cursor-pointer"
+              >
+                + Add
+              </button>
+            </div>
+
+            {keyframes.length > 0 && (
+              <>
+                <div className="space-y-0.5 max-h-32 overflow-y-auto">
+                  {keyframes.map((kf, i) => {
+                    const isActive = i === activeKfIdx;
+                    return (
+                      <div
+                        key={i}
+                        className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] cursor-pointer
+                          ${isActive
+                            ? "bg-sky-50 border border-sky-200"
+                            : "hover:bg-slate-50"}`}
+                        onClick={() => setPlayhead(effect!.startTime + kf.time)}
+                      >
+                        <span className={`w-8 tabular-nums ${isActive ? "text-sky-600 font-semibold" : "text-slate-500"}`}>
+                          {fmtTime(effect!.startTime + kf.time)}{isActive ? " ◆" : ""}
+                        </span>
+                        <span className="flex-1 text-slate-400 truncate">{kfSummary(kf)}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteBlurKeyframe(effect!.id, i); }}
+                          className="text-slate-300 hover:text-red-400 transition-colors leading-none px-0.5 cursor-pointer"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Prev / Next navigation */}
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => {
+                      const prev = [...keyframes].reverse().find((k) => k.time < relTime - 0.05);
+                      if (prev) setPlayhead(effect!.startTime + prev.time);
+                    }}
+                    className="text-[11px] px-2.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >◀</button>
+                  <span className="text-[10px] text-slate-400">
+                    {activeKfIdx >= 0 ? `${activeKfIdx + 1} / ${keyframes.length}` : `— / ${keyframes.length}`}
+                  </span>
+                  <button
+                    onClick={() => {
+                      const next = keyframes.find((k) => k.time > relTime + 0.05);
+                      if (next) setPlayhead(effect!.startTime + next.time);
+                    }}
+                    className="text-[11px] px-2.5 py-0.5 rounded border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                  >▶</button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── Sliders ── */}
           <SliderRow
             label="Blur Amount"
-            value={params.intensity}
+            value={effectiveParams.intensity}
             min={0} max={20} step={0.5}
-            onChange={(v) => updateEffectOverlayParams(effect.id, { intensity: v })}
+            onChange={onIntensityChange}
             format={(v) => `${v.toFixed(1)}px`}
             accentClass="accent-sky-500"
           />
+          {region ? (
+            <SliderRow
+              label="Edge Feather"
+              value={region.feather ?? 0}
+              min={0} max={0.5} step={0.01}
+              onChange={onFeatherChange}
+              format={(v) => `${Math.round(v * 100)}%`}
+              accentClass="accent-sky-500"
+            />
+          ) : (
+            <p className="text-[10px] text-slate-400">Click the blur in the timeline to position the blur region in the preview.</p>
+          )}
           {durationSlider("accent-sky-500")}
         </div>
       </div>
