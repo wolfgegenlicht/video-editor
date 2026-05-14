@@ -14,6 +14,15 @@ CANVAS_SIZES: dict[str, dict[int, tuple[int, int]]] = {
     "4:3":   {1080: (1440, 1080), 720: (960, 720),  480: (640, 480)},
 }
 
+def _has_audio(path: str) -> bool:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a:0",
+         "-show_entries", "stream=codec_type", "-of", "csv=p=0", path],
+        capture_output=True, text=True,
+    )
+    return result.stdout.strip() == "audio"
+
+
 def _build_transform_filter(transform: dict, W: int, H: int) -> str:
     """Return an ffmpeg filter string that applies the clip transform.
 
@@ -63,6 +72,36 @@ def _build_pan_filter(pan: float) -> str:
     left_gain = max(0.0, min(1.0, 1.0 - pan))
     right_gain = max(0.0, min(1.0, 1.0 + pan))
     return f"pan=stereo|c0={left_gain:.4f}*c0|c1={right_gain:.4f}*c1"
+
+def _kf_lerp_expr(t_offset: float, kf_times: list, kf_values: list) -> str:
+    """Build a nested FFmpeg if() expression for linear keyframe interpolation.
+
+    t_offset  — absolute effect startTime (seconds); expressions use (t - t_offset)
+                as the relative clock.
+    kf_times  — list of floats, keyframe times relative to effect startTime, ascending.
+    kf_values — list of floats, one value per keyframe.
+    """
+    n = len(kf_times)
+    if n == 0:
+        return "0"
+    if n == 1:
+        return f"{kf_values[0]:.4f}"
+
+    T = f"(t-{t_offset:.4f})"
+
+    expr = f"{kf_values[-1]:.4f}"
+    for i in range(n - 2, -1, -1):
+        t0, t1 = kf_times[i], kf_times[i + 1]
+        v0, v1 = kf_values[i], kf_values[i + 1]
+        dt = t1 - t0
+        if dt < 1e-6:
+            lerp = f"{v0:.4f}"
+        else:
+            dv = v1 - v0
+            lerp = f"({v0:.4f}+{dv:.4f}*({T}-{t0:.4f})/{dt:.4f})"
+        expr = f"if(lt({T},{t1:.4f}),{lerp},{expr})"
+
+    return f"if(lt({T},{kf_times[0]:.4f}),{kf_values[0]:.4f},{expr})"
 
 def export(project: dict, uploads_dir: Path, options: dict | None = None, progress_cb=None) -> Path:
     options = options or {}
@@ -163,7 +202,13 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
 
         # Audio filter chain
         # atempo supports 0.5–2.0 per filter; chain for extremes
-        if volume == 0 or clip.get("muted") or clip.get("track_muted"):
+        has_audio = _has_audio(clip["path"])
+        if not has_audio:
+            # No audio stream — generate silence for the duration of the clip
+            filter_parts.append(
+                f"aevalsrc=0:s=44100:c=stereo,atrim=duration={clip_dur:.6f},asetpts=PTS-STARTPTS[a{i}]"
+            )
+        elif volume == 0 or clip.get("muted") or clip.get("track_muted"):
             filter_parts.append(f"[{i}:a]asetpts=PTS-STARTPTS,volume=0[a{i}]")
         else:
             af = f"[{i}:a]asetpts=PTS-STARTPTS,"
@@ -293,7 +338,29 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             region = eff.get("params", {}).get("region")
             in_lbl = "vpre_blur" if j == 0 else f"vblur{j}"
             out_lbl = f"vblur{j+1}" if j < len(blur_effects) - 1 else "vout"
-            if region:
+            keyframes = eff.get("params", {}).get("keyframes") or []
+            kf_with_region = [kf for kf in keyframes if kf.get("region")]
+            if kf_with_region:
+                kf_times = [kf["time"] for kf in kf_with_region]
+                kf_x = [max(0.0, kf["region"]["x"] * W) for kf in kf_with_region]
+                kf_y = [max(0.0, kf["region"]["y"] * H) for kf in kf_with_region]
+                kf_w = [max(2.0, kf["region"]["width"] * W) for kf in kf_with_region]
+                kf_h = [max(2.0, kf["region"]["height"] * H) for kf in kf_with_region]
+                kf_r = [max(1.0, kf["intensity"]) for kf in kf_with_region]
+
+                ex = _kf_lerp_expr(st, kf_times, kf_x)
+                ey = _kf_lerp_expr(st, kf_times, kf_y)
+                ew = f"trunc(max(2,{_kf_lerp_expr(st, kf_times, kf_w)})/2)*2"
+                eh = f"trunc(max(2,{_kf_lerp_expr(st, kf_times, kf_h)})/2)*2"
+                er = f"max(1,{_kf_lerp_expr(st, kf_times, kf_r)})"
+
+                parts.append(
+                    f"[{in_lbl}]split[base{j}][bsrc{j}];"
+                    f"[bsrc{j}]crop=w='{ew}':h='{eh}':x='{ex}':y='{ey}',"
+                    f"boxblur=luma_radius='{er}':luma_power=1[bcrop{j}];"
+                    f"[base{j}][bcrop{j}]overlay=x='{ex}':y='{ey}':enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
+                )
+            elif region:
                 rx = max(0, int(region.get("x", 0) * W))
                 ry = max(0, int(region.get("y", 0) * H))
                 rw = min(W - rx, max(2, int(region.get("width", 1) * W))); rw -= rw % 2
@@ -306,9 +373,9 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                     alpha_expr = (
                         f"a='255*min("
                         f"min(X+0.5,{fw})/{fw},"
-                        f"min({rw}-X-0.5,{fw})/{fw},"
-                        f"min(Y+0.5,{fh})/{fh},"
-                        f"min({rh}-Y-0.5,{fh})/{fh})'"
+                        f"min(min({rw}-X-0.5,{fw})/{fw},"
+                        f"min(min(Y+0.5,{fh})/{fh},"
+                        f"min({rh}-Y-0.5,{fh})/{fh})))'"
                     )
                     parts.append(
                         f"[{in_lbl}]split[base{j}][bsrc{j}];"
