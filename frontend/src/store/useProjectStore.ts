@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType, AudioEnhanceType } from "../types/project";
+import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, BlurKeyframe, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType, AudioEnhanceType } from "../types/project";
 import { saveProject, deleteEyeContactFile } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
@@ -129,6 +129,8 @@ interface ProjectStore {
   resizeEffectOverlayLive: (id: string, newStartTime: number, newEndTime: number) => void;
   deleteEffectOverlay: (id: string) => void;
   updateEffectOverlayParams: (id: string, params: Partial<ZoomParams> | Partial<FadeParams> | Partial<BlurParams> | Partial<ColorGradeParams> | Partial<SpeedRampParams>) => void;
+  addOrUpdateBlurKeyframe: (effectId: string, keyframe: BlurKeyframe) => void;
+  deleteBlurKeyframe: (effectId: string, keyframeIndex: number) => void;
   selectEffectOverlay: (id: string | null) => void;
 
   selectedTransitionId: string | null;
@@ -262,14 +264,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     const { files, project } = get();
     const isVideoFile = files.find((f) => f.id === fileId)?.width ?? 0 > 0;
     set((s) => ({ files: s.files.filter((f) => f.id !== fileId) }));
-    // Clear captions when the source file is removed — check explicit link or
-    // fall back to: any video file removed while captions exist clears them.
+    // Remove any clips that reference this file and clear captions if linked.
     const hasCaptions = project.captions.length > 0;
     const isLinked = project.captionSourceFileId === fileId;
     const isUnlinkedVideo = !project.captionSourceFileId && isVideoFile;
-    if (hasCaptions && (isLinked || isUnlinkedVideo)) {
-      withHistory(set, get, (p) => ({ ...p, captions: [], captionSourceFileId: undefined }));
-    }
+    withHistory(set, get, (p) => ({
+      ...p,
+      tracks: p.tracks.map((t) => ({
+        ...t,
+        clips: t.clips.filter((c) => c.fileId !== fileId),
+      })),
+      captions: hasCaptions && (isLinked || isUnlinkedVideo) ? [] : p.captions,
+      captionSourceFileId: isLinked ? undefined : p.captionSourceFileId,
+    }));
   },
 
   addTrack: (type = "video" as TrackType) => withHistory(set, get, (p) => ({
@@ -798,6 +805,34 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       e.id === id ? { ...e, params: { ...e.params, ...params } } : e
     ),
   })),
+
+  addOrUpdateBlurKeyframe: (effectId, keyframe) =>
+    withHistory(set, get, (p) => ({
+      ...p,
+      effectOverlays: p.effectOverlays.map((e) => {
+        if (e.id !== effectId || e.type !== "blur") return e;
+        const bp = e.params as BlurParams;
+        const existing = bp.keyframes ?? [];
+        const idx = existing.findIndex((k) => Math.abs(k.time - keyframe.time) < 0.05);
+        const next = idx >= 0
+          ? existing.map((k, i) => (i === idx ? keyframe : k))
+          : [...existing, keyframe].sort((a, b) => a.time - b.time);
+        return { ...e, params: { ...bp, keyframes: next } };
+      }),
+    })),
+
+  deleteBlurKeyframe: (effectId, keyframeIndex) =>
+    withHistory(set, get, (p) => ({
+      ...p,
+      effectOverlays: p.effectOverlays.map((e) => {
+        if (e.id !== effectId || e.type !== "blur") return e;
+        const bp = e.params as BlurParams;
+        return {
+          ...e,
+          params: { ...bp, keyframes: (bp.keyframes ?? []).filter((_, i) => i !== keyframeIndex) },
+        };
+      }),
+    })),
 
   selectEffectOverlay: (id) =>
     set(
