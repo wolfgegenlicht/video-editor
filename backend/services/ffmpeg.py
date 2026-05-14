@@ -74,10 +74,13 @@ def _build_pan_filter(pan: float) -> str:
     return f"pan=stereo|c0={left_gain:.4f}*c0|c1={right_gain:.4f}*c1"
 
 def _kf_lerp_expr(t_offset: float, kf_times: list, kf_values: list) -> str:
-    """Build a nested FFmpeg if() expression for linear keyframe interpolation.
+    """Build a flat FFmpeg expression for linear keyframe interpolation.
 
-    t_offset  — absolute effect startTime (seconds); expressions use (t - t_offset)
-                as the relative clock.
+    Uses a sum of gte()*lt() multiplications instead of nested if() calls so the
+    expression depth stays O(1) regardless of keyframe count — nested if() hits
+    FFmpeg's parser stack limit with ~10+ keyframes.
+
+    t_offset  — absolute effect startTime (seconds); (t - t_offset) is the relative clock.
     kf_times  — list of floats, keyframe times relative to effect startTime, ascending.
     kf_values — list of floats, one value per keyframe.
     """
@@ -88,9 +91,13 @@ def _kf_lerp_expr(t_offset: float, kf_times: list, kf_values: list) -> str:
         return f"{kf_values[0]:.4f}"
 
     T = f"(t-{t_offset:.4f})"
+    terms = []
 
-    expr = f"{kf_values[-1]:.4f}"
-    for i in range(n - 2, -1, -1):
+    # Before first keyframe: clamp to first value
+    terms.append(f"lt({T},{kf_times[0]:.4f})*{kf_values[0]:.4f}")
+
+    # Each half-open segment [t_i, t_{i+1})
+    for i in range(n - 1):
         t0, t1 = kf_times[i], kf_times[i + 1]
         v0, v1 = kf_values[i], kf_values[i + 1]
         dt = t1 - t0
@@ -98,10 +105,13 @@ def _kf_lerp_expr(t_offset: float, kf_times: list, kf_values: list) -> str:
             lerp = f"{v0:.4f}"
         else:
             dv = v1 - v0
-            lerp = f"({v0:.4f}+{dv:.4f}*({T}-{t0:.4f})/{dt:.4f})"
-        expr = f"if(lt({T},{t1:.4f}),{lerp},{expr})"
+            lerp = f"({v0:.4f}+{dv:.4f}*(({T}-{t0:.4f})/{dt:.4f}))"
+        terms.append(f"gte({T},{t0:.4f})*lt({T},{t1:.4f})*{lerp}")
 
-    return f"if(lt({T},{kf_times[0]:.4f}),{kf_values[0]:.4f},{expr})"
+    # After last keyframe: clamp to last value
+    terms.append(f"gte({T},{kf_times[-1]:.4f})*{kf_values[-1]:.4f}")
+
+    return "+".join(terms)
 
 def export(project: dict, uploads_dir: Path, options: dict | None = None, progress_cb=None) -> Path:
     options = options or {}
