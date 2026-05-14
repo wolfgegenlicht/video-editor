@@ -148,8 +148,8 @@ export default function EffectPropertiesPanel() {
         <div className="px-3 pt-3 pb-4 space-y-3">
           <SectionHeader label="Blur" />
 
-          {/* ── Keyframes section ── */}
-          <div className="space-y-1.5">
+          {/* ── Keyframes section (regional blurs only) ── */}
+          {region && <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-bold text-slate-400">
                 KEYFRAMES{keyframes.length > 0 ? ` (${keyframes.length})` : ""}
@@ -213,7 +213,7 @@ export default function EffectPropertiesPanel() {
                 </div>
               </>
             )}
-          </div>
+          </div>}
 
           {/* ── Sliders ── */}
           <SliderRow
