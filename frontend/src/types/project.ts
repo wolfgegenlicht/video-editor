@@ -108,8 +108,24 @@ export interface FadeParams {
   direction: "in" | "out";
 }
 
+export interface BlurRegion {
+  x: number;      // 0–1 fraction of video width
+  y: number;      // 0–1 fraction of video height
+  width: number;  // 0–1 fraction of video width
+  height: number; // 0–1 fraction of video height
+  feather?: number; // 0–0.5, fraction of each edge to feather (0 = hard cut, 0.5 = very soft)
+}
+
+export interface BlurKeyframe {
+  time: number;        // seconds relative to effect.startTime; array always sorted ascending
+  intensity: number;   // blur radius in px
+  region?: BlurRegion; // absent only for full-frame blurs
+}
+
 export interface BlurParams {
-  intensity: number; // 0–20 (gaussian blur radius in px)
+  intensity: number;    // 0–20 (gaussian blur radius in px)
+  region?: BlurRegion;  // absent = full-frame blur
+  keyframes?: BlurKeyframe[]; // present & non-empty → keyframe mode
 }
 
 export interface ColorGradeParams {
