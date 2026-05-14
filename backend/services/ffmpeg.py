@@ -350,8 +350,10 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
 
                 ex = _kf_lerp_expr(st, kf_times, kf_x)
                 ey = _kf_lerp_expr(st, kf_times, kf_y)
-                ew = f"trunc(max(2,{_kf_lerp_expr(st, kf_times, kf_w)})/2)*2"
-                eh = f"trunc(max(2,{_kf_lerp_expr(st, kf_times, kf_h)})/2)*2"
+                ew_raw = _kf_lerp_expr(st, kf_times, kf_w)
+                eh_raw = _kf_lerp_expr(st, kf_times, kf_h)
+                ew = f"trunc(min({W}-({ex}),max(2,{ew_raw}))/2)*2"
+                eh = f"trunc(min({H}-({ey}),max(2,{eh_raw}))/2)*2"
                 er = f"max(1,{_kf_lerp_expr(st, kf_times, kf_r)})"
 
                 parts.append(
