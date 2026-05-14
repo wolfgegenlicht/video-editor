@@ -130,16 +130,17 @@ export default function EffectPropertiesPanel() {
       }
     }
 
-    function onFeatherChange(v: number) {
+    function commitRegion(patch: Partial<BlurRegion>) {
       if (!effectiveParams.region) return;
+      const next = { ...effectiveParams.region, ...patch };
       if (keyframes.length) {
         addOrUpdateBlurKeyframe(effect!.id, {
           time: Math.max(0, relTime),
           intensity: effectiveParams.intensity,
-          region: { ...effectiveParams.region, feather: v },
+          region: next,
         });
       } else {
-        updateEffectOverlayParams(effect!.id, { region: { ...params.region!, feather: v } });
+        updateEffectOverlayParams(effect!.id, { region: next });
       }
     }
 
@@ -225,14 +226,48 @@ export default function EffectPropertiesPanel() {
             accentClass="accent-sky-500"
           />
           {region ? (
-            <SliderRow
-              label="Edge Feather"
-              value={region.feather ?? 0}
-              min={0} max={0.5} step={0.01}
-              onChange={onFeatherChange}
-              format={(v) => `${Math.round(v * 100)}%`}
-              accentClass="accent-sky-500"
-            />
+            <>
+              <SliderRow
+                label="X Position"
+                value={region.x}
+                min={0} max={1 - region.width} step={0.01}
+                onChange={(v) => commitRegion({ x: v })}
+                format={(v) => `${Math.round(v * 100)}%`}
+                accentClass="accent-sky-500"
+              />
+              <SliderRow
+                label="Y Position"
+                value={region.y}
+                min={0} max={1 - region.height} step={0.01}
+                onChange={(v) => commitRegion({ y: v })}
+                format={(v) => `${Math.round(v * 100)}%`}
+                accentClass="accent-sky-500"
+              />
+              <SliderRow
+                label="Width"
+                value={region.width}
+                min={0.05} max={1 - region.x} step={0.01}
+                onChange={(v) => commitRegion({ width: v })}
+                format={(v) => `${Math.round(v * 100)}%`}
+                accentClass="accent-sky-500"
+              />
+              <SliderRow
+                label="Height"
+                value={region.height}
+                min={0.05} max={1 - region.y} step={0.01}
+                onChange={(v) => commitRegion({ height: v })}
+                format={(v) => `${Math.round(v * 100)}%`}
+                accentClass="accent-sky-500"
+              />
+              <SliderRow
+                label="Edge Feather"
+                value={region.feather ?? 0}
+                min={0} max={0.5} step={0.01}
+                onChange={(v) => commitRegion({ feather: v })}
+                format={(v) => `${Math.round(v * 100)}%`}
+                accentClass="accent-sky-500"
+              />
+            </>
           ) : (
             <p className="text-[10px] text-slate-400">Click the blur in the timeline to position the blur region in the preview.</p>
           )}
