@@ -38,7 +38,6 @@ export function featherMaskStyle(feather: number): React.CSSProperties {
 }
 
 export default function BlurRegionEditor({ effectId, effectStartTime, intensity, initialRegion, outerRef }: Props) {
-  useProjectStore();
   const [region, setRegion] = useState<BlurRegion>(initialRegion ?? DEFAULT_REGION);
   const draggingRef = useRef(false);
 
