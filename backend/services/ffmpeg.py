@@ -113,6 +113,18 @@ def _kf_lerp_expr(t_offset: float, kf_times: list, kf_values: list) -> str:
 
     return "+".join(terms)
 
+def _seg_lerp_expr(v0: float, v1: float, t0: float, t1: float) -> str:
+    """Clamped linear expression from v0 at t0 to v1 at t1.
+
+    Stays at v0 before t0 and v1 after t1 (max/min clamp), so the expression
+    is safe to evaluate at any t without producing out-of-range values.
+    """
+    dt = t1 - t0
+    if dt < 1e-6 or abs(v1 - v0) < 1e-6:
+        return f"{v0:.4f}"
+    return f"({v0:.4f}+{v1-v0:.4f}*max(0,min(1,(t-{t0:.4f})/{dt:.4f})))"
+
+
 def export(project: dict, uploads_dir: Path, options: dict | None = None, progress_cb=None) -> Path:
     options = options or {}
     resolution = options.get("resolution", 1080)
@@ -358,20 +370,48 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                 kf_h = [max(2.0, kf["region"]["height"] * H) for kf in kf_with_region]
                 kf_r = [max(1.0, kf["intensity"]) for kf in kf_with_region]
 
-                ex = _kf_lerp_expr(st, kf_times, kf_x)
-                ey = _kf_lerp_expr(st, kf_times, kf_y)
-                ew_raw = _kf_lerp_expr(st, kf_times, kf_w)
-                eh_raw = _kf_lerp_expr(st, kf_times, kf_h)
-                ew = f"trunc(min({W}-({ex}),max(2,{ew_raw}))/2)*2"
-                eh = f"trunc(min({H}-({ey}),max(2,{eh_raw}))/2)*2"
-                er = f"max(1,{_kf_lerp_expr(st, kf_times, kf_r)})"
+                # Build one segment per keyframe interval so each filter chain uses
+                # a simple 2-point linear expression (~60 chars) rather than a
+                # full N-term summation — the latter causes FFmpeg's crop filter
+                # evaluator to fail when there are many keyframes.
+                segs: list[tuple] = []
+                if kf_times[0] > 1e-6:
+                    v = (kf_x[0], kf_y[0], kf_w[0], kf_h[0], kf_r[0])
+                    segs.append((st, st + kf_times[0]) + v + v)
+                for i in range(len(kf_times) - 1):
+                    segs.append((
+                        st + kf_times[i], st + kf_times[i + 1],
+                        kf_x[i], kf_y[i], kf_w[i], kf_h[i], kf_r[i],
+                        kf_x[i+1], kf_y[i+1], kf_w[i+1], kf_h[i+1], kf_r[i+1],
+                    ))
+                last = len(kf_times) - 1
+                if kf_times[last] < (et - st) - 1e-6:
+                    v = (kf_x[last], kf_y[last], kf_w[last], kf_h[last], kf_r[last])
+                    segs.append((st + kf_times[last], et) + v + v)
 
-                parts.append(
-                    f"[{in_lbl}]split[base{j}][bsrc{j}];"
-                    f"[bsrc{j}]crop=w='{ew}':h='{eh}':x='{ex}':y='{ey}',"
-                    f"boxblur=luma_radius='{er}':luma_power=1[bcrop{j}];"
-                    f"[base{j}][bcrop{j}]overlay=x='{ex}':y='{ey}':enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
-                )
+                cur_in = in_lbl
+                for s, seg in enumerate(segs):
+                    t0a, t1a = seg[0], seg[1]
+                    x0, y0, w0, h0, r0 = seg[2], seg[3], seg[4], seg[5], seg[6]
+                    x1, y1, w1, h1, r1 = seg[7], seg[8], seg[9], seg[10], seg[11]
+                    seg_out = out_lbl if s == len(segs) - 1 else f"vkfs{j}s{s}"
+
+                    ex_e = _seg_lerp_expr(x0, x1, t0a, t1a)
+                    ey_e = _seg_lerp_expr(y0, y1, t0a, t1a)
+                    ew_e = f"trunc(min({W}-({ex_e}),max(2,{_seg_lerp_expr(w0, w1, t0a, t1a)}))/2)*2"
+                    eh_e = f"trunc(min({H}-({ey_e}),max(2,{_seg_lerp_expr(h0, h1, t0a, t1a)}))/2)*2"
+                    er_e = f"max(1,{_seg_lerp_expr(r0, r1, t0a, t1a)})"
+
+                    b  = f"bkfb{j}_{s}"
+                    bs = f"bkfs{j}_{s}"
+                    bc = f"bkfc{j}_{s}"
+                    parts.append(
+                        f"[{cur_in}]split[{b}][{bs}];"
+                        f"[{bs}]crop=w='{ew_e}':h='{eh_e}':x='{ex_e}':y='{ey_e}',"
+                        f"boxblur=luma_radius='{er_e}':luma_power=1[{bc}];"
+                        f"[{b}][{bc}]overlay=x='{ex_e}':y='{ey_e}':enable='between(t,{t0a:.4f},{t1a:.4f})'[{seg_out}]"
+                    )
+                    cur_in = seg_out
             elif region:
                 rx = max(0, int(region.get("x", 0) * W))
                 ry = max(0, int(region.get("y", 0) * H))
