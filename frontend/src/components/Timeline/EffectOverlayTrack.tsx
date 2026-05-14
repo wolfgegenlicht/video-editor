@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useProjectStore, getItemStartTime } from "../../store/useProjectStore";
 import type { EffectOverlay, EffectType, FadeParams, ColorGradeParams, SpeedRampParams, BlurParams } from "../../types/project";
 import { SNAP_PX, findSnap } from "./snapUtils";
@@ -166,9 +167,10 @@ function EffectBlock({
   onDuplicate: (clone: EffectOverlay) => void;
   onSnapChange?: (time: number | null) => void;
 }) {
-  const { moveEffectOverlayLive, moveEffectOverlay, selectedItemIds, toggleItemSelection, moveSelectedItemsLive, moveSelectedItems } = useProjectStore();
+  const { moveEffectOverlayLive, moveEffectOverlay, selectedItemIds, toggleItemSelection, moveSelectedItemsLive, moveSelectedItems, moveBlurKeyframe } = useProjectStore();
   const playheadTime = useProjectStore((s) => s.playheadTime);
   const setPlayhead = useProjectStore((s) => s.setPlayhead);
+  const [kfDrag, setKfDrag] = useState<{ index: number; time: number } | null>(null);
   const left = effect.startTime * zoom;
   const width = Math.max((effect.endTime - effect.startTime) * zoom, 8);
   const theme = getTheme(effect.type);
@@ -299,13 +301,14 @@ function EffectBlock({
       />
       {effect.type === "blur" &&
         ((effect.params as BlurParams).keyframes ?? []).map((kf, i) => {
-          const kfLeft = Math.max(4, Math.min(width - 4, kf.time * zoom));
+          const displayTime = kfDrag?.index === i ? kfDrag.time : kf.time;
+          const kfLeft = Math.max(4, Math.min(width - 4, displayTime * zoom));
           const isActive = Math.abs(playheadTime - effect.startTime - kf.time) < 0.05;
           return (
             <div
               key={i}
               title={`Keyframe ${i + 1}`}
-              className={`absolute top-1/2 z-20 pointer-events-auto cursor-pointer
+              className={`absolute top-1/2 z-20 pointer-events-auto cursor-ew-resize
                 ${isActive ? "outline outline-2 outline-amber-300 outline-offset-1" : ""}`}
               style={{
                 left: kfLeft,
@@ -314,9 +317,31 @@ function EffectBlock({
                 background: "#f59e0b",
                 transform: "translate(-50%, -50%) rotate(45deg)",
               }}
-              onClick={(e) => {
+              onMouseDown={(e) => {
                 e.stopPropagation();
-                setPlayhead(effect.startTime + kf.time);
+                const startX = e.clientX;
+                const origTime = kf.time;
+                const effectDuration = effect.endTime - effect.startTime;
+                let moved = false;
+                let lastTime = origTime;
+                function onMouseMove(ev: MouseEvent) {
+                  const dt = (ev.clientX - startX) / zoom;
+                  if (Math.abs(ev.clientX - startX) > 3) moved = true;
+                  lastTime = Math.max(0, Math.min(effectDuration, origTime + dt));
+                  setKfDrag({ index: i, time: lastTime });
+                }
+                function onMouseUp() {
+                  document.removeEventListener("mousemove", onMouseMove);
+                  document.removeEventListener("mouseup", onMouseUp);
+                  setKfDrag(null);
+                  if (moved) {
+                    moveBlurKeyframe(effect.id, i, lastTime);
+                  } else {
+                    setPlayhead(effect.startTime + origTime);
+                  }
+                }
+                document.addEventListener("mousemove", onMouseMove);
+                document.addEventListener("mouseup", onMouseUp);
               }}
             />
           );

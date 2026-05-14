@@ -131,6 +131,7 @@ interface ProjectStore {
   updateEffectOverlayParams: (id: string, params: Partial<ZoomParams> | Partial<FadeParams> | Partial<BlurParams> | Partial<ColorGradeParams> | Partial<SpeedRampParams>) => void;
   addOrUpdateBlurKeyframe: (effectId: string, keyframe: BlurKeyframe) => void;
   deleteBlurKeyframe: (effectId: string, keyframeIndex: number) => void;
+  moveBlurKeyframe: (effectId: string, keyframeIndex: number, newTime: number) => void;
   selectEffectOverlay: (id: string | null) => void;
 
   selectedTransitionId: string | null;
@@ -831,6 +832,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
           ...e,
           params: { ...bp, keyframes: (bp.keyframes ?? []).filter((_, i) => i !== keyframeIndex) },
         };
+      }),
+    })),
+
+  moveBlurKeyframe: (effectId, keyframeIndex, newTime) =>
+    withHistory(set, get, (p) => ({
+      ...p,
+      effectOverlays: p.effectOverlays.map((e) => {
+        if (e.id !== effectId || e.type !== "blur") return e;
+        const bp = e.params as BlurParams;
+        const kfs = [...(bp.keyframes ?? [])];
+        kfs[keyframeIndex] = { ...kfs[keyframeIndex], time: newTime };
+        kfs.sort((a, b) => a.time - b.time);
+        return { ...e, params: { ...bp, keyframes: kfs } };
       }),
     })),
 
