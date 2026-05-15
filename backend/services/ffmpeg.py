@@ -1,6 +1,7 @@
 import os, subprocess, tempfile, uuid, re, math
 from pathlib import Path
 from services.ass_generator import generate_ass
+from services.background_blur import blur_background_clip
 
 OUT = Path(__file__).parent.parent / "out"
 OUT.mkdir(exist_ok=True)
@@ -125,6 +126,31 @@ def _seg_lerp_expr(v0: float, v1: float, t0: float, t1: float) -> str:
     return f"({v0:.4f}+{v1-v0:.4f}*max(0,min(1,(t-{t0:.4f})/{dt:.4f})))"
 
 
+def _zoom_factor_expr(scale: float, st: float, et: float, ramp_in: float, ramp_out: float) -> str:
+    """FFmpeg expression for the time-varying zoom factor at absolute time t.
+
+    Returns a flat (no nesting) expression that evaluates to 1 outside [st, et]
+    and ramps from 1 → scale → 1 inside the range. Always >= 1.
+    """
+    if abs(scale - 1.0) < 1e-6:
+        return "1"
+    dS = scale - 1.0
+    parts: list[str] = []
+    if ramp_in > 1e-6:
+        t0, t1 = st, st + ramp_in
+        parts.append(f"gte(t,{t0:.4f})*lt(t,{t1:.4f})*max(0,(t-{t0:.4f})/{ramp_in:.4f})")
+    hold_s = st + ramp_in
+    hold_e = et - ramp_out
+    if hold_e > hold_s:
+        parts.append(f"gte(t,{hold_s:.4f})*lt(t,{hold_e:.4f})")
+    if ramp_out > 1e-6:
+        t0, t1 = et - ramp_out, et
+        parts.append(f"gte(t,{t0:.4f})*lt(t,{t1:.4f})*max(0,({t1:.4f}-t)/{ramp_out:.4f})")
+    if not parts:
+        return "1"
+    return f"(1+{dS:.4f}*({'+'.join(parts)}))"
+
+
 def export(project: dict, uploads_dir: Path, options: dict | None = None, progress_cb=None) -> Path:
     options = options or {}
     resolution = options.get("resolution", 1080)
@@ -174,6 +200,25 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             else:
                 print(f"[ffmpeg export] WARNING: file not found for clip {file_id}, skipping")
     clips.sort(key=lambda c: c["startTime"])
+
+    # Pre-process clips that have background blur enabled.
+    # Creates temp video-only files; FFmpeg applies remaining effects on top.
+    blur_temp_files: list[str] = []
+    for clip in clips:
+        if not clip.get("blurBackground"):
+            continue
+        original_ss = clip.get("sourceStart", 0)
+        original_se = clip.get("sourceEnd", clip.get("duration", 0))
+        intensity = int(clip.get("blurBackgroundIntensity") or 25)
+        tmp_path = tempfile.mktemp(suffix="_blur_bg.mp4")
+        try:
+            blur_background_clip(clip["path"], tmp_path, original_ss, original_se, intensity)
+            clip["path"] = tmp_path
+            clip["sourceStart"] = 0.0
+            clip["sourceEnd"] = original_se - original_ss
+            blur_temp_files.append(tmp_path)
+        except Exception as exc:
+            print(f"[ffmpeg export] WARNING: blur_background_clip failed for clip {clip['id'][:8]}: {exc}, using original")
 
     if not clips:
         raise ValueError("No clips to export")
@@ -470,6 +515,35 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         if parts:
             filter_complex = filter_complex.replace("[vout]", f"[vpre_cg];{';'.join(parts)}", 1)
 
+    # Effect overlays (zoom — crop to anchor region then scale back to canvas)
+    zoom_effs = [e for e in effect_overlays if e.get("type") == "zoom"] if not hidden_lanes.get("zoom") else []
+    if zoom_effs:
+        filter_complex = filter_complex.replace("[vout]", "[vpre_zoom]", 1)
+        cur = "vpre_zoom"
+        for j, eff in enumerate(zoom_effs):
+            p = eff.get("params", {})
+            scale_v = max(1.0, p.get("scale", 1.5))
+            ramp_in = max(0.0, p.get("rampIn", 0.3))
+            ramp_out = max(0.0, p.get("rampOut", 0.3))
+            ax = max(0.0, min(1.0, p.get("anchorX", 0.5)))
+            ay = max(0.0, min(1.0, p.get("anchorY", 0.5)))
+            st = eff.get("startTime", 0)
+            et = max(st + 0.01, eff.get("endTime", st))
+            out_lbl = "vout" if j == len(zoom_effs) - 1 else f"vzoom{j+1}"
+
+            s_e = _zoom_factor_expr(scale_v, st, et, ramp_in, ramp_out)
+            # Crop a W/S × H/S region at the anchor, then scale back to W×H.
+            # In the crop filter: ow/oh are the cropped output dimensions.
+            cw = f"trunc({W}/({s_e})/2)*2"
+            ch = f"trunc({H}/({s_e})/2)*2"
+            cx = f"max(0,min({W}-ow,({W}-ow)*{ax:.4f}))"
+            cy = f"max(0,min({H}-oh,({H}-oh)*{ay:.4f}))"
+            filter_complex += (
+                f"[{cur}]crop=w='{cw}':h='{ch}':x='{cx}':y='{cy}'[ztmp{j}];"
+                f"[ztmp{j}]scale=w={W}:h={H}[{out_lbl}];"
+            )
+            cur = out_lbl
+
     # Clip transitions (cross dissolve — implemented as dip-to-black fade pairs)
     clip_transitions = project.get("clipTransitions", [])
     dissolve_transitions = [t for t in clip_transitions if t.get("type") == "dissolve"]
@@ -545,4 +619,7 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
     finally:
         if ass_path:
             Path(ass_path).unlink(missing_ok=True)
+        for tmp in blur_temp_files:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
     return out_path
