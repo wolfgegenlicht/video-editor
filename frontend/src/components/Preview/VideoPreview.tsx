@@ -45,13 +45,6 @@ function computeColorGradeFilter(preset: string, intensity: number): string {
   }
 }
 
-const RATIO_CLASSES: Record<string, string> = {
-  "16:9": "aspect-video",
-  "9:16": "aspect-[9/16]",
-  "1:1": "aspect-square",
-  "4:3": "aspect-[4/3]",
-};
-
 const RATIO_NUMBERS: Record<string, number> = {
   "16:9": 16 / 9,
   "9:16": 9 / 16,
@@ -496,7 +489,6 @@ export default function VideoPreview({ videoRef }: Props) {
     return 1 - (playheadTime - atTime) / half;
   })() : 0;
 
-  const ratioClass = RATIO_CLASSES[project.aspectRatio] ?? "aspect-video";
   const selectedActiveClip = activeVideoLayers.find((l) => l.clip.id === selectedClipId)?.clip ?? null;
 
   // ─── Shared inner canvas renderer ───────────────────────────────────────
