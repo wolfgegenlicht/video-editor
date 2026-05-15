@@ -33,10 +33,14 @@ def _get_components() -> dict:
             if _components is None:
                 # Import already-initialised singletons from codeformer.app
                 # (module-level weight download + model load happens on first import)
-                from codeformer.app import codeformer_net, device  # type: ignore
+                from codeformer.app import codeformer_net  # type: ignore
                 from codeformer.basicsr.utils import img2tensor, tensor2img  # type: ignore
                 from torchvision.transforms.functional import normalize
                 from codeformer.facelib.utils.face_restoration_helper import FaceRestoreHelper  # type: ignore
+                # Derive device from where the model weights actually live — codeformer.app's
+                # 'device' variable may point to MPS while the weights were loaded on CPU,
+                # causing a type mismatch on Apple Silicon.
+                device = next(codeformer_net.parameters()).device
                 _components = {
                     "net": codeformer_net,
                     "device": device,
