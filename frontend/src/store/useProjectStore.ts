@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
 import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, BlurKeyframe, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType, AudioEnhanceType } from "../types/project";
-import { saveProject, deleteEyeContactFile } from "../lib/api";
+import { saveProject, deleteEyeContactFile /* TODO(task-2): add deleteBlurBgFile */ } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
 const STORAGE_KEY = "video-editor-project";
@@ -63,6 +63,7 @@ interface ProjectStore {
   selectedEffectOverlayId: string | null;
   transcriptSelection: { startTime: number; endTime: number } | null;
   eyeContactStatus: Record<string, "processing" | "done" | "error">;
+  blurBgStatus: Record<string, "processing" | "done" | "error">;
   audioEnhanceStatus: Record<string, "processing" | "done" | "error">;
   saveStatus: "saved" | "saving";
   selectedItemIds: Set<string>;
@@ -115,6 +116,8 @@ interface ProjectStore {
   setClipEyeContact: (clipId: string, enabled: boolean) => void;
   setClipEyeContactFileId: (clipId: string, fileId: string | null) => void;
   setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
+  setClipBlurBackgroundFileId: (clipId: string, fileId: string | null) => void;
+  setBlurBgStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   setClipPan: (clipId: string, pan: number) => void;
   setClipAudioEnhance: (clipId: string, type: AudioEnhanceType, enabled: boolean, fileId?: string | null) => void;
   setAudioEnhanceStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
@@ -237,6 +240,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
   rightPanelTab: null,
   transcriptSelection: null,
   eyeContactStatus: {},
+  blurBgStatus: {},
   audioEnhanceStatus: {},
   saveStatus: "saved" as const,
   selectedItemIds: new Set<string>(),
@@ -405,6 +409,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       sourceEnd: clip.sourceStart + sourceSplitOffset,
       eyeContact: undefined,
       eyeContactFileId: undefined,
+      blurBackgroundFileId: undefined,
     };
     const right: Clip = {
       ...clip,
@@ -415,6 +420,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       sourceEnd: clip.sourceEnd,
       eyeContact: undefined,
       eyeContactFileId: undefined,
+      blurBackgroundFileId: undefined,
     };
     return {
       ...p,
@@ -446,6 +452,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     if (found?.clip.eyeContactFileId) {
       deleteEyeContactFile(found.clip.eyeContactFileId).catch(console.error);
     }
+    // TODO(task-2): uncomment when deleteBlurBgFile is added to api.ts
+    // if (found?.clip.blurBackgroundFileId) {
+    //   deleteBlurBgFile(found.clip.blurBackgroundFileId).catch(console.error);
+    // }
     withHistory(set, get, (p) => ({
       ...p,
       tracks: p.tracks.map((t) => ({ ...t, clips: t.clips.filter((c) => c.id !== clipId) })),
@@ -462,7 +472,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     });
     set((s) => {
       const { [clipId]: _, ...rest } = s.eyeContactStatus;
-      return { eyeContactStatus: rest };
+      const { [clipId]: _bb, ...restBb } = s.blurBgStatus;
+      return { eyeContactStatus: rest, blurBgStatus: restBb };
     });
   },
 
@@ -678,6 +689,30 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       return { eyeContactStatus: rest };
     }
     return { eyeContactStatus: { ...s.eyeContactStatus, [clipId]: status } };
+  }),
+
+  setClipBlurBackgroundFileId: (clipId, fileId) => {
+    const blurBackgroundFileId = fileId ?? undefined;
+    set((s) => ({
+      project: {
+        ...s.project,
+        tracks: s.project.tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, blurBackgroundFileId } : c)),
+        })),
+      },
+    }));
+    const { project, activeProjectId } = get();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    if (activeProjectId) _scheduleSave(activeProjectId, project);
+  },
+
+  setBlurBgStatus: (clipId, status) => set((s) => {
+    if (status === undefined) {
+      const { [clipId]: _bb, ...restBb } = s.blurBgStatus;
+      return { blurBgStatus: restBb };
+    }
+    return { blurBgStatus: { ...s.blurBgStatus, [clipId]: status } };
   }),
 
   setClipPan: (clipId, pan) => withHistory(set, get, (p) => ({

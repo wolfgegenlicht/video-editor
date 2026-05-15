@@ -52,6 +52,7 @@ export interface Clip {
   eyeContact?: boolean;
   eyeContactFileId?: string;
   blurBackground?: boolean;
+  blurBackgroundFileId?: string;
   blurBackgroundIntensity?: number;
   pan?: number;                // -1 (full left) … 0 (center) … 1 (full right)
   audioEnhanceType?: AudioEnhanceType;
