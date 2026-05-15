@@ -179,7 +179,12 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                 if clip.get("audioEnhanceEnabled") and clip.get("audioEnhanceFileId"):
                     file_id = clip["audioEnhanceFileId"]
                 else:
-                    file_id = clip.get("eyeContactFileId") or clip["fileId"]
+                    file_id = (
+                        clip.get("portraitRelightFileId")
+                        or clip.get("faceRestoreFileId")
+                        or clip.get("eyeContactFileId")
+                        or clip["fileId"]
+                    )
                 matches = list(uploads_dir.glob(f"{file_id}.*"))
                 if matches:
                     audio_clips.append({**clip, "path": str(matches[0]), "track_muted": False})
@@ -193,7 +198,12 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                     print(f"[ffmpeg export] WARNING: clip {clip['id'][:8]} has both eye-contact and audio-enhance enabled; eye-contact correction will be dropped from export", flush=True)
                 file_id = clip["audioEnhanceFileId"]
             else:
-                file_id = clip.get("eyeContactFileId") or clip["fileId"]
+                file_id = (
+                    clip.get("portraitRelightFileId")
+                    or clip.get("faceRestoreFileId")
+                    or clip.get("eyeContactFileId")
+                    or clip["fileId"]
+                )
             matches = list(uploads_dir.glob(f"{file_id}.*"))
             if matches:
                 clips.append({**clip, "path": str(matches[0]), "track_muted": track.get("muted", False)})
