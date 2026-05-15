@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 import services.blur_bg_job as svc
 
@@ -11,7 +11,7 @@ UPLOADS = Path(__file__).parent.parent / "uploads"
 
 class ProcessRequest(BaseModel):
     fileId: str
-    intensity: int = 25
+    intensity: int = Field(default=25, ge=1, le=100)
 
 
 @router.post("/blur-bg/process")

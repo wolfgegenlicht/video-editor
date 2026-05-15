@@ -82,11 +82,11 @@ def _run_job(job_id: str, file_id: str, intensity: int, state: _JobState) -> Non
         def progress_cb(p: float) -> None:
             state.progress = p * 0.9  # reserve last 10% for re-encode
 
-        blur_background_clip(input_path, temp_path, 0.0, float("inf"), intensity, progress_cb)
-
-        # Merge blurred video with original audio
-        print(f"[blur-bg] job {job_id[:8]}: re-encoding with audio…", flush=True)
         try:
+            blur_background_clip(input_path, temp_path, 0.0, float("inf"), intensity, progress_cb)
+
+            # Merge blurred video with original audio
+            print(f"[blur-bg] job {job_id[:8]}: re-encoding with audio…", flush=True)
             result = subprocess.run(
                 [
                     "ffmpeg", "-y",
@@ -113,8 +113,8 @@ def _run_job(job_id: str, file_id: str, intensity: int, state: _JobState) -> Non
         state.progress = 1.0
         print(f"[blur-bg] job {job_id[:8]}: done → {blurred_id[:8]}", flush=True)
     except Exception as exc:
-        state.status = "error"
         state.error = str(exc)
+        state.status = "error"
         print(f"[blur-bg] job {job_id[:8]}: ERROR — {exc}", flush=True)
     finally:
         with _jobs_lock:
