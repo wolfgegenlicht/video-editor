@@ -73,10 +73,12 @@ def test_blur_background_clip_no_person_fallback():
     try:
         _make_test_video(src_path, num_frames=5)
         blur_background_clip(src_path, dst_path, source_start=0.0, source_end=0.5, intensity=20)
-        # Output must be a valid readable video
+        # Output must be a valid readable video with correct frame count
         cap = cv2.VideoCapture(dst_path)
         assert cap.isOpened()
+        out_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         cap.release()
+        assert abs(out_count - 5) <= 1  # 5 frames at 10fps in 0.5s
     finally:
         os.unlink(src_path)
         if os.path.exists(dst_path):
