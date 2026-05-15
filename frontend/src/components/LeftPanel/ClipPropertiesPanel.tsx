@@ -170,10 +170,10 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
       ) : errorMsg ? (
         <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="space-y-1.5">
           <p className="text-[11px] text-slate-400">AI gaze correction</p>
-          <div className="flex items-center gap-2">
-            {isOn && clip.eyeContactFileId && (
+          {isOn && clip.eyeContactFileId && (
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setPreviewOriginalClipId(isComparing ? null : clip.id)}
                 title={isComparing ? "Show processed" : "Preview original"}
@@ -188,8 +188,6 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
                 </svg>
                 {isComparing ? "Processed" : "Original"}
               </button>
-            )}
-            {isOn && clip.eyeContactFileId && (
               <button
                 onClick={handleReprocess}
                 title="Re-process"
@@ -201,8 +199,8 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
                 </svg>
                 Re-process
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -405,7 +403,7 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
       ) : errorMsg ? (
         <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="space-y-1.5">
           <p className="text-[11px] text-slate-400">AI background blur · preview applies to playback</p>
           {isOn && clip.blurBackgroundFileId && (
             <div className="flex items-center gap-2">
@@ -647,7 +645,7 @@ function FaceRestoreToggle({ clip }: { clip: Clip }) {
       ) : errorMsg ? (
         <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="space-y-1.5">
           <p className="text-[11px] text-slate-400">AI face restoration · removes compression artifacts</p>
           {isOn && clip.faceRestoreFileId && (
             <div className="flex items-center gap-2">
@@ -926,7 +924,7 @@ function PortraitRelightToggle({ clip }: { clip: Clip }) {
       ) : errorMsg ? (
         <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
       ) : (
-        <div className="flex items-center justify-between">
+        <div className="space-y-1.5">
           <p className="text-[11px] text-slate-400">AI portrait relighting · studio light from any room</p>
           {isOn && clip.portraitRelightFileId && (
             <div className="flex items-center gap-2">
