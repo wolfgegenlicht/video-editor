@@ -6,6 +6,7 @@ import TimelineTrack from "./TimelineTrack";
 import TextOverlayTrack from "./TextOverlayTrack";
 import CaptionTimelineTrack from "./CaptionTimelineTrack";
 import EffectOverlayTrack from "./EffectOverlayTrack";
+import TransitionsTrack from "./TransitionsTrack";
 import { Volume2Icon, VolumeXIcon, EyeIcon, EyeOffIcon } from "../Icons";
 import type { EffectType } from "../../types/project";
 
@@ -46,10 +47,11 @@ interface Props {
 }
 
 export default function Timeline({ toggle, seek }: Props) {
-  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, reorderTrack, setFocusedTrackId, selectedItemIds } = useProjectStore();
+  const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setRowLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, reorderTrack, setFocusedTrackId, selectedItemIds, draggingEffectType, setDraggingEffectType, clearAllTextOverlays, clearAllCaptions, clearAllTransitions, clearEffectLane } = useProjectStore();
   const [height, setHeight] = useState(260);
   const [labelWidth, setLabelWidth] = useState(LABEL_WIDTH);
-  const [contextMenu, setContextMenu] = useState<{ trackId: string; x: number; y: number } | null>(null);
+  const [snapIndicatorTime, setSnapIndicatorTime] = useState<number | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ rowKey: string; isRealTrack: boolean; x: number; y: number } | null>(null);
   const [renamingTrackId, setRenamingTrackId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [trackHeights, setTrackHeights] = useState<Record<string, number>>({});
@@ -109,23 +111,37 @@ export default function Timeline({ toggle, seek }: Props) {
     return () => document.removeEventListener("mousedown", dismiss);
   }, [contextMenu]);
 
-  function openContextMenu(trackId: string, e: React.MouseEvent) {
+  function openContextMenu(rowKey: string, e: React.MouseEvent) {
     e.preventDefault();
-    setContextMenu({ trackId, x: e.clientX, y: e.clientY });
+    const isRealTrack = project.tracks.some((t) => t.id === rowKey);
+    setContextMenu({ rowKey, isRealTrack, x: e.clientX, y: e.clientY });
   }
 
-  function startRename(trackId: string) {
-    const track = project.tracks.find((t) => t.id === trackId);
-    if (!track) return;
+  const SYNTHETIC_ROW_DEFAULTS: Record<string, string> = {
+    text: "text",
+    captions: "captions",
+    transitions: "transitions",
+    ...Object.fromEntries(EFFECT_LANE_ORDER.map((t) => [`fx-${t}`, EFFECT_LANE_LABELS[t]])),
+  };
+
+  function startRename(rowKey: string) {
+    const track = project.tracks.find((t) => t.id === rowKey);
+    const currentLabel = track
+      ? (track.label ?? track.type)
+      : (project.rowLabels?.[rowKey] ?? SYNTHETIC_ROW_DEFAULTS[rowKey] ?? rowKey);
     setContextMenu(null);
-    setRenamingTrackId(trackId);
-    setRenameValue(track.label ?? track.type);
+    setRenamingTrackId(rowKey);
+    setRenameValue(currentLabel);
   }
 
   function commitRename() {
     if (renamingTrackId) {
       const trimmed = renameValue.trim();
-      if (trimmed) setTrackLabel(renamingTrackId, trimmed);
+      if (trimmed) {
+        const isRealTrack = project.tracks.some((t) => t.id === renamingTrackId);
+        if (isRealTrack) setTrackLabel(renamingTrackId, trimmed);
+        else setRowLabel(renamingTrackId, trimmed);
+      }
     }
     setRenamingTrackId(null);
   }
@@ -150,11 +166,56 @@ export default function Timeline({ toggle, seek }: Props) {
   const activeLanes = EFFECT_LANE_ORDER.filter((t) =>
     project.effectOverlays.some((e) => e.type === t)
   );
+  const hasTransitions = (project.clipTransitions ?? []).length > 0;
+
+  const GHOST_COLORS: Record<string, { bg: string; border: string; dot: string; text: string; label: string }> = {
+    zoom:       { bg: "bg-violet-50",  border: "border-violet-300", dot: "bg-violet-500",  text: "text-violet-500",  label: "zoom" },
+    fade:       { bg: "bg-amber-50",   border: "border-amber-300",  dot: "bg-amber-400",   text: "text-amber-500",   label: "fade" },
+    blur:       { bg: "bg-sky-50",     border: "border-sky-300",    dot: "bg-sky-500",     text: "text-sky-500",     label: "blur" },
+    colorgrade: { bg: "bg-rose-50",    border: "border-rose-300",   dot: "bg-rose-400",    text: "text-rose-500",    label: "color" },
+    speedramp:  { bg: "bg-orange-50",  border: "border-orange-300", dot: "bg-orange-500",  text: "text-orange-500",  label: "speed" },
+    dissolve:   { bg: "bg-teal-50",    border: "border-teal-300",   dot: "bg-teal-500",    text: "text-teal-500",    label: "transitions" },
+  };
+  const EFFECT_DURATION_GHOST: Record<string, number> = { zoom: 3, fade: 1, blur: 3, colorgrade: 3, speedramp: 2 };
+  const EFFECT_PARAMS_GHOST: Record<string, object> = {
+    zoom: { scale: 1.5, rampIn: 0.3, rampOut: 0.3 },
+    fade: { direction: "in" },
+    blur: { intensity: 10 },
+    colorgrade: { preset: "warm", intensity: 0.8 },
+    speedramp: { startSpeed: 1, endSpeed: 0.5, easing: "ease" },
+  };
+
+  function handleGhostDrop(e: React.DragEvent) {
+    e.preventDefault();
+    const effectType = e.dataTransfer.getData("effectType");
+    if (!effectType) return;
+    setDraggingEffectType(null);
+    const { addEffectOverlay, addClipTransition, project: p } = useProjectStore.getState();
+    if (effectType === "dissolve") {
+      const videoTracks = p.tracks.filter((t) => t.type !== "audio");
+      let nearest: { trackId: string; atTime: number } | null = null;
+      for (const vt of videoTracks) {
+        const sorted = [...vt.clips].sort((a, b) => a.startTime - b.startTime);
+        for (let i = 0; i < sorted.length - 1; i++) {
+          const boundary = sorted[i].startTime + sorted[i].duration;
+          if (!nearest || boundary < nearest.atTime) nearest = { trackId: vt.id, atTime: boundary };
+        }
+      }
+      if (!nearest) return;
+      const exists = (p.clipTransitions ?? []).some(
+        (t) => t.trackId === nearest!.trackId && Math.abs(t.atTime - nearest!.atTime) < 0.1
+      );
+      if (!exists) addClipTransition({ trackId: nearest.trackId, atTime: nearest.atTime, type: "dissolve", duration: 0.5 });
+    } else if (effectType in EFFECT_DURATION_GHOST) {
+      addEffectOverlay({ type: effectType as never, startTime: 0, endTime: EFFECT_DURATION_GHOST[effectType], params: EFFECT_PARAMS_GHOST[effectType] as never });
+    }
+  }
 
   const trackRowKeys = [
     ...project.tracks.map((t) => t.id),
     ...(project.textOverlays.length > 0 ? ["text"] : []),
     ...(project.captions.length > 0 ? ["captions"] : []),
+    ...(hasTransitions ? ["transitions"] : []),
     ...activeLanes.map((type) => `fx-${type}`),
   ];
 
@@ -169,6 +230,7 @@ export default function Timeline({ toggle, seek }: Props) {
     }
     if (key === "text") return project.textOverlays.map((o) => o.id);
     if (key === "captions") return project.captions.map((c) => c.id);
+    if (key === "transitions") return (project.clipTransitions ?? []).map((t) => t.id);
     if (key.startsWith("fx-")) {
       const type = key.slice(3) as EffectType;
       return project.effectOverlays.filter((e) => e.type === type).map((e) => e.id);
@@ -193,6 +255,11 @@ export default function Timeline({ toggle, seek }: Props) {
     if (project.captions.length > 0) {
       const h = trackH("captions");
       ranges.push({ key: "captions", top: y, bottom: y + h });
+      y += h;
+    }
+    if (hasTransitions) {
+      const h = trackH("transitions");
+      ranges.push({ key: "transitions", top: y, bottom: y + h });
       y += h;
     }
     for (const type of activeLanes) {
@@ -257,6 +324,12 @@ export default function Timeline({ toggle, seek }: Props) {
           for (const c of project.captions) {
             if (c.startTime < selTimeEnd && c.endTime > selTimeStart) ids.push(c.id);
           }
+        } else if (row.key === "transitions") {
+          for (const t of (project.clipTransitions ?? [])) {
+            const tStart = t.atTime - t.duration / 2;
+            const tEnd = t.atTime + t.duration / 2;
+            if (tStart < selTimeEnd && tEnd > selTimeStart) ids.push(t.id);
+          }
         } else if (row.key.startsWith("fx-")) {
           const type = row.key.slice(3) as EffectType;
           for (const eff of project.effectOverlays) {
@@ -308,7 +381,9 @@ export default function Timeline({ toggle, seek }: Props) {
 
   const minHeight = CHROME_H
     + project.tracks.reduce((sum, t) => sum + trackH(t.id), 0)
-    + trackH("text") + trackH("captions")
+    + (project.textOverlays.length > 0 ? trackH("text") : 0)
+    + (project.captions.length > 0 ? trackH("captions") : 0)
+    + (hasTransitions ? trackH("transitions") : 0)
     + activeLanes.reduce((sum, t) => sum + trackH(`fx-${t}`), 0);
 
   const totalDuration = Math.max(
@@ -361,6 +436,41 @@ export default function Timeline({ toggle, seek }: Props) {
         <div
           className="flex-shrink-0 bg-slate-50 border-r border-slate-200 relative"
           style={{ width: labelWidth }}
+          onDragOver={(e) => { if (e.dataTransfer.types.includes("effecttype")) e.preventDefault(); }}
+          onDrop={(e) => {
+            const effectType = e.dataTransfer.getData("effectType");
+            if (!effectType) return;
+            e.preventDefault();
+            const { addEffectOverlay, addClipTransition, project } = useProjectStore.getState();
+            if (effectType === "dissolve") {
+              const videoTracks = project.tracks.filter((t) => t.type !== "audio");
+              let nearest: { trackId: string; atTime: number; dist: number } | null = null;
+              for (const vt of videoTracks) {
+                const sorted = [...vt.clips].sort((a, b) => a.startTime - b.startTime);
+                for (let i = 0; i < sorted.length - 1; i++) {
+                  const boundary = sorted[i].startTime + sorted[i].duration;
+                  if (!nearest || boundary < nearest.atTime) nearest = { trackId: vt.id, atTime: boundary, dist: 0 };
+                }
+              }
+              if (!nearest) return;
+              const existing = (project.clipTransitions ?? []).find(
+                (t) => t.trackId === nearest!.trackId && Math.abs(t.atTime - nearest!.atTime) < 0.1
+              );
+              if (!existing) addClipTransition({ trackId: nearest.trackId, atTime: nearest.atTime, type: "dissolve", duration: 0.5 });
+            } else {
+              const DURATION: Record<string, number> = { zoom: 3, fade: 1, blur: 3, colorgrade: 3, speedramp: 2 };
+              const PARAMS: Record<string, object> = {
+                zoom: { scale: 1.5, rampIn: 0.3, rampOut: 0.3 },
+                fade: { direction: "in" },
+                blur: { intensity: 10 },
+                colorgrade: { preset: "warm", intensity: 0.8 },
+                speedramp: { startSpeed: 1, endSpeed: 0.5, easing: "ease" },
+              };
+              if (effectType in DURATION) {
+                addEffectOverlay({ type: effectType as never, startTime: 0, endTime: DURATION[effectType], params: PARAMS[effectType] as never });
+              }
+            }
+          }}
           onDragLeave={(e) => {
             if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIndex(null);
           }}
@@ -455,9 +565,23 @@ export default function Timeline({ toggle, seek }: Props) {
             <div className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
               ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
               style={{ height: trackH("text") }}
-              onClick={(e) => onTrackLabelClick(e, "text")}>
+              onClick={(e) => onTrackLabelClick(e, "text")}
+              onContextMenu={(e) => openContextMenu("text", e)}>
               <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
-              <span className="text-[10px] font-bold text-slate-500 flex-1">text</span>
+              {renamingTrackId === "text" ? (
+                <input
+                  autoFocus
+                  className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
+                />
+              ) : (
+                <span className="text-[10px] font-bold text-slate-500 flex-1 truncate pointer-events-none">
+                  {project.rowLabels?.["text"] ?? "text"}
+                </span>
+              )}
               <div
                 className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("text", e)}
@@ -471,9 +595,23 @@ export default function Timeline({ toggle, seek }: Props) {
             <div className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
               ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
               style={{ height: trackH("captions") }}
-              onClick={(e) => onTrackLabelClick(e, "captions")}>
+              onClick={(e) => onTrackLabelClick(e, "captions")}
+              onContextMenu={(e) => openContextMenu("captions", e)}>
               <div className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
-              <span className="text-[10px] font-bold text-slate-500 flex-1">captions</span>
+              {renamingTrackId === "captions" ? (
+                <input
+                  autoFocus
+                  className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
+                />
+              ) : (
+                <span className="text-[10px] font-bold text-slate-500 flex-1 truncate pointer-events-none">
+                  {project.rowLabels?.["captions"] ?? "captions"}
+                </span>
+              )}
               <div
                 className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("captions", e)}
@@ -481,18 +619,61 @@ export default function Timeline({ toggle, seek }: Props) {
             </div>
             );
           })()}
+          {hasTransitions && (() => {
+            const rowSelected = (project.clipTransitions ?? []).some((t) => selectedItemIds.has(t.id));
+            return (
+            <div className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
+              ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+              style={{ height: trackH("transitions") }}
+              onClick={(e) => onTrackLabelClick(e, "transitions")}
+              onContextMenu={(e) => openContextMenu("transitions", e)}>
+              <div className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0" />
+              {renamingTrackId === "transitions" ? (
+                <input
+                  autoFocus
+                  className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
+                />
+              ) : (
+                <span className="text-[10px] font-bold text-slate-500 flex-1 truncate pointer-events-none">
+                  {project.rowLabels?.["transitions"] ?? "transitions"}
+                </span>
+              )}
+              <div
+                className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
+                onMouseDown={(e) => onTrackResizeDown("transitions", e)}
+              />
+            </div>
+            );
+          })()}
           {activeLanes.map((effectType) => {
             const isHidden = !!project.hiddenEffectLanes?.[effectType];
+            const rowKey = `fx-${effectType}`;
             const rowSelected = project.effectOverlays.filter((e) => e.type === effectType).some((e) => selectedItemIds.has(e.id));
             return (
               <div key={effectType} className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
                 ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
-                style={{ height: trackH(`fx-${effectType}`) }}
-                onClick={(e) => onTrackLabelClick(e, `fx-${effectType}`)}>
+                style={{ height: trackH(rowKey) }}
+                onClick={(e) => onTrackLabelClick(e, rowKey)}
+                onContextMenu={(e) => openContextMenu(rowKey, e)}>
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${EFFECT_LANE_COLORS[effectType]} ${isHidden ? "opacity-40" : ""}`} />
-                <span className={`text-[10px] font-bold flex-1 ${isHidden ? "text-slate-300" : "text-slate-500"}`}>
-                  {EFFECT_LANE_LABELS[effectType]}
-                </span>
+                {renamingTrackId === rowKey ? (
+                  <input
+                    autoFocus
+                    className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={commitRename}
+                    onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
+                  />
+                ) : (
+                  <span className={`text-[10px] font-bold flex-1 truncate pointer-events-none ${isHidden ? "text-slate-300" : "text-slate-500"}`}>
+                    {project.rowLabels?.[rowKey] ?? EFFECT_LANE_LABELS[effectType]}
+                  </span>
+                )}
                 <button
                   title={isHidden ? "Enable effects" : "Disable effects"}
                   onClick={(e) => { e.stopPropagation(); setEffectLaneHidden(effectType, !isHidden); }}
@@ -502,11 +683,25 @@ export default function Timeline({ toggle, seek }: Props) {
                 </button>
                 <div
                   className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
-                  onMouseDown={(e) => onTrackResizeDown(`fx-${effectType}`, e)}
+                  onMouseDown={(e) => onTrackResizeDown(rowKey, e)}
                 />
               </div>
             );
           })}
+          {draggingEffectType && GHOST_COLORS[draggingEffectType] && (() => {
+            const g = GHOST_COLORS[draggingEffectType];
+            return (
+              <div
+                className={`relative flex items-center gap-1.5 px-2 border-2 border-dashed ${g.bg} ${g.border}`}
+                style={{ height: DEFAULT_TRACK_H }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleGhostDrop}
+              >
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${g.dot}`} />
+                <span className={`text-[10px] font-bold ${g.text}`}>+ {g.label}</span>
+              </div>
+            );
+          })()}
           {/* Label column right-border resize handle */}
           <div
             className="absolute top-0 right-0 bottom-0 w-1 cursor-ew-resize hover:bg-teal-400 transition-colors z-20"
@@ -523,13 +718,16 @@ export default function Timeline({ toggle, seek }: Props) {
           <div style={{ width: totalWidth, position: "relative" }} onMouseDown={onContentMouseDown}>
             <TimelineRuler totalWidth={totalWidth} zoom={zoom} seek={seek} />
             {project.tracks.map((track) => (
-              <TimelineTrack key={track.id} track={track} zoom={zoom} height={trackH(track.id)} />
+              <TimelineTrack key={track.id} track={track} zoom={zoom} height={trackH(track.id)} onSnapChange={setSnapIndicatorTime} />
             ))}
             {project.textOverlays.length > 0 && (
               <TextOverlayTrack zoom={zoom} totalWidth={totalWidth} height={trackH("text")} />
             )}
             {project.captions.length > 0 && (
-              <CaptionTimelineTrack zoom={zoom} totalWidth={totalWidth} seek={seek} height={trackH("captions")} />
+              <CaptionTimelineTrack zoom={zoom} totalWidth={totalWidth} seek={seek} height={trackH("captions")} onSnapChange={setSnapIndicatorTime} />
+            )}
+            {hasTransitions && (
+              <TransitionsTrack zoom={zoom} totalWidth={totalWidth} height={trackH("transitions")} />
             )}
             {activeLanes.map((effectType) => (
               <EffectOverlayTrack
@@ -539,13 +737,36 @@ export default function Timeline({ toggle, seek }: Props) {
                 zoom={zoom}
                 totalWidth={totalWidth}
                 height={trackH(`fx-${effectType}`)}
+                onSnapChange={setSnapIndicatorTime}
               />
             ))}
+            {draggingEffectType && GHOST_COLORS[draggingEffectType] && (() => {
+              const g = GHOST_COLORS[draggingEffectType];
+              return (
+                <div
+                  className={`border-2 border-dashed flex items-center justify-center ${g.bg} ${g.border}`}
+                  style={{ width: totalWidth, height: DEFAULT_TRACK_H }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleGhostDrop}
+                >
+                  <span className={`text-[11px] font-semibold ${g.text} pointer-events-none`}>
+                    Drop here to add {g.label} from the start
+                  </span>
+                </div>
+              );
+            })()}
             {/* Playhead */}
             <div
               className="absolute top-0 bottom-0 w-px bg-red-500 pointer-events-none z-10"
               style={{ left: playheadX }}
             />
+            {/* Snap indicator */}
+            {snapIndicatorTime !== null && (
+              <div
+                className="absolute top-0 bottom-0 w-px bg-amber-400 pointer-events-none z-20 opacity-80"
+                style={{ left: snapIndicatorTime * zoom }}
+              />
+            )}
             {rubberBand && (() => {
               const left = Math.min(rubberBand.x1, rubberBand.x2);
               const top = Math.min(rubberBand.y1, rubberBand.y2);
@@ -570,13 +791,27 @@ export default function Timeline({ toggle, seek }: Props) {
         >
           <button
             className="w-full text-left px-3 py-1.5 text-[13px] text-slate-700 hover:bg-slate-100 transition-colors"
-            onClick={() => startRename(contextMenu.trackId)}
+            onClick={() => startRename(contextMenu.rowKey)}
           >
             Rename
           </button>
           <button
             className="w-full text-left px-3 py-1.5 text-[13px] text-red-600 hover:bg-red-50 transition-colors"
-            onClick={() => { deleteTrack(contextMenu.trackId); setContextMenu(null); }}
+            onClick={() => {
+              const { rowKey, isRealTrack } = contextMenu;
+              if (isRealTrack) {
+                deleteTrack(rowKey);
+              } else if (rowKey === "text") {
+                clearAllTextOverlays();
+              } else if (rowKey === "captions") {
+                clearAllCaptions();
+              } else if (rowKey === "transitions") {
+                clearAllTransitions();
+              } else if (rowKey.startsWith("fx-")) {
+                clearEffectLane(rowKey.slice(3) as EffectType);
+              }
+              setContextMenu(null);
+            }}
           >
             Delete
           </button>

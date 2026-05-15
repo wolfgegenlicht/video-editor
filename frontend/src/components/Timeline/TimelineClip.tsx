@@ -6,16 +6,19 @@ import ClipContextMenu from "./ClipContextMenu";
 import WaveformCanvas from "./WaveformCanvas";
 import { MusicIcon, VolumeXIcon, ScissorsIcon, CopyIcon, AudioLinesIcon, Trash2Icon } from "../Icons";
 
+import { SNAP_PX, findSnap } from "./snapUtils";
+
 interface Props {
   clip: Clip;
   trackId: string;
   trackType: TrackType;
   zoom: number;
   trackHeight: number;
+  onSnapChange?: (time: number | null) => void;
 }
 
-export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeight }: Props) {
-  const { moveClip, trimClip, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, toggleItemSelection, moveSelectedItemsLive, moveSelectedItems, files, playheadTime, selectedClipId, selectedItemIds } = useProjectStore();
+export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeight, onSnapChange }: Props) {
+  const { trimClip, trimClipLive, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, toggleItemSelection, moveSelectedItemsLive, moveSelectedItems, files, playheadTime, selectedClipId, selectedItemIds } = useProjectStore();
   const isAudioTrack = trackType === "audio";
   const isSelected = selectedClipId === clip.id;
   const isMultiSelected = selectedItemIds.size > 1 && selectedItemIds.has(clip.id);
@@ -33,6 +36,8 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
   const width = Math.max(clip.duration * zoom, 4);
 
   function startDrag(e: React.MouseEvent, type: "move" | "trim-left" | "trim-right") {
+    if (e.button !== 0) return;
+    if (menu) return;
     if (type === "move" && e.shiftKey) {
       e.stopPropagation();
       const { selectedClipId: anchorId, project, selectMultiple } = useProjectStore.getState();
@@ -83,21 +88,35 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
     dragStartSourceStart.current = clip.sourceStart;
     dragStartSourceEnd.current = clip.sourceEnd;
 
+    // Collect snap points once at drag start (start/end of every non-dragged clip)
+    const excludeIds = isMultiDrag ? ids : new Set([clip.id]);
+    const snapPoints = useProjectStore.getState().project.tracks
+      .flatMap((t) => t.clips)
+      .filter((c) => !excludeIds.has(c.id))
+      .flatMap((c) => [c.startTime, c.startTime + c.duration]);
+
     function onMove(ev: MouseEvent) {
       const dx = ev.clientX - dragStartX.current;
       const dt = dx / zoom;
 
       if (isMultiDrag) {
+        const rawPrimary = Math.max(0, dragStartTime.current + dt);
+        const { snappedStart, snapTime } = findSnap(rawPrimary, clip.duration, snapPoints, SNAP_PX / zoom);
+        const snappedDt = snappedStart - dragStartTime.current;
         lastMoves = [...ids].map((id) => ({
           id,
-          newStartTime: Math.max(0, (origPositions.get(id) ?? 0) + dt),
+          newStartTime: Math.max(0, (origPositions.get(id) ?? 0) + snappedDt),
         }));
+        onSnapChange?.(snapTime);
         moveSelectedItemsLive(lastMoves);
         return;
       }
 
       if (type === "move") {
-        moveClip(clip.id, trackId, Math.max(0, dragStartTime.current + dt));
+        const rawStart = Math.max(0, dragStartTime.current + dt);
+        const { snappedStart, snapTime } = findSnap(rawStart, clip.duration, snapPoints, SNAP_PX / zoom);
+        onSnapChange?.(snapTime);
+        moveSelectedItemsLive([{ id: clip.id, newStartTime: snappedStart }]);
       } else if (type === "trim-left") {
         const minStart = Math.max(0, dragStartTime.current - dragStartSourceStart.current);
         const newStart = Math.max(minStart, Math.min(
@@ -105,22 +124,44 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
           dragStartTime.current + dt
         ));
         const trimmed = newStart - dragStartTime.current;
-        trimClip(clip.id, newStart, dragStartDuration.current - trimmed, dragStartSourceStart.current + trimmed, dragStartSourceEnd.current);
+        trimClipLive(clip.id, newStart, dragStartDuration.current - trimmed, dragStartSourceStart.current + trimmed, dragStartSourceEnd.current);
       } else {
         const maxDuration = file ? file.duration - dragStartSourceStart.current : dragStartDuration.current + 60;
         const newDuration = Math.max(0.1, Math.min(maxDuration, dragStartDuration.current + dt));
-        trimClip(clip.id, dragStartTime.current, newDuration, dragStartSourceStart.current, dragStartSourceStart.current + newDuration);
+        trimClipLive(clip.id, dragStartTime.current, newDuration, dragStartSourceStart.current, dragStartSourceStart.current + newDuration);
       }
     }
 
-    function onUp() {
+    function onUp(ev: MouseEvent) {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      onSnapChange?.(null);
+      const dt = (ev.clientX - dragStartX.current) / zoom;
+
       if (isMultiDrag && lastMoves.length > 0) {
         // Reset to original positions first so withHistory snapshots the pre-drag state
         const originalMoves = [...origPositions.entries()].map(([id, newStartTime]) => ({ id, newStartTime }));
         moveSelectedItemsLive(originalMoves);
         moveSelectedItems(lastMoves);
+      } else if (type === "move") {
+        const rawStart = Math.max(0, dragStartTime.current + dt);
+        const { snappedStart } = findSnap(rawStart, clip.duration, snapPoints, SNAP_PX / zoom);
+        moveSelectedItemsLive([{ id: clip.id, newStartTime: dragStartTime.current }]);
+        moveSelectedItems([{ id: clip.id, newStartTime: snappedStart }]);
+      } else if (type === "trim-left") {
+        const minStart = Math.max(0, dragStartTime.current - dragStartSourceStart.current);
+        const newStart = Math.max(minStart, Math.min(
+          dragStartTime.current + dragStartDuration.current - 0.1,
+          dragStartTime.current + dt
+        ));
+        const trimmed = newStart - dragStartTime.current;
+        trimClipLive(clip.id, dragStartTime.current, dragStartDuration.current, dragStartSourceStart.current, dragStartSourceEnd.current);
+        trimClip(clip.id, newStart, dragStartDuration.current - trimmed, dragStartSourceStart.current + trimmed, dragStartSourceEnd.current);
+      } else {
+        const maxDuration = file ? file.duration - dragStartSourceStart.current : dragStartDuration.current + 60;
+        const newDuration = Math.max(0.1, Math.min(maxDuration, dragStartDuration.current + dt));
+        trimClipLive(clip.id, dragStartTime.current, dragStartDuration.current, dragStartSourceStart.current, dragStartSourceEnd.current);
+        trimClip(clip.id, dragStartTime.current, newDuration, dragStartSourceStart.current, dragStartSourceStart.current + newDuration);
       }
     }
 
@@ -203,6 +244,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
             sourceEnd={clip.sourceEnd}
             width={width}
             height={trackHeight - 8}
+            volume={clip.volume ?? 1}
           />
         )}
         <span className="px-2 text-[10px] text-white font-semibold truncate pointer-events-none flex-1 relative z-10 flex items-center gap-1">
