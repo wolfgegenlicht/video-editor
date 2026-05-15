@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 backend/services/gaze_correction/face_landmarker.task
 backend/models/*.tflite
+.playwright-mcp/
+.superpowers/
