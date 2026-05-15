@@ -469,6 +469,7 @@ function FaceRestoreToggle({ clip }: { clip: Clip }) {
     }
     return () => {
       mountedRef.current = false;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       setPreviewOriginalClipId(null);
     };
   }, [clip.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -522,9 +523,9 @@ function FaceRestoreToggle({ clip }: { clip: Clip }) {
     } catch (e) {
       if (mountedRef.current) {
         const msg = e instanceof Error ? e.message : "Failed";
-        _pendingFaceRestoreJobs.delete(clip.id);
-        setClipFaceRestore(clip.id, false);
-        setFaceRestoreStatus(clip.id, "error");
+        _pendingFaceRestoreJobs.delete(clipId);
+        setClipFaceRestore(clipId, false);
+        setFaceRestoreStatus(clipId, "error");
         setErrorMsg(msg);
         setProgress(0);
         setEta(null);
@@ -587,10 +588,14 @@ function FaceRestoreToggle({ clip }: { clip: Clip }) {
     setClipFaceRestoreStrength(clip.id, value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      if (!clip.faceRestore) return;
-      if (clip.faceRestoreFileId) {
-        api.deleteFaceRestoreFile(clip.faceRestoreFileId).catch(console.error);
-        setClipFaceRestoreFileId(clip.id, null);
+      const freshClip = useProjectStore.getState().project.tracks
+        .flatMap(t => t.clips)
+        .find(c => c.id === clip.id);
+      if (!freshClip) return;
+      if (!freshClip.faceRestore) return;
+      if (freshClip.faceRestoreFileId) {
+        api.deleteFaceRestoreFile(freshClip.faceRestoreFileId).catch(console.error);
+        setClipFaceRestoreFileId(freshClip.id, null);
       }
       await startJob(value);
     }, 800);
@@ -711,6 +716,7 @@ function PortraitRelightToggle({ clip }: { clip: Clip }) {
     }
     return () => {
       mountedRef.current = false;
+      if (debounceRef.current) clearTimeout(debounceRef.current);
       setPreviewOriginalClipId(null);
     };
   }, [clip.id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -765,9 +771,9 @@ function PortraitRelightToggle({ clip }: { clip: Clip }) {
     } catch (e) {
       if (mountedRef.current) {
         const msg = e instanceof Error ? e.message : "Failed";
-        _pendingPortraitRelightJobs.delete(clip.id);
-        setClipPortraitRelight(clip.id, false);
-        setPortraitRelightStatus(clip.id, "error");
+        _pendingPortraitRelightJobs.delete(clipId);
+        setClipPortraitRelight(clipId, false);
+        setPortraitRelightStatus(clipId, "error");
         setErrorMsg(msg);
         setProgress(0);
         setEta(null);
@@ -840,12 +846,16 @@ function PortraitRelightToggle({ clip }: { clip: Clip }) {
     setClipPortraitRelightIntensity(clip.id, value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(async () => {
-      if (!clip.portraitRelight) return;
-      if (clip.portraitRelightFileId) {
-        api.deletePortraitRelightFile(clip.portraitRelightFileId).catch(console.error);
-        setClipPortraitRelightFileId(clip.id, null);
+      const freshClip = useProjectStore.getState().project.tracks
+        .flatMap(t => t.clips)
+        .find(c => c.id === clip.id);
+      if (!freshClip) return;
+      if (!freshClip.portraitRelight) return;
+      if (freshClip.portraitRelightFileId) {
+        api.deletePortraitRelightFile(freshClip.portraitRelightFileId).catch(console.error);
+        setClipPortraitRelightFileId(freshClip.id, null);
       }
-      await startJob(preset, value);
+      await startJob(freshClip.portraitRelightPreset ?? preset, value);
     }, 800);
   }
 
