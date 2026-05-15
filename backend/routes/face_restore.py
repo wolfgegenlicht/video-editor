@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
 import services.face_restore as svc
+from database import get_db
 
 router = APIRouter()
 UPLOADS = Path(__file__).parent.parent / "uploads"
@@ -40,4 +41,6 @@ async def get_status(job_id: str):
 async def delete_file(file_id: str):
     for match in UPLOADS.glob(f"{file_id}.*"):
         match.unlink(missing_ok=True)
+    with get_db() as conn:
+        conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
     return {"ok": True}
