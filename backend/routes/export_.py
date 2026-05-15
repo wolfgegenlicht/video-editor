@@ -11,6 +11,8 @@ class ExportOptions(BaseModel):
     resolution: int = 1080
     burn_captions: bool = False
     preset: str = "fast"
+    preview_width: int = 720
+    caption_line_breaks: dict[str, list[list[int]]] = {}
 
 
 class ExportStartRequest(BaseModel):

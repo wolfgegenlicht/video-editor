@@ -21,13 +21,13 @@ import flx as _flx_model  # noqa: E402
 _LANDMARK_PATH = str(_BASE / "lm_feat" / "shape_predictor_68_face_landmarks.dat")
 _MODEL_DIR = str(_BASE / "weights" / "warping_model" / "flx" / "12") + "/"
 _SIZE_I = (48, 64)
-_PIXEL_CUT = (10, 12)
+_PIXEL_CUT = (3, 4)
 
 _IRIS_SCALE = 150.0
 _CORRECTION_STRENGTH = 0.8
 _MAX_ANGLE_DEG = 12.0
 _DETECT_SCALE = 0.5   # run face detection at this fraction of full resolution
-_INFER_EVERY_N = 3    # run TF model every N frames, reuse cached patches otherwise
+_INFER_EVERY_N = 1    # run TF model every frame (caching causes misalignment when face moves)
 
 
 def _load_eye_model(side: str, conf):
@@ -123,11 +123,6 @@ def _iris_offset(eye_patch_norm: np.ndarray) -> tuple[float, float]:
     return (cx - w / 2.0) / w, (cy - h / 2.0) / h
 
 
-def _make_blend_mask(ori_size, pc) -> np.ndarray:
-    mask = np.zeros((ori_size[0], ori_size[1]), dtype=np.float32)
-    mask[pc[0]: ori_size[0] - pc[0], pc[1]: ori_size[1] - pc[1]] = 1.0
-    return cv2.GaussianBlur(mask, (0, 0), max(pc[0], pc[1]) * 1.5)[:, :, np.newaxis]
-
 
 class GazeCorrector:
     """Thread-safe gaze corrector. Load once via get_corrector()."""
@@ -142,7 +137,6 @@ class GazeCorrector:
         self._R_sess, self._R_t = _load_eye_model("R", conf)
         self._infer_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._frame_idx = 0
-        # list of (out_u8, mask3, y1, y2, x1, x2) for the last inferred frame
         self._patch_cache: list[tuple] = []
 
     def _infer_eye(self, sess, t, img, fp, alpha) -> np.ndarray:
@@ -223,21 +217,21 @@ class GazeCorrector:
                         (ori_size[1], ori_size[0]),
                         interpolation=cv2.INTER_LINEAR,
                     )
-                    out_u8 = np.clip(out * 255, 0, 255).astype(np.uint8)
-                    mask3 = _make_blend_mask(ori_size, pc)
-                    y1, y2 = lt[0], lt[0] + ori_size[0]
-                    x1, x2 = lt[1], lt[1] + ori_size[1]
-                    self._patch_cache.append((out_u8, mask3, y1, y2, x1, x2))
+                    out_cropped = np.clip(
+                        out[pc[0]: ori_size[0] - pc[0], pc[1]: ori_size[1] - pc[1]] * 255,
+                        0, 255,
+                    ).astype(np.uint8)
+                    y1 = lt[0] + pc[0]
+                    y2 = lt[0] + ori_size[0] - pc[0]
+                    x1 = lt[1] + pc[1]
+                    x2 = lt[1] + ori_size[1] - pc[1]
+                    self._patch_cache.append((out_cropped, y1, y2, x1, x2))
 
         # Apply cached patches (from this frame or the last inferred frame)
         fh, fw = frame.shape[:2]
-        for out_u8, mask3, y1, y2, x1, x2 in self._patch_cache:
+        for out_cropped, y1, y2, x1, x2 in self._patch_cache:
             if y1 >= 0 and x1 >= 0 and y2 <= fh and x2 <= fw:
-                orig = frame[y1:y2, x1:x2].astype(np.float32)
-                frame[y1:y2, x1:x2] = np.clip(
-                    out_u8.astype(np.float32) * mask3 + orig * (1.0 - mask3),
-                    0, 255,
-                ).astype(np.uint8)
+                frame[y1:y2, x1:x2] = out_cropped
 
         return frame, len(self._patch_cache)
 

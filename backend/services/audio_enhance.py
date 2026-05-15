@@ -215,16 +215,23 @@ def _run_job(job_id: str, file_id: str, enhance_type: str, state: _JobState) -> 
         elif enhance_type in ("denoise", "clarity"):
             print(f"[audio-enhance] job {job_id[:8]}: running DeepFilterNet", flush=True)
             import soundfile as sf
-            from df.enhance import enhance
+            import numpy as np
+            from df.enhance import enhance, load_audio
 
             model, df_state = _get_df_model()
-            audio, sr = sf.read(tmp_wav)
+            sr = int(df_state.sr())  # ensure plain int for torchaudio/soundfile
+            audio, _ = load_audio(tmp_wav, sr=sr)
             state.progress = 0.3
             _check_cancelled(state, job_id)
 
             enhanced_audio = enhance(model, df_state, audio)
             state.progress = 0.85
-            sf.write(enhanced_wav, enhanced_audio, sr)
+
+            # Convert tensor (C, T) → numpy (T, C) or (T,) for soundfile
+            enhanced_np = enhanced_audio.cpu().numpy()
+            if enhanced_np.ndim == 2:
+                enhanced_np = enhanced_np.T  # (C, T) → (T, C)
+            sf.write(enhanced_wav, enhanced_np.astype(np.float32), sr)
             print(f"[audio-enhance] job {job_id[:8]}: DeepFilterNet done", flush=True)
 
             if enhance_type == "clarity":
