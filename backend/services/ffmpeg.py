@@ -210,7 +210,8 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         original_ss = clip.get("sourceStart", 0)
         original_se = clip.get("sourceEnd", clip.get("duration", 0))
         intensity = int(clip.get("blurBackgroundIntensity") or 25)
-        tmp_path = tempfile.mktemp(suffix="_blur_bg.mp4")
+        with tempfile.NamedTemporaryFile(delete=False, suffix="_blur_bg.mp4") as _tf:
+            tmp_path = _tf.name
         try:
             blur_background_clip(clip["path"], tmp_path, original_ss, original_se, intensity)
             clip["path"] = tmp_path
