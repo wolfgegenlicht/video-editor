@@ -4,3 +4,4 @@ __pycache__/
 .env
 .DS_Store
 backend/services/gaze_correction/face_landmarker.task
+backend/models/*.tflite
