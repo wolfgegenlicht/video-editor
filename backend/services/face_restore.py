@@ -31,16 +31,26 @@ def _get_components() -> dict:
     if _components is None:
         with _components_lock:
             if _components is None:
-                # Import already-initialised singletons from codeformer.app
-                # (module-level weight download + model load happens on first import)
-                from codeformer.app import codeformer_net  # type: ignore
-                from codeformer.basicsr.utils import img2tensor, tensor2img  # type: ignore
-                from torchvision.transforms.functional import normalize
-                from codeformer.facelib.utils.face_restoration_helper import FaceRestoreHelper  # type: ignore
-                # Derive device from where the model weights actually live — codeformer.app's
-                # 'device' variable may point to MPS while the weights were loaded on CPU,
-                # causing a type mismatch on Apple Silicon.
-                device = next(codeformer_net.parameters()).device
+                # retinaface.py (inside facelib) has a module-level `device = get_device()`
+                # which returns MPS on Apple Silicon. init_detection_model then moves model
+                # *weights* to CPU via model.to(cpu), but mean_tensor (not a registered buffer)
+                # stays on MPS, and all runtime `.to(device)` calls inside retinaface keep
+                # sending tensors to MPS → CPU-weight / MPS-input mismatch.
+                # Fix: mask MPS before any codeformer module is imported so every module-level
+                # get_device() resolves to CPU. The stored `device` vars are permanently CPU for
+                # this process; restoring mps.is_available afterwards is safe.
+                import torch.backends.mps as _mps
+                _orig_mps = _mps.is_available
+                _mps.is_available = lambda: False
+                try:
+                    from codeformer.app import codeformer_net  # type: ignore
+                    from codeformer.basicsr.utils import img2tensor, tensor2img  # type: ignore
+                    from torchvision.transforms.functional import normalize
+                    from codeformer.facelib.utils.face_restoration_helper import FaceRestoreHelper  # type: ignore
+                    device = torch.device("cpu")
+                    codeformer_net.to(device)
+                finally:
+                    _mps.is_available = _orig_mps
                 _components = {
                     "net": codeformer_net,
                     "device": device,
