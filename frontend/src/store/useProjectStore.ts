@@ -436,7 +436,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     const found = findClip(p, clipId);
     if (!found) return p;
     const { track, clip } = found;
-    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration, eyeContact: undefined, eyeContactFileId: undefined };
+    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration, eyeContact: undefined, eyeContactFileId: undefined, blurBackgroundFileId: undefined };
     return {
       ...p,
       tracks: p.tracks.map((t) =>
