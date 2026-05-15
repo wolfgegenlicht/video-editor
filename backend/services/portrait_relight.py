@@ -95,13 +95,14 @@ def _load_sh(preset: str) -> np.ndarray:
     if not path.exists():
         raise FileNotFoundError(f"Lighting preset file not found: {path}")
     coeffs = np.load(str(path))
-    assert coeffs.shape == (9,), f"Expected SH shape (9,), got {coeffs.shape}"
+    if coeffs.shape != (9,):
+        raise ValueError(f"Expected SH shape (9,), got {coeffs.shape}")
     return coeffs.astype(np.float32)
 
 
 def start_job(file_id: str, preset: str = "ring", intensity: float = 0.5) -> str:
     if preset not in PRESETS:
-        preset = "ring"
+        raise ValueError(f"Unknown preset: {preset!r}")
     intensity = float(np.clip(intensity, 0.0, 1.0))
     cache_key = f"{file_id}:{preset}:{intensity:.2f}"
     with _jobs_lock:
@@ -160,7 +161,6 @@ def _run_job(
     state: _JobState,
 ) -> None:
     import torch
-    from PIL import Image as PILImage
 
     print(f"[portrait-relight] job {job_id[:8]}: starting — file={file_id[:8]} preset={preset} intensity={intensity}", flush=True)
     video_only = str(UPLOADS / f"tmp_{uuid.uuid4().hex}_relit_noaudio.mp4")
@@ -203,11 +203,10 @@ def _run_job(
             if not ok:
                 break
 
-            # Convert BGR frame → RGB PIL Image → tensor (1,3,H,W) in [-1,1]
+            # Convert BGR frame → RGB tensor (1,3,H,W) in [-1,1]
             frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-            pil_img = PILImage.fromarray(frame_rgb)
             img_tensor = (
-                torch.from_numpy(np.array(pil_img))
+                torch.from_numpy(frame_rgb)
                 .permute(2, 0, 1)
                 .unsqueeze(0)
                 .float()
@@ -265,14 +264,14 @@ def _run_job(
         cap.release()
         writer.release()
 
-        # Mux relit video with original audio
-        print(f"[portrait-relight] job {job_id[:8]}: muxing audio…", flush=True)
+        # Mux relit video with original audio, re-encoding to H.264 for browser compatibility
+        print(f"[portrait-relight] job {job_id[:8]}: re-encoding with audio…", flush=True)
         result_ffmpeg = subprocess.run(
             [
                 "ffmpeg", "-y",
                 "-i", video_only,
                 "-i", input_path,
-                "-c:v", "copy",
+                "-c:v", "libx264", "-preset", "fast", "-crf", "15",
                 "-c:a", "aac",
                 "-map", "0:v:0",
                 "-map", "1:a:0?",
@@ -283,7 +282,7 @@ def _run_job(
             text=True,
         )
         if result_ffmpeg.returncode != 0:
-            raise RuntimeError(f"FFmpeg audio mux failed:\n{result_ffmpeg.stderr[-2000:]}")
+            raise RuntimeError(f"FFmpeg re-encode failed:\n{result_ffmpeg.stderr[-2000:]}")
 
         _register_file(file_id, relit_id, output_path)
         state.relit_file_id = relit_id
