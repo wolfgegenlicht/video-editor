@@ -54,6 +54,13 @@ export interface Clip {
   blurBackground?: boolean;
   blurBackgroundFileId?: string;
   blurBackgroundIntensity?: number;
+  faceRestore?: boolean;
+  faceRestoreFileId?: string;
+  faceRestoreStrength?: number;
+  portraitRelight?: boolean;
+  portraitRelightFileId?: string;
+  portraitRelightPreset?: "front" | "ring" | "window" | "side_key";
+  portraitRelightIntensity?: number;
   pan?: number;                // -1 (full left) … 0 (center) … 1 (full right)
   audioEnhanceType?: AudioEnhanceType;
   audioEnhanceEnabled?: boolean;

@@ -64,6 +64,9 @@ interface ProjectStore {
   transcriptSelection: { startTime: number; endTime: number } | null;
   eyeContactStatus: Record<string, "processing" | "done" | "error">;
   blurBgStatus: Record<string, "processing" | "done" | "error">;
+  faceRestoreStatus: Record<string, "processing" | "done" | "error">;
+  portraitRelightStatus: Record<string, "processing" | "done" | "error">;
+  previewOriginalClipId: string | null;
   audioEnhanceStatus: Record<string, "processing" | "done" | "error">;
   saveStatus: "saved" | "saving";
   selectedItemIds: Set<string>;
@@ -84,8 +87,8 @@ interface ProjectStore {
   addFile: (file: UploadedFile) => void;
   removeFile: (fileId: string) => void;
 
-  addTrack: (type?: TrackType) => void;
-  addTrackWithClip: (type: TrackType, clip: Omit<Clip, "id">) => void;
+  addTrack: (type?: TrackType, label?: string) => void;
+  addTrackWithClip: (type: TrackType, clip: Omit<Clip, "id">, label?: string) => void;
   detachAudio: (clipId: string) => void;
   setTrackMuted: (trackId: string, muted: boolean) => void;
   setTrackHidden: (trackId: string, hidden: boolean) => void;
@@ -118,6 +121,16 @@ interface ProjectStore {
   setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   setClipBlurBackgroundFileId: (clipId: string, fileId: string | null) => void;
   setBlurBgStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
+  setClipFaceRestore: (clipId: string, enabled: boolean) => void;
+  setClipFaceRestoreFileId: (clipId: string, fileId: string | null) => void;
+  setClipFaceRestoreStrength: (clipId: string, strength: number) => void;
+  setFaceRestoreStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
+  setClipPortraitRelight: (clipId: string, enabled: boolean) => void;
+  setClipPortraitRelightFileId: (clipId: string, fileId: string | null) => void;
+  setClipPortraitRelightPreset: (clipId: string, preset: "front" | "ring" | "window" | "side_key") => void;
+  setClipPortraitRelightIntensity: (clipId: string, intensity: number) => void;
+  setPortraitRelightStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
+  setPreviewOriginalClipId: (clipId: string | null) => void;
   setClipPan: (clipId: string, pan: number) => void;
   setClipAudioEnhance: (clipId: string, type: AudioEnhanceType, enabled: boolean, fileId?: string | null) => void;
   setAudioEnhanceStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
@@ -241,6 +254,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
   transcriptSelection: null,
   eyeContactStatus: {},
   blurBgStatus: {},
+  faceRestoreStatus: {},
+  portraitRelightStatus: {},
+  previewOriginalClipId: null,
   audioEnhanceStatus: {},
   saveStatus: "saved" as const,
   selectedItemIds: new Set<string>(),
@@ -285,16 +301,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     }));
   },
 
-  addTrack: (type = "video" as TrackType) => withHistory(set, get, (p) => ({
+  addTrack: (type = "video" as TrackType, label?: string) => withHistory(set, get, (p) => ({
     ...p,
-    tracks: [...p.tracks, { id: uuid(), type, clips: [] }],
+    tracks: [...p.tracks, { id: uuid(), type, clips: [], label }],
   })),
 
-  addTrackWithClip: (type, clip) => withHistory(set, get, (p) => {
+  addTrackWithClip: (type, clip, label?: string) => withHistory(set, get, (p) => {
     const trackId = uuid();
     return {
       ...p,
-      tracks: [...p.tracks, { id: trackId, type, clips: [{ ...clip, id: uuid() }] }],
+      tracks: [...p.tracks, { id: trackId, type, clips: [{ ...clip, id: uuid() }], label }],
     };
   }),
 
@@ -474,7 +490,9 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     set((s) => {
       const { [clipId]: _, ...rest } = s.eyeContactStatus;
       const { [clipId]: _bb, ...restBb } = s.blurBgStatus;
-      return { eyeContactStatus: rest, blurBgStatus: restBb };
+      const { [clipId]: _fr, ...restFr } = s.faceRestoreStatus;
+      const { [clipId]: _pr, ...restPr } = s.portraitRelightStatus;
+      return { eyeContactStatus: rest, blurBgStatus: restBb, faceRestoreStatus: restFr, portraitRelightStatus: restPr };
     });
   },
 
@@ -715,6 +733,96 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     }
     return { blurBgStatus: { ...s.blurBgStatus, [clipId]: status } };
   }),
+
+  setClipFaceRestore: (clipId, enabled) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, faceRestore: enabled } : c),
+    })),
+  })),
+
+  setClipFaceRestoreFileId: (clipId, fileId) => {
+    const faceRestoreFileId = fileId ?? undefined;
+    set((s) => ({
+      project: {
+        ...s.project,
+        tracks: s.project.tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, faceRestoreFileId } : c)),
+        })),
+      },
+    }));
+    const { project, activeProjectId } = get();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    if (activeProjectId) _scheduleSave(activeProjectId, project);
+  },
+
+  setClipFaceRestoreStrength: (clipId, strength) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, faceRestoreStrength: strength } : c),
+    })),
+  })),
+
+  setFaceRestoreStatus: (clipId, status) => set((s) => {
+    if (status === undefined) {
+      const { [clipId]: _, ...rest } = s.faceRestoreStatus;
+      return { faceRestoreStatus: rest };
+    }
+    return { faceRestoreStatus: { ...s.faceRestoreStatus, [clipId]: status } };
+  }),
+
+  setClipPortraitRelight: (clipId, enabled) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, portraitRelight: enabled } : c),
+    })),
+  })),
+
+  setClipPortraitRelightFileId: (clipId, fileId) => {
+    const portraitRelightFileId = fileId ?? undefined;
+    set((s) => ({
+      project: {
+        ...s.project,
+        tracks: s.project.tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, portraitRelightFileId } : c)),
+        })),
+      },
+    }));
+    const { project, activeProjectId } = get();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
+    if (activeProjectId) _scheduleSave(activeProjectId, project);
+  },
+
+  setClipPortraitRelightPreset: (clipId, preset) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, portraitRelightPreset: preset } : c),
+    })),
+  })),
+
+  setClipPortraitRelightIntensity: (clipId, intensity) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, portraitRelightIntensity: intensity } : c),
+    })),
+  })),
+
+  setPortraitRelightStatus: (clipId, status) => set((s) => {
+    if (status === undefined) {
+      const { [clipId]: _, ...rest } = s.portraitRelightStatus;
+      return { portraitRelightStatus: rest };
+    }
+    return { portraitRelightStatus: { ...s.portraitRelightStatus, [clipId]: status } };
+  }),
+
+  setPreviewOriginalClipId: (clipId) => set({ previewOriginalClipId: clipId }),
 
   setClipPan: (clipId, pan) => withHistory(set, get, (p) => ({
     ...p,

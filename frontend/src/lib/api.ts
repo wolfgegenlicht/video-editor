@@ -248,3 +248,59 @@ export async function cancelAudioEnhanceJob(jobId: string): Promise<void> {
   const res = await fetch(`/enhance-audio/cancel/${jobId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Cancel audio enhance job failed: ${res.status}`);
 }
+
+export interface FaceRestoreStatusResponse {
+  status: "processing" | "done" | "error";
+  restoredFileId?: string;
+  progress?: number;
+  error?: string;
+}
+
+export async function startFaceRestoreJob(fileId: string, fidelityWeight: number): Promise<{ jobId: string }> {
+  const res = await fetch("/face-restore/process", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileId, fidelityWeight }),
+  });
+  if (!res.ok) throw new Error(`Face restore job failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getFaceRestoreStatus(jobId: string): Promise<FaceRestoreStatusResponse> {
+  const res = await fetch(`/face-restore/status/${jobId}`);
+  if (!res.ok) throw new Error(`Face restore status check failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteFaceRestoreFile(fileId: string): Promise<void> {
+  const res = await fetch(`/face-restore/files/${fileId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete face restore file failed: ${res.status}`);
+}
+
+export interface PortraitRelightStatusResponse {
+  status: "processing" | "done" | "error";
+  relitFileId?: string;
+  progress?: number;
+  error?: string;
+}
+
+export async function startPortraitRelightJob(fileId: string, preset: string, intensity: number): Promise<{ jobId: string }> {
+  const res = await fetch("/portrait-relight/process", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileId, preset, intensity }),
+  });
+  if (!res.ok) throw new Error(`Portrait relight job failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getPortraitRelightStatus(jobId: string): Promise<PortraitRelightStatusResponse> {
+  const res = await fetch(`/portrait-relight/status/${jobId}`);
+  if (!res.ok) throw new Error(`Portrait relight status check failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deletePortraitRelightFile(fileId: string): Promise<void> {
+  const res = await fetch(`/portrait-relight/files/${fileId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete portrait relight file failed: ${res.status}`);
+}
