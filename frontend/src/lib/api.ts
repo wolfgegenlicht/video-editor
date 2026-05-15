@@ -193,6 +193,34 @@ export async function deleteEyeContactFile(fileId: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete eye contact file failed: ${res.status}`);
 }
 
+export interface BlurBgStatusResponse {
+  status: "processing" | "done" | "error";
+  blurredFileId?: string;
+  progress?: number;
+  error?: string;
+}
+
+export async function startBlurBgJob(fileId: string, intensity: number): Promise<{ jobId: string }> {
+  const res = await fetch("/blur-bg/process", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileId, intensity }),
+  });
+  if (!res.ok) throw new Error(`Blur background job failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getBlurBgStatus(jobId: string): Promise<BlurBgStatusResponse> {
+  const res = await fetch(`/blur-bg/status/${jobId}`);
+  if (!res.ok) throw new Error(`Blur background status check failed: ${res.status}`);
+  return res.json();
+}
+
+export async function deleteBlurBgFile(fileId: string): Promise<void> {
+  const res = await fetch(`/blur-bg/files/${fileId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Delete blur background file failed: ${res.status}`);
+}
+
 export interface AudioEnhanceStatusResponse {
   status: "processing" | "done" | "error";
   progress?: number;

@@ -7,6 +7,7 @@ import CaptionOverlay from "./CaptionOverlay";
 import TextOverlayRenderer from "./TextOverlayRenderer";
 import VideoTransformOverlay from "./VideoTransformOverlay";
 import BlurRegionEditor, { featherMaskStyle } from "./BlurRegionEditor";
+import ZoomAnchorEditor from "./ZoomAnchorEditor";
 import { interpolateBlurAt } from "../../lib/blurKeyframes";
 
 function easeInOut(t: number): number {
@@ -78,7 +79,10 @@ function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalR
   const missingFileIds = useProjectStore((s) => s.missingFileIds);
   const prevPlayheadTimeRef = useRef(playheadTime);
 
-  const playbackFileId = clip.eyeContact && clip.eyeContactFileId ? clip.eyeContactFileId : clip.fileId;
+  const playbackFileId =
+    (clip.blurBackground && clip.blurBackgroundFileId) ? clip.blurBackgroundFileId :
+    (clip.eyeContact && clip.eyeContactFileId) ? clip.eyeContactFileId :
+    clip.fileId;
 
   // Play/pause + initial seek
   useEffect(() => {
@@ -448,6 +452,9 @@ export default function VideoPreview({ videoRef }: Props) {
   const selectedBlurEffect = effectOverlays.find(
     (e) => e.id === selectedEffectOverlayId && e.type === "blur"
   ) ?? null;
+  const selectedZoomEffect = effectOverlays.find(
+    (e) => e.id === selectedEffectOverlayId && e.type === "zoom"
+  ) ?? null;
   const activeBlurParams: BlurParams | null = activeBlurEffect
     ? (() => {
         const raw = activeBlurEffect.params as BlurParams;
@@ -472,8 +479,10 @@ export default function VideoPreview({ videoRef }: Props) {
     ? effectOverlays.find((e) => e.type === "speedramp" && playheadTime >= e.startTime && playheadTime < e.endTime) ?? null
     : null;
 
+  const ax = activeEffect ? ((activeEffect.params as ZoomParams).anchorX ?? 0.5) : 0.5;
+  const ay = activeEffect ? ((activeEffect.params as ZoomParams).anchorY ?? 0.5) : 0.5;
   const zoomWrapperStyle: React.CSSProperties = {
-    ...(zoomScale !== 1 ? { transform: `scale(${zoomScale})`, transformOrigin: "center center" } : {}),
+    ...(zoomScale !== 1 ? { transform: `scale(${zoomScale})`, transformOrigin: `${ax * 100}% ${ay * 100}%` } : {}),
     ...(combinedFilter ? { filter: combinedFilter } : {}),
   };
 
@@ -622,6 +631,15 @@ export default function VideoPreview({ videoRef }: Props) {
               />
             );
           })()}
+          {viewZoom === 1 && selectedZoomEffect && (
+            <ZoomAnchorEditor
+              effectId={selectedZoomEffect.id}
+              anchorX={(selectedZoomEffect.params as ZoomParams).anchorX ?? 0.5}
+              anchorY={(selectedZoomEffect.params as ZoomParams).anchorY ?? 0.5}
+              scale={(selectedZoomEffect.params as ZoomParams).scale}
+              outerRef={outerRef}
+            />
+          )}
         </div>
 
         {isDraggingOver && (
