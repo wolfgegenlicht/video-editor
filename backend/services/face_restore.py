@@ -83,67 +83,69 @@ def _register_file(source_file_id: str, new_id: str, output_path: str) -> None:
 
 def _run_job(job_id: str, file_id: str, fidelity_weight: float, cache_key: str, state: _JobState) -> None:
     print(f"[face-restore] job {job_id[:8]}: starting for file {file_id[:8]} fidelity={fidelity_weight}", flush=True)
-    matches = list(UPLOADS.glob(f"{file_id}.*"))
-    if not matches:
-        state.status = "error"
-        state.error = f"Source file {file_id} not found"
-        return
-
-    input_path = str(matches[0])
-    restored_id = str(uuid.uuid4())
-    output_path = str(UPLOADS / f"{restored_id}_facerestored.mp4")
-    video_only = output_path.replace(".mp4", "_noaudio.mp4")
-
+    video_only = None
     try:
-        restore_fn = _get_codeformer()
-        cap = cv2.VideoCapture(input_path)
-        fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
-        w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        writer = cv2.VideoWriter(video_only, fourcc, fps, (w, h))
+        matches = list(UPLOADS.glob(f"{file_id}.*"))
+        if not matches:
+            raise FileNotFoundError(f"Source file {file_id} not found in uploads")
 
-        idx = 0
-        while True:
-            ok, frame = cap.read()
-            if not ok:
-                break
-            restored = restore_fn(
-                image=frame,
-                background_enhance=False,
-                face_upsample=False,
-                upscale=1,
-                codeformer_fidelity=fidelity_weight,
+        input_path = str(matches[0])
+        restored_id = str(uuid.uuid4())
+        output_path = str(UPLOADS / f"{restored_id}.mp4")
+        video_only = str(UPLOADS / f"{restored_id}_noaudio.mp4")
+
+        try:
+            restore_fn = _get_codeformer()
+            cap = cv2.VideoCapture(input_path)
+            fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+            w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            writer = cv2.VideoWriter(video_only, fourcc, fps, (w, h))
+
+            idx = 0
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                restored = restore_fn(
+                    image=frame,
+                    background_enhance=False,
+                    face_upsample=False,
+                    upscale=1,
+                    codeformer_fidelity=fidelity_weight,
+                )
+                writer.write(restored)
+                idx += 1
+                state.progress = (idx / total) * 0.9
+
+            cap.release()
+            writer.release()
+
+            # Mux original audio back
+            print(f"[face-restore] job {job_id[:8]}: muxing audio…", flush=True)
+            result = subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", video_only,
+                    "-i", input_path,
+                    "-c:v", "copy",
+                    "-c:a", "aac",
+                    "-map", "0:v:0",
+                    "-map", "1:a:0?",
+                    "-shortest",
+                    output_path,
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
             )
-            writer.write(restored)
-            idx += 1
-            state.progress = (idx / total) * 0.9
-
-        cap.release()
-        writer.release()
-
-        # Mux original audio back
-        print(f"[face-restore] job {job_id[:8]}: muxing audio…", flush=True)
-        result = subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-i", video_only,
-                "-i", input_path,
-                "-c:v", "copy",
-                "-c:a", "aac",
-                "-map", "0:v:0",
-                "-map", "1:a:0?",
-                "-shortest",
-                output_path,
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"FFmpeg mux failed:\n{result.stderr[-2000:]}")
-        Path(video_only).unlink(missing_ok=True)
+            if result.returncode != 0:
+                raise RuntimeError(f"FFmpeg mux failed:\n{result.stderr[-2000:]}")
+        finally:
+            if video_only:
+                Path(video_only).unlink(missing_ok=True)
 
         _register_file(file_id, restored_id, output_path)
         state.restored_file_id = restored_id
@@ -155,7 +157,6 @@ def _run_job(job_id: str, file_id: str, fidelity_weight: float, cache_key: str, 
         state.status = "error"
         state.error = str(exc)
         print(f"[face-restore] job {job_id[:8]} ERROR: {exc}", flush=True)
-        Path(video_only).unlink(missing_ok=True)
     finally:
         with _jobs_lock:
             if _active_file_jobs.get(cache_key) == job_id:
