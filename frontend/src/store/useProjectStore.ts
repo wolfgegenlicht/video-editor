@@ -108,7 +108,8 @@ interface ProjectStore {
   setClipSpeed: (clipId: string, speed: number) => void;
   setClipVolume: (clipId: string, volume: number) => void;
   setClipFade: (clipId: string, fadeIn: number, fadeOut: number) => void;
-  setClipAdjustment: (clipId: string, key: "brightness" | "contrast" | "saturation", value: number) => void;
+  setClipAdjustment: (clipId: string, key: "brightness" | "contrast" | "saturation" | "blurBackgroundIntensity", value: number) => void;
+  setClipBlurBackground: (clipId: string, enabled: boolean) => void;
   setClipTransform: (clipId: string, transform: Partial<ClipTransform>) => void;
   setClipTransformLive: (clipId: string, transform: Partial<ClipTransform>) => void;
   setClipEyeContact: (clipId: string, enabled: boolean) => void;
@@ -606,6 +607,14 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     tracks: p.tracks.map((t) => ({
       ...t,
       clips: t.clips.map((c) => c.id === clipId ? { ...c, [key]: value } : c),
+    })),
+  })),
+
+  setClipBlurBackground: (clipId, enabled) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) => c.id === clipId ? { ...c, blurBackground: enabled } : c),
     })),
   })),
 

@@ -51,6 +51,8 @@ export interface Clip {
   saturation?: number;
   eyeContact?: boolean;
   eyeContactFileId?: string;
+  blurBackground?: boolean;
+  blurBackgroundIntensity?: number;
   pan?: number;                // -1 (full left) … 0 (center) … 1 (full right)
   audioEnhanceType?: AudioEnhanceType;
   audioEnhanceEnabled?: boolean;
@@ -102,6 +104,8 @@ export interface ZoomParams {
   scale: number;   // 1.0–3.0
   rampIn: number;  // seconds to ramp from 1× to scale
   rampOut: number; // seconds to ramp from scale back to 1×
+  anchorX?: number; // 0–1 horizontal focus point, default 0.5 (center)
+  anchorY?: number; // 0–1 vertical focus point, default 0.5 (center)
 }
 
 export interface FadeParams {
