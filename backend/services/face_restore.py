@@ -30,8 +30,8 @@ def _get_codeformer():
     if _codeformer is None:
         with _codeformer_lock:
             if _codeformer is None:
-                from codeformer.app import inference_codeformer_app
-                _codeformer = inference_codeformer_app
+                from codeformer.app import inference_app
+                _codeformer = inference_app
     return _codeformer
 
 
