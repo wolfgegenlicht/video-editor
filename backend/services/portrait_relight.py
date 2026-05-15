@@ -64,8 +64,17 @@ def _get_models():
             if _relighting is None:
                 import torch
                 src = Path(__file__).parent / "portrait_relighting_src"
-                if str(src) not in sys.path:
-                    sys.path.insert(0, str(src))
+                # wrappers.py appends relative paths ("third_party/NeRFFaceLighting" etc.)
+                # which resolve against the backend/ CWD, not portrait_relighting_src/.
+                # Add absolute paths first so dnnlib and CropPose are always found.
+                for p in [
+                    str(src),
+                    str(src / "third_party" / "NeRFFaceLighting"),
+                    str(src / "third_party" / "CropPose"),
+                    str(src / "third_party" / "CropPose" / "models"),
+                ]:
+                    if p not in sys.path:
+                        sys.path.insert(0, p)
 
                 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
