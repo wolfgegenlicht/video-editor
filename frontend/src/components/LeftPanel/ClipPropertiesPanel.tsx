@@ -176,7 +176,7 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
             {isOn && clip.eyeContactFileId && (
               <button
                 onClick={() => setPreviewOriginalClipId(isComparing ? null : clip.id)}
-                title={isComparing ? "Show corrected" : "Compare with original"}
+                title={isComparing ? "Show processed" : "Preview original"}
                 className={[
                   "text-[10px] transition-colors flex items-center gap-0.5",
                   isComparing ? "text-teal-600 font-medium" : "text-slate-400 hover:text-slate-600",
@@ -186,7 +186,7 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
                   <path d="M1 8h14M1 8c2-3 4-5 7-5s5 2 7 5M1 8c2 3 4 5 7 5s5-2 7-5" strokeLinecap="round"/>
                   <circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/>
                 </svg>
-                {isComparing ? "Original" : "Compare"}
+                {isComparing ? "Processed" : "Original"}
               </button>
             )}
             {isOn && clip.eyeContactFileId && (
@@ -411,7 +411,7 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPreviewOriginalClipId(isComparing ? null : clip.id)}
-                title={isComparing ? "Show blurred" : "Compare with original"}
+                title={isComparing ? "Show processed" : "Preview original"}
                 className={[
                   "text-[10px] transition-colors flex items-center gap-0.5",
                   isComparing ? "text-teal-600 font-medium" : "text-slate-400 hover:text-slate-600",
@@ -421,7 +421,7 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
                   <path d="M1 8h14M1 8c2-3 4-5 7-5s5 2 7 5M1 8c2 3 4 5 7 5s5-2 7-5" strokeLinecap="round"/>
                   <circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/>
                 </svg>
-                {isComparing ? "Original" : "Compare"}
+                {isComparing ? "Processed" : "Original"}
               </button>
               <button
                 onClick={handleReprocess}
