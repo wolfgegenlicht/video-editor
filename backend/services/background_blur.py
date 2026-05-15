@@ -2,6 +2,7 @@ import atexit
 import os
 import cv2
 import numpy as np
+from typing import Callable, Optional
 
 _segmenter = None
 _MEDIAPIPE_AVAILABLE = False
@@ -39,6 +40,7 @@ def blur_background_clip(
     source_start: float,
     source_end: float,
     intensity: int = 25,
+    progress_cb: Optional[Callable[[float], None]] = None,
 ) -> None:
     """Pre-process a clip segment by blurring the background behind detected persons.
 
@@ -51,7 +53,7 @@ def blur_background_clip(
     no person is detected in a frame.
     """
     if not _MEDIAPIPE_AVAILABLE or _segmenter is None:
-        _copy_frames(input_path, output_path, source_start, source_end)
+        _copy_frames(input_path, output_path, source_start, source_end, progress_cb)
         return
 
     cap = cv2.VideoCapture(input_path)
@@ -61,6 +63,7 @@ def blur_background_clip(
         fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
 
         # Seek to source_start
         cap.set(cv2.CAP_PROP_POS_MSEC, source_start * 1000.0)
@@ -72,6 +75,7 @@ def blur_background_clip(
         out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
         if not out.isOpened():
             raise RuntimeError(f"Could not open VideoWriter for: {output_path}")
+        frame_idx = 0
         try:
             while True:
                 pos_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
@@ -96,20 +100,29 @@ def blur_background_clip(
                 if mask.max() < 0.05:
                     # No person detected — write original frame unchanged
                     out.write(frame)
-                    continue
+                else:
+                    blurred = cv2.GaussianBlur(frame, (k, k), 0)
+                    mask_3ch = np.stack([mask, mask, mask], axis=-1)
+                    composite = (frame.astype(np.float32) * mask_3ch +
+                                 blurred.astype(np.float32) * (1.0 - mask_3ch))
+                    out.write(composite.astype(np.uint8))
 
-                blurred = cv2.GaussianBlur(frame, (k, k), 0)
-                mask_3ch = np.stack([mask, mask, mask], axis=-1)
-                composite = (frame.astype(np.float32) * mask_3ch +
-                             blurred.astype(np.float32) * (1.0 - mask_3ch))
-                out.write(composite.astype(np.uint8))
+                frame_idx += 1
+                if progress_cb is not None and total_frames > 0:
+                    progress_cb(frame_idx / total_frames)
         finally:
             out.release()
     finally:
         cap.release()
 
 
-def _copy_frames(input_path: str, output_path: str, source_start: float, source_end: float) -> None:
+def _copy_frames(
+    input_path: str,
+    output_path: str,
+    source_start: float,
+    source_end: float,
+    progress_cb: Optional[Callable[[float], None]] = None,
+) -> None:
     """Copy frames from source_start to source_end without modification."""
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
@@ -118,12 +131,14 @@ def _copy_frames(input_path: str, output_path: str, source_start: float, source_
         fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
         cap.set(cv2.CAP_PROP_POS_MSEC, source_start * 1000.0)
 
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
         if not out.isOpened():
             raise RuntimeError(f"Could not open VideoWriter for: {output_path}")
+        frame_idx = 0
         try:
             while True:
                 pos_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
@@ -133,6 +148,9 @@ def _copy_frames(input_path: str, output_path: str, source_start: float, source_
                 if not ret:
                     break
                 out.write(frame)
+                frame_idx += 1
+                if progress_cb is not None and total_frames > 0:
+                    progress_cb(frame_idx / total_frames)
         finally:
             out.release()
     finally:

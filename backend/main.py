@@ -10,6 +10,7 @@ from routes.export_ import router as export_router
 from routes.projects import router as projects_router
 from routes.eye_contact import router as eye_contact_router
 from routes.enhance_audio import router as enhance_audio_router
+from routes.blur_bg import router as blur_bg_router
 
 init_db()
 
@@ -28,4 +29,5 @@ app.include_router(export_router)
 app.include_router(projects_router)
 app.include_router(eye_contact_router)
 app.include_router(enhance_audio_router)
+app.include_router(blur_bg_router)
 app.mount("/fonts", StaticFiles(directory=str(Path(__file__).parent / "fonts")), name="fonts")
