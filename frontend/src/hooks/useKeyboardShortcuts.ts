@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useProjectStore } from "../store/useProjectStore";
+import { useProjectStore, getItemStartTime } from "../store/useProjectStore";
 
 export function useKeyboardShortcuts(toggle: () => void) {
 
@@ -74,9 +74,20 @@ export function useKeyboardShortcuts(toggle: () => void) {
 
       if (e.code === "ArrowLeft" || e.code === "ArrowRight") {
         e.preventDefault();
-        const { playheadTime, project, setPlayhead, isPlaying } = useProjectStore.getState();
+        const { selectedClipId, selectedItemIds, moveSelectedItems, playheadTime, project, setPlayhead, isPlaying } = useProjectStore.getState();
         const step = e.shiftKey ? 1 : 1 / 30;
         const direction = e.code === "ArrowLeft" ? -1 : 1;
+
+        if (selectedClipId || selectedItemIds.size > 0) {
+          const ids = selectedItemIds.size > 0 ? [...selectedItemIds] : [selectedClipId!];
+          const moves = ids.map((id) => ({
+            id,
+            newStartTime: Math.max(0, getItemStartTime(project, id) + direction * step),
+          }));
+          moveSelectedItems(moves);
+          return;
+        }
+
         const totalDuration = project.tracks
           .flatMap((t) => t.clips)
           .reduce((max, c) => Math.max(max, c.startTime + c.duration), 0);

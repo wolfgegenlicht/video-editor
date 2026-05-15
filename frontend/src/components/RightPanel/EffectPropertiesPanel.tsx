@@ -384,6 +384,20 @@ export default function EffectPropertiesPanel() {
           format={(v) => `${v.toFixed(2)}×`}
         />
         <SliderRow
+          label="Focus X"
+          value={params.anchorX ?? 0.5}
+          min={0} max={1} step={0.01}
+          onChange={(v) => update({ anchorX: v })}
+          format={(v) => `${Math.round(v * 100)}%`}
+        />
+        <SliderRow
+          label="Focus Y"
+          value={params.anchorY ?? 0.5}
+          min={0} max={1} step={0.01}
+          onChange={(v) => update({ anchorY: v })}
+          format={(v) => `${Math.round(v * 100)}%`}
+        />
+        <SliderRow
           label="Zoom In"
           value={params.rampIn}
           min={0} max={maxRamp} step={0.05}

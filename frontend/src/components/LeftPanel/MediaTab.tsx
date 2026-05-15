@@ -2,30 +2,91 @@ import { useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import { uploadFile, fileUrl, deleteFile } from "../../lib/api";
 
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function isAudio(file: { width: number; height: number }) {
+  return file.width === 0 || file.height === 0;
+}
+
+function AudioThumbnail() {
+  return (
+    <div className="w-full h-full flex items-center justify-center bg-slate-100">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#94a3b8" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 18V6l10-2v12" />
+        <circle cx="6.5" cy="18" r="2.5" />
+        <circle cx="16.5" cy="16" r="2.5" />
+      </svg>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 pt-10 pb-4 px-4 text-center">
+      <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#94a3b8" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="5" width="18" height="14" rx="2" />
+          <path d="M9 10l5 2.5L9 15V10z" fill="#94a3b8" stroke="none" />
+          <path d="M7 2h8" />
+        </svg>
+      </div>
+      <div className="space-y-1">
+        <p className="text-[13px] font-medium text-slate-600">No media yet</p>
+        <p className="text-[11px] text-slate-400 leading-relaxed">
+          Upload video or audio files,<br />or drag them into this panel.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export default function MediaTab() {
   const { files, addFile, removeFile, addClip, project, activeProjectId } = useProjectStore();
   const inputRef = useRef<HTMLInputElement>(null);
   const [draggingOver, setDraggingOver] = useState(false);
   const dragCounter = useRef(0);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const confirmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  async function handleRemoveFile(fileId: string, name: string) {
-    if (!window.confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const usedFileIds = new Set(
+    project.tracks.flatMap((t) => t.clips.map((c) => c.fileId))
+  );
+
+  async function handleRemoveFile(fileId: string) {
+    if (confirmDelete !== fileId) {
+      if (confirmTimer.current) clearTimeout(confirmTimer.current);
+      setConfirmDelete(fileId);
+      confirmTimer.current = setTimeout(() => setConfirmDelete(null), 3000);
+      return;
+    }
+    if (confirmTimer.current) clearTimeout(confirmTimer.current);
+    setConfirmDelete(null);
     try { await deleteFile(fileId); } catch { /* already gone */ }
     removeFile(fileId);
   }
 
   async function uploadFiles(fileList: FileList | File[]) {
-    const selected = Array.from(fileList).filter((f) =>
-      f.type.startsWith("video/") || f.type.startsWith("audio/")
+    const selected = Array.from(fileList).filter(
+      (f) => f.type.startsWith("video/") || f.type.startsWith("audio/")
     );
+    if (!selected.length) return;
+    setUploading(true);
+    setUploadError(null);
     for (const file of selected) {
       try {
         const uploaded = await uploadFile(file, activeProjectId ?? undefined);
         addFile(uploaded);
       } catch (err) {
-        alert("Upload failed: " + String(err));
+        setUploadError("Upload failed: " + String(err));
       }
     }
+    setUploading(false);
   }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -53,9 +114,7 @@ export default function MediaTab() {
     e.preventDefault();
     dragCounter.current = 0;
     setDraggingOver(false);
-    if (e.dataTransfer.files.length > 0) {
-      await uploadFiles(e.dataTransfer.files);
-    }
+    if (e.dataTransfer.files.length > 0) await uploadFiles(e.dataTransfer.files);
   }
 
   function handleDragStart(e: React.DragEvent, fileId: string) {
@@ -67,7 +126,10 @@ export default function MediaTab() {
     if (!file) return;
     const firstTrack = project.tracks[0];
     if (!firstTrack) return;
-    const lastClipEnd = firstTrack.clips.reduce((max, c) => Math.max(max, c.startTime + c.duration), 0);
+    const lastClipEnd = firstTrack.clips.reduce(
+      (max, c) => Math.max(max, c.startTime + c.duration),
+      0
+    );
     addClip(firstTrack.id, {
       fileId,
       startTime: lastClipEnd,
@@ -79,61 +141,147 @@ export default function MediaTab() {
 
   return (
     <div
-      className={`flex flex-col h-full relative transition-colors ${draggingOver ? "bg-blue-50" : ""}`}
+      className={`flex flex-col h-full relative transition-colors ${draggingOver ? "bg-teal-50" : ""}`}
       onDragEnter={onDragEnter}
       onDragLeave={onDragLeave}
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
       {draggingOver && (
-        <div className="absolute inset-0 border-2 border-blue-400 border-dashed rounded pointer-events-none z-10 flex items-center justify-center bg-blue-50/80">
-          <span className="text-xs text-blue-600 font-medium">Drop to upload</span>
+        <div className="absolute inset-0 border-2 border-teal-400 border-dashed rounded pointer-events-none z-10 flex flex-col items-center justify-center gap-1.5 bg-teal-50/80">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#0f766e" strokeWidth="1.5" strokeLinecap="round">
+            <path d="M11 14V4M7 8l4-4 4 4" />
+            <path d="M4 17v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1" />
+          </svg>
+          <span className="text-xs font-medium text-teal-700">Drop to upload</span>
         </div>
       )}
-      <div className="p-2 border-b border-gray-100">
+
+      {/* Upload button */}
+      <div className="px-3 pt-3 pb-2 flex-shrink-0">
         <button
           onClick={() => inputRef.current?.click()}
-          className="w-full py-2 text-xs border-2 border-dashed border-gray-300 rounded hover:border-blue-400 hover:text-blue-600 text-gray-500 transition-colors"
+          disabled={uploading}
+          className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-medium
+            border border-dashed border-slate-200 text-slate-400
+            hover:border-teal-400 hover:text-teal-600 hover:bg-teal-50/50
+            disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
         >
-          + Upload Media
+          {uploading ? (
+            <>
+              <svg className="animate-spin" width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <circle cx="6" cy="6" r="4" strokeOpacity="0.25" />
+                <path d="M6 2a4 4 0 0 1 4 4" />
+              </svg>
+              Uploading…
+            </>
+          ) : (
+            <>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                <path d="M6 2v8M2 6l4-4 4 4" />
+              </svg>
+              Upload media
+            </>
+          )}
         </button>
+        {uploadError && (
+          <p className="mt-1.5 text-[11px] text-red-500 leading-tight" title={uploadError}>{uploadError}</p>
+        )}
         <input ref={inputRef} type="file" accept="video/*,audio/*" multiple className="hidden" onChange={handleUpload} />
       </div>
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {files.map((file) => (
-          <div
-            key={file.id}
-            draggable
-            onDragStart={(e) => handleDragStart(e, file.id)}
-            className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 cursor-grab group"
-          >
-            <div className="w-12 h-8 bg-gray-200 rounded flex-shrink-0 overflow-hidden">
-              <video
-                src={fileUrl(file.id)}
-                className="w-full h-full object-cover"
-                preload="metadata"
-              />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium truncate">{file.originalName}</p>
-              <p className="text-xs text-gray-400">{file.duration.toFixed(1)}s</p>
-            </div>
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button
-                onClick={() => handleAddToTimeline(file.id)}
-                className="text-xs text-blue-500 hover:text-blue-700 px-1"
-                title="Add to timeline"
-              >+</button>
-              <button
-                onClick={() => handleRemoveFile(file.id, file.originalName)}
-                className="text-xs text-red-400 hover:text-red-600 px-1"
-                title="Remove"
-              >×</button>
-            </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-3 pb-3">
+        {files.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {files.map((file) => {
+              const audio = isAudio(file);
+              const inUse = usedFileIds.has(file.id);
+              const armed = confirmDelete === file.id;
+
+              return (
+                <div
+                  key={file.id}
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, file.id)}
+                  className="group relative rounded-lg overflow-hidden cursor-grab active:cursor-grabbing
+                    ring-1 ring-slate-200 hover:ring-slate-300 bg-slate-100 transition-shadow"
+                >
+                  {/* Thumbnail */}
+                  <div className="aspect-video w-full bg-slate-200 overflow-hidden">
+                    {audio ? (
+                      <AudioThumbnail />
+                    ) : (
+                      <video
+                        src={fileUrl(file.id)}
+                        className="w-full h-full object-cover"
+                        preload="metadata"
+                      />
+                    )}
+                  </div>
+
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-slate-900/0 group-hover:bg-slate-900/35 transition-colors pointer-events-none" />
+
+                  {/* Action buttons — revealed on hover */}
+                  <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={() => handleAddToTimeline(file.id)}
+                      className="flex items-center justify-center w-7 h-7 rounded-full bg-white/95 shadow
+                        text-slate-700 hover:text-teal-700 hover:bg-white transition-colors"
+                      title="Add to timeline"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                        <path d="M6.5 1v11M1 6.5h11" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleRemoveFile(file.id)}
+                      className={`flex items-center justify-center w-7 h-7 rounded-full shadow transition-colors
+                        ${armed
+                          ? "bg-red-500 text-white hover:bg-red-600"
+                          : "bg-white/95 text-slate-500 hover:text-red-500 hover:bg-white"}`}
+                      title={armed ? "Click again to confirm delete" : "Remove file"}
+                    >
+                      {armed ? (
+                        <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+                          <path d="M2 6h8" />
+                        </svg>
+                      ) : (
+                        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M1.5 2.5h8M4 2.5V1.5h3v1M3.5 2.5l.5 6h3.5l.5-6" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Type badge */}
+                  <div className="absolute top-1 left-1 pointer-events-none">
+                    <span className={`text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded
+                      ${audio ? "bg-violet-500/85 text-white" : "bg-black/50 text-white"}`}>
+                      {audio ? "audio" : "video"}
+                    </span>
+                  </div>
+
+                  {/* In-timeline dot */}
+                  {inUse && (
+                    <div
+                      className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-teal-400 ring-1 ring-white/80 pointer-events-none"
+                      title="Used in timeline"
+                    />
+                  )}
+
+                  {/* Filename + duration */}
+                  <div className="px-2 pt-1.5 pb-1.5 bg-white">
+                    <p className="text-[11px] font-medium text-slate-700 truncate leading-tight">{file.originalName}</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">{formatDuration(file.duration)}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        ))}
-        {files.length === 0 && (
-          <p className="text-xs text-gray-400 text-center pt-4">No media uploaded</p>
         )}
       </div>
     </div>

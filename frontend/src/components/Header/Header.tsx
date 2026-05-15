@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import type { AspectRatio } from "../../types/project";
 import { UndoIcon, RedoIcon, ChevronLeftIcon } from "../Icons";
@@ -7,18 +7,9 @@ import ExportDialog from "./ExportDialog";
 const ASPECT_RATIOS: AspectRatio[] = ["16:9", "9:16", "1:1", "4:3"];
 
 export default function Header() {
-  const { project, setProjectName, setAspectRatio, undo, redo, history, future, saveAsJson, loadFromJson, closeProject } =
+  const { project, setProjectName, setAspectRatio, undo, redo, history, future, saveStatus, closeProject } =
     useProjectStore();
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showExport, setShowExport] = useState(false);
-
-  function handleLoadJson(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => loadFromJson(ev.target?.result as string);
-    reader.readAsText(file);
-  }
 
   return (
     <>
@@ -73,13 +64,9 @@ export default function Header() {
 
       {/* Right group */}
       <div className="flex items-center gap-2 flex-1 justify-end">
-        <button onClick={saveAsJson} className="px-2 py-0.5 text-xs rounded hover:bg-slate-100 border border-slate-200 text-slate-600 cursor-pointer transition-colors">
-          Save JSON
-        </button>
-        <button onClick={() => fileInputRef.current?.click()} className="px-2 py-0.5 text-xs rounded hover:bg-slate-100 border border-slate-200 text-slate-600 cursor-pointer transition-colors">
-          Load JSON
-        </button>
-        <input ref={fileInputRef} type="file" accept=".json" className="hidden" onChange={handleLoadJson} />
+        <span className="text-xs text-slate-400 select-none">
+          {saveStatus === "saving" ? "Saving…" : "Saved"}
+        </span>
         <button
           onClick={() => setShowExport(true)}
           className="px-3 py-0.5 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 font-semibold cursor-pointer transition-colors"

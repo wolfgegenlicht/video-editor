@@ -304,7 +304,7 @@ export default function TranscriptTab({ seek }: Props) {
                           setCursorPosition(null);
                         }
                       }}
-                      className="inline-block text-[16px] border-b-2 border-teal-400 outline-none bg-teal-50 rounded px-0.5 w-28 align-baseline"
+                      className="inline-block text-[16px] outline-none bg-teal-50 rounded px-0.5 w-28 align-baseline"
                     />
                     {" "}
                   </React.Fragment>

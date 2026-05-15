@@ -1,8 +1,17 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import type { Caption, CaptionTrackStyle } from "../../types/project";
+import { FONT_FAMILY_CSS } from "../../lib/fonts";
 
 interface Props { time: number }
+
+const REFERENCE_WIDTH = 1280;
+const RATIO_MAP: Record<string, number> = {
+  "16:9": 16 / 9,
+  "9:16": 9 / 16,
+  "1:1": 1,
+  "4:3": 4 / 3,
+};
 
 function useFadeIn() {
   const [visible, setVisible] = useState(false);
@@ -15,7 +24,7 @@ function useFadeIn() {
 
 function captionTextStyle(s: CaptionTrackStyle): React.CSSProperties {
   return {
-    fontFamily: s.fontFamily,
+    fontFamily: FONT_FAMILY_CSS[s.fontFamily] ?? s.fontFamily,
     fontSize: s.fontSize,
     fontWeight: s.fontWeight,
     color: s.color,
@@ -162,38 +171,30 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
   );
 }
 
-function StaticCaption({ seg, style, onSelect }: { seg: Caption; style: CaptionTrackStyle; onSelect: () => void }) {
-  const visible = useFadeIn();
-  return (
-    <div
-      onPointerDown={(e) => { e.stopPropagation(); onSelect(); }}
-      style={{
-        position: "absolute",
-        left: `${style.x}%`,
-        top: `${style.y}%`,
-        width: `${style.boxW}%`,
-        textAlign: style.textAlign,
-        cursor: "pointer",
-        opacity: visible ? 1 : 0,
-        transition: "opacity 80ms ease-out",
-      }}
-    >
-      <span style={captionTextStyle(style)}>{seg.text}</span>
-    </div>
-  );
-}
-
 export default function CaptionOverlay({ time }: Props) {
   const { project, selectCaption } = useProjectStore();
+  const previewWidth = useProjectStore((s) => s.previewWidth);
   const style = project.captionTrackStyle;
   const cap = project.captions.find((c) => time >= c.startTime && time < c.endTime);
   if (!cap) return null;
 
-  const handleSelect = () => selectCaption(cap.id);
+  const ratio = RATIO_MAP[project.aspectRatio] ?? (16 / 9);
+  const refH  = Math.round(REFERENCE_WIDTH / ratio);
+  const scale = previewWidth / REFERENCE_WIDTH;
 
-  if (style.highlightMode === "karaoke") {
-    return <KaraokeOverlay key={cap.id} seg={cap} time={time} style={style} onSelect={handleSelect} />;
-  }
-
-  return <StaticCaption key={cap.id} seg={cap} style={style} onSelect={handleSelect} />;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width: REFERENCE_WIDTH,
+        height: refH,
+        transform: `scale(${scale})`,
+        transformOrigin: "top left",
+      }}
+    >
+      <KaraokeOverlay key={cap.id} seg={cap} time={time} style={style} onSelect={() => selectCaption(cap.id)} />
+    </div>
+  );
 }

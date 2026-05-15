@@ -6,7 +6,6 @@ const FONT_FAMILIES = [
   { value: "monospace", label: "Monospace" },
   { value: "Impact, sans-serif", label: "Impact" },
   { value: "Georgia, serif", label: "Georgia" },
-  { value: "Arial Black, sans-serif", label: "Arial Black" },
 ];
 
 export default function CaptionStyleEditor() {
@@ -168,37 +167,16 @@ export default function CaptionStyleEditor() {
         </div>
       </div>
 
-      {/* Highlight mode */}
+      {/* Highlight color */}
       <div>
-        <label className="text-[10px] text-gray-400 block mb-1">Highlight</label>
-        <div className="flex gap-2">
-          {(["none", "karaoke"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => set("highlightMode", m)}
-              className={`flex-1 py-1 rounded text-xs border transition-colors
-                ${s.highlightMode === m
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "border-gray-300 text-gray-700 hover:bg-gray-50"}`}
-            >
-              {m === "none" ? "None" : "Karaoke"}
-            </button>
-          ))}
-        </div>
+        <label className="text-[10px] text-gray-400 block mb-1">Highlight Color</label>
+        <input
+          type="color"
+          value={s.highlightColor}
+          onChange={(e) => set("highlightColor", e.target.value)}
+          className="w-full h-8 rounded border border-gray-200 cursor-pointer"
+        />
       </div>
-
-      {/* Highlight color (karaoke only) */}
-      {s.highlightMode === "karaoke" && (
-        <div>
-          <label className="text-[10px] text-gray-400 block mb-1">Highlight Color</label>
-          <input
-            type="color"
-            value={s.highlightColor}
-            onChange={(e) => set("highlightColor", e.target.value)}
-            className="w-full h-8 rounded border border-gray-200 cursor-pointer"
-          />
-        </div>
-      )}
 
       {/* Position */}
       <p className="text-[10px] text-gray-400 font-medium pt-1 border-t border-gray-100">Position</p>

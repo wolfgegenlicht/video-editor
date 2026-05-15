@@ -1,11 +1,16 @@
 import { useProjectStore } from "../../store/useProjectStore";
 
 export default function EffectsTab() {
-  const { addEffectOverlay, addClipTransition, playheadTime, project } = useProjectStore();
+  const { addEffectOverlay, addClipTransition, playheadTime, project, setDraggingEffectType } = useProjectStore();
 
   function handleDragStart(e: React.DragEvent, effectType: string) {
     e.dataTransfer.setData("effectType", effectType);
     e.dataTransfer.effectAllowed = "copy";
+    setDraggingEffectType(effectType);
+  }
+
+  function handleDragEnd() {
+    setDraggingEffectType(null);
   }
 
   function handleDoubleClick(effectType: string) {
@@ -47,7 +52,7 @@ export default function EffectsTab() {
       <EffectCard
         effectType="zoom" label="Zoom" desc="Zooms in, holds, zooms out"
         color="violet"
-        onDragStart={handleDragStart} onDoubleClick={handleDoubleClick}
+        onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick}
         icon={
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#7c3aed" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="7.5" cy="7.5" r="5"/><line x1="11.5" y1="11.5" x2="15.5" y2="15.5"/>
@@ -59,7 +64,7 @@ export default function EffectsTab() {
       <EffectCard
         effectType="fade" label="Fade" desc="Fade in or fade out"
         color="amber"
-        onDragStart={handleDragStart} onDoubleClick={handleDoubleClick}
+        onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick}
         icon={
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             <defs>
@@ -76,7 +81,7 @@ export default function EffectsTab() {
       <EffectCard
         effectType="blur" label="Blur" desc="Gaussian blur over a time range"
         color="sky"
-        onDragStart={handleDragStart} onDoubleClick={handleDoubleClick}
+        onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick}
         icon={
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#0284c7" strokeWidth="1.5" strokeLinecap="round">
             <circle cx="9" cy="9" r="5" strokeOpacity="0.4"/>
@@ -89,7 +94,7 @@ export default function EffectsTab() {
       <EffectCard
         effectType="colorgrade" label="Color Grade" desc="Warm, cool, B&W or vintage look"
         color="rose"
-        onDragStart={handleDragStart} onDoubleClick={handleDoubleClick}
+        onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick}
         icon={
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" strokeLinecap="round">
             <circle cx="6" cy="9" r="4" fill="#fca5a5" fillOpacity="0.7"/>
@@ -102,7 +107,7 @@ export default function EffectsTab() {
       <EffectCard
         effectType="speedramp" label="Speed Ramp" desc="Smoothly change playback speed"
         color="orange"
-        onDragStart={handleDragStart} onDoubleClick={handleDoubleClick}
+        onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick}
         icon={
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="#ea580c" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 13 Q5 13 9 5 Q13 13 16 13"/>
@@ -117,8 +122,7 @@ export default function EffectsTab() {
       <EffectCard
         effectType="dissolve" label="Cross Dissolve" desc="Dip to black between clips"
         color="teal"
-        draggable={false}
-        onDragStart={handleDragStart} onDoubleClick={handleDoubleClick}
+        onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick}
         icon={
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" strokeLinecap="round">
             <defs>
@@ -151,7 +155,7 @@ const COLOR_CLASSES: Record<CardColor, { border: string; bg: string; hover: stri
   teal:   { border: "border-teal-200",   bg: "bg-teal-50",   hover: "hover:bg-teal-100",   title: "text-teal-800",   desc: "text-teal-500"   },
 };
 
-function EffectCard({ effectType, label, desc, color, icon, draggable = true, onDragStart, onDoubleClick }: {
+function EffectCard({ effectType, label, desc, color, icon, draggable = true, onDragStart, onDragEnd, onDoubleClick }: {
   effectType: string;
   label: string;
   desc: string;
@@ -159,6 +163,7 @@ function EffectCard({ effectType, label, desc, color, icon, draggable = true, on
   icon: React.ReactNode;
   draggable?: boolean;
   onDragStart: (e: React.DragEvent, type: string) => void;
+  onDragEnd: () => void;
   onDoubleClick: (type: string) => void;
 }) {
   const cls = COLOR_CLASSES[color];
@@ -166,6 +171,7 @@ function EffectCard({ effectType, label, desc, color, icon, draggable = true, on
     <div
       draggable={draggable}
       onDragStart={draggable ? (e) => onDragStart(e, effectType) : undefined}
+      onDragEnd={onDragEnd}
       onDoubleClick={() => onDoubleClick(effectType)}
       className={`flex items-center gap-3 p-3 rounded-lg border ${cls.border} ${cls.bg} ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${cls.hover} transition-colors select-none`}
     >
