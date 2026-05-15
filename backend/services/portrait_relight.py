@@ -1,16 +1,9 @@
-"""Portrait relighting service.
+"""Portrait relighting service using DPR (Deep Portrait Relighting).
 
-Uses the PortraitRelighting model (GhostCai/PortraitRelighting) to apply
-lighting preset changes to a video clip frame-by-frame.
-
-The model API (from portrait_relighting_src/example.py):
-  - cropposer: ImageCropPoser — crops face and estimates camera params per frame
-  - relighting: Relighting — the main model; accepts (img_tensor, cam_tensor, sh_tensor)
-  - sh: shape (1, 9) float32 tensor — 9 greyscale SH coefficients L0..L2
-  - img: (1, 3, H, W) tensor in [-1, 1] range, RGB
-  - cam: camera parameter tensor extracted per-frame via cropposer.wild2all()
-
-Intensity blends the relit output with the original frame.
+DPR applies spherical-harmonic lighting changes to a video clip frame-by-frame.
+It is CPU-compatible, uses bundled weights (trained_model_03.t7), and has no
+CUDA-only dependencies. The NeRFFaceLighting+CropPose pipeline from the original
+PortraitRelighting repo requires nvdiffrast (CUDA-only) and is not used.
 """
 from __future__ import annotations
 
@@ -39,11 +32,9 @@ _jobs: dict[str, "_JobState"] = {}
 _jobs_lock = threading.Lock()
 _active_file_jobs: dict[str, str] = {}  # f"{file_id}:{preset}:{intensity:.2f}" → job_id
 
-# Lazy-loaded model components (loaded once, reused across jobs)
-_cropposer = None
-_relighting = None
-_device = None
-_model_lock = threading.Lock()
+_dpr = None
+_dpr_device = None
+_dpr_lock = threading.Lock()
 
 PRESETS = ("front", "ring", "window", "side_key")
 
@@ -56,46 +47,28 @@ class _JobState:
     error: Optional[str] = None
 
 
-def _get_models():
-    """Lazy-load the PortraitRelighting model components (thread-safe singleton)."""
-    global _cropposer, _relighting, _device
-    if _relighting is None:
-        with _model_lock:
-            if _relighting is None:
+def _get_dpr():
+    """Lazy-load DPR model (thread-safe singleton)."""
+    global _dpr, _dpr_device
+    if _dpr is None:
+        with _dpr_lock:
+            if _dpr is None:
                 import torch
                 src = Path(__file__).parent / "portrait_relighting_src"
-                # wrappers.py appends relative paths ("third_party/NeRFFaceLighting" etc.)
-                # which resolve against the backend/ CWD, not portrait_relighting_src/.
-                # Add absolute paths first so dnnlib and CropPose are always found.
-                for p in [
-                    str(src),
-                    str(src / "third_party" / "NeRFFaceLighting"),
-                    str(src / "third_party" / "CropPose"),
-                    str(src / "third_party" / "CropPose" / "models"),
-                ]:
+                # Add paths for DPR and the NeRFFaceLighting torch_utils it needs
+                for p in [str(src), str(src / "third_party" / "NeRFFaceLighting")]:
                     if p not in sys.path:
                         sys.path.insert(0, p)
 
-                device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+                from third_party.DPR.dpr import DPR  # type: ignore
 
-                # MODEL CALL: load model components as shown in
-                # portrait_relighting_src/example.py :: initialize_models()
-                from third_party.wrappers import ImageCropPoser
-                from networks.relighting import Relighting
-
-                cropposer = ImageCropPoser(device).to(device)
-                relighting = Relighting(device).to(device)
-                relighting.load_state_dict(
-                    torch.load(str(src / "checkpoints" / "model.pth"), map_location=device)
-                )
-                relighting.eval()
-                cropposer.eval()
-
-                _cropposer = cropposer
-                _relighting = relighting
-                _device = device
-                print("[portrait-relight] models loaded on", device, flush=True)
-    return _cropposer, _relighting, _device
+                device = torch.device("cpu")
+                dpr = DPR(device)
+                dpr.eval()
+                _dpr = dpr
+                _dpr_device = device
+                print("[portrait-relight] DPR model loaded on cpu", flush=True)
+    return _dpr, _dpr_device
 
 
 def _load_sh(preset: str) -> np.ndarray:
@@ -161,6 +134,28 @@ def _register_file(source_file_id: str, new_id: str, output_path: str) -> None:
         print(f"[portrait-relight] warning: could not register relit file in DB — {exc}", flush=True)
 
 
+def _relight_frame(dpr, device, frame_bgr: np.ndarray, sh_t, intensity: float) -> np.ndarray:
+    """Apply DPR relighting to a single BGR frame and blend with original."""
+    import torch
+
+    orig_h, orig_w = frame_bgr.shape[:2]
+
+    # DPR processes at 512×512 internally; resize before and after
+    frame_512 = cv2.resize(frame_bgr, (512, 512))
+    frame_rgb = cv2.cvtColor(frame_512, cv2.COLOR_BGR2RGB).astype(np.float32) / 127.5 - 1.0
+    frame_t = torch.from_numpy(frame_rgb).permute(2, 0, 1).unsqueeze(0).to(device)
+
+    with torch.no_grad():
+        relit_t = dpr.exert_lighting(frame_t, sh_t)
+
+    relit_512 = ((relit_t.squeeze(0).permute(1, 2, 0).cpu().numpy().clip(-1, 1) + 1) * 127.5).astype(np.uint8)
+    relit_bgr = cv2.resize(cv2.cvtColor(relit_512, cv2.COLOR_RGB2BGR), (orig_w, orig_h))
+
+    if intensity >= 0.99:
+        return relit_bgr
+    return cv2.addWeighted(relit_bgr, intensity, frame_bgr, 1.0 - intensity, 0)
+
+
 def _run_job(
     job_id: str,
     file_id: str,
@@ -183,16 +178,10 @@ def _run_job(
         relit_id = str(uuid.uuid4())
         output_path = str(UPLOADS / f"{relit_id}.mp4")
 
-        # Load SH preset
-        sh_np = _load_sh(preset)  # shape (9,)
+        sh_np = _load_sh(preset)
+        dpr, device = _get_dpr()
+        sh_t = torch.from_numpy(sh_np).reshape(1, 9, 1, 1).to(device)
 
-        # Lazy-load models
-        cropposer, relighting, device = _get_models()
-
-        # Prepare SH tensor — shape (1, 9)
-        sh_tensor = torch.from_numpy(sh_np).unsqueeze(0).to(device)
-
-        # Open source video
         cap = cv2.VideoCapture(input_path)
         fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -202,96 +191,39 @@ def _run_job(
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         writer = cv2.VideoWriter(video_only, fourcc, fps, (w, h))
 
-        # Temporal smoothing for camera params (matches example.py: 5-frame window)
-        prev_cam_list: list = []
-        relighting.reset()
+        try:
+            idx = 0
+            while True:
+                ok, frame_bgr = cap.read()
+                if not ok:
+                    break
+                blended = _relight_frame(dpr, device, frame_bgr, sh_t, intensity)
+                writer.write(blended)
+                idx += 1
+                state.progress = (idx / total) * 0.9
 
-        idx = 0
-        while True:
-            ok, frame_bgr = cap.read()
-            if not ok:
-                break
-
-            # Convert BGR frame → RGB tensor (1,3,H,W) in [-1,1]
-            frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-            img_tensor = (
-                torch.from_numpy(frame_rgb)
-                .permute(2, 0, 1)
-                .unsqueeze(0)
-                .float()
-                .to(device)
-                / 255.0
-                * 2.0
-                - 1.0
+            print(f"[portrait-relight] job {job_id[:8]}: re-encoding with audio…", flush=True)
+            result_ffmpeg = subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-i", video_only,
+                    "-i", input_path,
+                    "-c:v", "libx264", "-preset", "fast", "-crf", "15",
+                    "-c:a", "aac",
+                    "-map", "0:v:0",
+                    "-map", "1:a:0?",
+                    "-shortest",
+                    output_path,
+                ],
+                capture_output=True,
+                text=True,
             )
-
-            with torch.inference_mode():
-                # MODEL CALL: extract camera params from raw frame via cropposer
-                # (matches example.py :: perform_video_relighting)
-                ret_crop = cropposer.wild2all(img_tensor)
-                cam = ret_crop["cam"].to(device)
-
-                # Temporal smoothing: average over last 5 camera estimates
-                prev_cam_list.append(cam.cpu().numpy())
-                if len(prev_cam_list) > 5:
-                    prev_cam_list.pop(0)
-                cam_avg = np.mean(prev_cam_list, axis=0)
-                cam_tensor = torch.from_numpy(cam_avg).to(device)
-
-                # MODEL CALL: relight the frame
-                # video_forward returns a dict with key "image" → (1,3,H',W') in [-1,1]
-                if device.type == "cuda":
-                    with torch.cuda.amp.autocast():
-                        result = relighting.video_forward(img_tensor, cam_tensor, sh_tensor)
-                else:
-                    result = relighting.video_forward(img_tensor, cam_tensor, sh_tensor)
-
-                # Decode output tensor → numpy BGR uint8
-                relit_tensor = result["image"]  # (1,3,H,W) in [-1,1]
-                relit_np = (
-                    ((relit_tensor + 1.0) / 2.0)
-                    .clamp(0.0, 1.0)
-                    .permute(0, 2, 3, 1)
-                    .cpu()
-                    .numpy()[0]
-                )  # (H,W,3) RGB float32 [0,1]
-                relit_np = (relit_np * 255.0).astype(np.uint8)
-
-                # Resize relit output back to original frame size if model changed it
-                if relit_np.shape[:2] != (h, w):
-                    relit_np = cv2.resize(relit_np, (w, h), interpolation=cv2.INTER_LANCZOS4)
-
-                relit_bgr = cv2.cvtColor(relit_np, cv2.COLOR_RGB2BGR)
-
-            # Blend relit with original at given intensity
-            blended = cv2.addWeighted(relit_bgr, intensity, frame_bgr, 1.0 - intensity, 0)
-            writer.write(blended)
-
-            idx += 1
-            state.progress = (idx / total) * 0.9
-
-        cap.release()
-        writer.release()
-
-        # Mux relit video with original audio, re-encoding to H.264 for browser compatibility
-        print(f"[portrait-relight] job {job_id[:8]}: re-encoding with audio…", flush=True)
-        result_ffmpeg = subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-i", video_only,
-                "-i", input_path,
-                "-c:v", "libx264", "-preset", "fast", "-crf", "15",
-                "-c:a", "aac",
-                "-map", "0:v:0",
-                "-map", "1:a:0?",
-                "-shortest",
-                output_path,
-            ],
-            capture_output=True,
-            text=True,
-        )
-        if result_ffmpeg.returncode != 0:
-            raise RuntimeError(f"FFmpeg re-encode failed:\n{result_ffmpeg.stderr[-2000:]}")
+            if result_ffmpeg.returncode != 0:
+                raise RuntimeError(f"FFmpeg re-encode failed:\n{result_ffmpeg.stderr[-2000:]}")
+        finally:
+            cap.release()
+            writer.release()
+            Path(video_only).unlink(missing_ok=True)
 
         _register_file(file_id, relit_id, output_path)
         state.relit_file_id = relit_id
@@ -304,7 +236,8 @@ def _run_job(
         state.error = str(exc)
         print(f"[portrait-relight] job {job_id[:8]}: ERROR — {exc}", flush=True)
     finally:
-        Path(video_only).unlink(missing_ok=True)
+        if Path(video_only).exists():
+            Path(video_only).unlink(missing_ok=True)
         with _jobs_lock:
             if _active_file_jobs.get(cache_key) == job_id:
                 del _active_file_jobs[cache_key]
