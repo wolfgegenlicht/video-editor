@@ -8,6 +8,7 @@ import { SPEEDS, Section, SliderRow } from "../properties-helpers";
 
 // Module-level map so in-flight job IDs survive component unmount/remount
 const _pendingJobs = new Map<string, string>(); // clipId → jobId
+const _pendingBlurBgJobs = new Map<string, string>(); // clipId → jobId
 
 function EyeContactToggle({ clip }: { clip: Clip }) {
   const { setClipEyeContact, setClipEyeContactFileId, setEyeContactStatus, eyeContactStatus } =
@@ -185,20 +186,144 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
 }
 
 function BlurBackgroundToggle({ clip }: { clip: Clip }) {
-  const { setClipBlurBackground, setClipAdjustment } = useProjectStore();
-  const isOn = !!clip.blurBackground;
+  const {
+    setClipBlurBackground, setClipAdjustment,
+    setClipBlurBackgroundFileId, setBlurBgStatus, blurBgStatus,
+  } = useProjectStore();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [eta, setEta] = useState<number | null>(null);
+  const mountedRef = useRef(true);
+  const startedAtRef = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    if (clip.blurBackground && clip.blurBackgroundFileId && !blurBgStatus[clip.id]) {
+      setBlurBgStatus(clip.id, "done");
+    }
+    const pendingJobId = _pendingBlurBgJobs.get(clip.id);
+    if (pendingJobId && blurBgStatus[clip.id] === "processing") {
+      startedAtRef.current = Date.now();
+      pollJob(clip.id, pendingJobId);
+    }
+    return () => { mountedRef.current = false; };
+  }, [clip.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const status = blurBgStatus[clip.id];
+  const isProcessing = status === "processing";
+  const isOn = !!clip.blurBackground && (status === "done" || (!!clip.blurBackgroundFileId && status !== "error"));
+
+  async function pollJob(clipId: string, jobId: string) {
+    let polls = 0;
+    const maxPolls = 900;
+    try {
+      while (mountedRef.current && polls < maxPolls) {
+        await new Promise<void>((r) => setTimeout(r, 2000));
+        if (!mountedRef.current) break;
+        polls++;
+        const s = await api.getBlurBgStatus(jobId);
+        console.log("[blur-bg] poll", polls, s);
+        if (s.progress != null) {
+          setProgress(s.progress);
+          if (s.progress > 0.05) {
+            const elapsed = (Date.now() - startedAtRef.current) / 1000;
+            setEta(Math.round(elapsed / s.progress * (1 - s.progress)));
+          }
+        }
+        if (s.status === "done" && s.blurredFileId) {
+          _pendingBlurBgJobs.delete(clipId);
+          setClipBlurBackgroundFileId(clipId, s.blurredFileId);
+          setBlurBgStatus(clipId, "done");
+          setProgress(1);
+          setEta(null);
+          toast.success("Background blur done");
+          return;
+        }
+        if (s.status === "error") throw new Error(s.error ?? "Processing failed");
+      }
+      if (polls >= maxPolls) throw new Error("Processing timed out after 30 minutes");
+    } catch (e) {
+      if (mountedRef.current) {
+        const msg = e instanceof Error ? e.message : "Failed";
+        console.error("[blur-bg] error", msg);
+        _pendingBlurBgJobs.delete(clipId);
+        setClipBlurBackground(clipId, false);
+        setBlurBgStatus(clipId, "error");
+        setErrorMsg(msg);
+        setProgress(0);
+        setEta(null);
+      }
+    }
+  }
+
+  async function startJob() {
+    setBlurBgStatus(clip.id, "processing");
+    setProgress(0);
+    setEta(null);
+    startedAtRef.current = Date.now();
+    const inputFileId = clip.eyeContactFileId ?? clip.fileId;
+    const intensity = clip.blurBackgroundIntensity ?? 25;
+    const { jobId } = await api.startBlurBgJob(inputFileId, intensity).catch((e) => {
+      setClipBlurBackground(clip.id, false);
+      setBlurBgStatus(clip.id, "error");
+      setErrorMsg(e instanceof Error ? e.message : "Failed to start job");
+      return { jobId: null as unknown as string };
+    });
+    if (!jobId) return;
+    console.log("[blur-bg] job started", jobId);
+    _pendingBlurBgJobs.set(clip.id, jobId);
+    pollJob(clip.id, jobId);
+  }
+
+  async function handleToggle() {
+    if (isProcessing) return;
+    setErrorMsg(null);
+    const enabling = !clip.blurBackground;
+    setClipBlurBackground(clip.id, enabling);
+    if (!enabling) {
+      setBlurBgStatus(clip.id, undefined);
+      setProgress(0);
+      setEta(null);
+      if (clip.blurBackgroundFileId) {
+        api.deleteBlurBgFile(clip.blurBackgroundFileId).catch(console.error);
+        setClipBlurBackgroundFileId(clip.id, null);
+      }
+      return;
+    }
+    if (clip.blurBackgroundFileId) {
+      setBlurBgStatus(clip.id, "done");
+      setProgress(1);
+      return;
+    }
+    await startJob();
+  }
+
+  async function handleReprocess() {
+    if (isProcessing) return;
+    setErrorMsg(null);
+    if (clip.blurBackgroundFileId) {
+      api.deleteBlurBgFile(clip.blurBackgroundFileId).catch(console.error);
+      setClipBlurBackgroundFileId(clip.id, null);
+    }
+    await startJob();
+  }
+
   const intensity = clip.blurBackgroundIntensity ?? 25;
+  const pct = Math.round(progress * 100);
+  const etaLabel = eta != null && eta > 0 ? ` · ~${eta}s left` : "";
 
   return (
     <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-slate-700">Blur Background</p>
         <button
-          onClick={() => setClipBlurBackground(clip.id, !isOn)}
+          onClick={handleToggle}
+          disabled={isProcessing}
           aria-label="Toggle background blur"
           className={[
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
             isOn ? "bg-teal-500" : "bg-slate-200",
+            isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
           ].join(" ")}
         >
           <span
@@ -209,6 +334,7 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
           />
         </button>
       </div>
+
       {isOn && (
         <SliderRow
           label="Intensity"
@@ -220,7 +346,39 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
           format={(v) => `${v}`}
         />
       )}
-      <p className="text-[11px] text-slate-400">AI background blur · applied at export</p>
+
+      {isProcessing ? (
+        <div className="space-y-1">
+          <div className="h-1 w-full rounded-full bg-slate-200 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-teal-500 transition-all duration-500"
+              style={{ width: `${Math.max(2, pct)}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-slate-400 tabular-nums">
+            {pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}
+          </p>
+        </div>
+      ) : errorMsg ? (
+        <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
+      ) : (
+        <div className="flex items-center justify-between">
+          <p className="text-[11px] text-slate-400">AI background blur · preview applies to playback</p>
+          {isOn && clip.blurBackgroundFileId && (
+            <button
+              onClick={handleReprocess}
+              title="Re-process"
+              className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-0.5"
+            >
+              <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
+                <path d="M11 5h2.5V2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Re-process
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
