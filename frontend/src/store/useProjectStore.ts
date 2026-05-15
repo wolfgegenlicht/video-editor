@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
 import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, BlurKeyframe, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType, AudioEnhanceType } from "../types/project";
-import { saveProject, deleteEyeContactFile, deleteBlurBgFile } from "../lib/api";
+import { saveProject, deleteEyeContactFile, deleteBlurBgFile, deleteFaceRestoreFile, deletePortraitRelightFile } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
 const STORAGE_KEY = "video-editor-project";
@@ -427,6 +427,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       eyeContactFileId: undefined,
       blurBackground: undefined,
       blurBackgroundFileId: undefined,
+      faceRestore: undefined,
+      faceRestoreFileId: undefined,
+      portraitRelight: undefined,
+      portraitRelightFileId: undefined,
     };
     const right: Clip = {
       ...clip,
@@ -439,6 +443,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       eyeContactFileId: undefined,
       blurBackground: undefined,
       blurBackgroundFileId: undefined,
+      faceRestore: undefined,
+      faceRestoreFileId: undefined,
+      portraitRelight: undefined,
+      portraitRelightFileId: undefined,
     };
     return {
       ...p,
@@ -454,7 +462,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     const found = findClip(p, clipId);
     if (!found) return p;
     const { track, clip } = found;
-    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration, eyeContact: undefined, eyeContactFileId: undefined, blurBackground: undefined, blurBackgroundFileId: undefined };
+    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration, eyeContact: undefined, eyeContactFileId: undefined, blurBackground: undefined, blurBackgroundFileId: undefined, faceRestore: undefined, faceRestoreFileId: undefined, portraitRelight: undefined, portraitRelightFileId: undefined };
     return {
       ...p,
       tracks: p.tracks.map((t) =>
@@ -472,6 +480,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     }
     if (found?.clip.blurBackgroundFileId) {
       deleteBlurBgFile(found.clip.blurBackgroundFileId).catch(console.error);
+    }
+    if (found?.clip.faceRestoreFileId) {
+      deleteFaceRestoreFile(found.clip.faceRestoreFileId).catch(console.error);
+    }
+    if (found?.clip.portraitRelightFileId) {
+      deletePortraitRelightFile(found.clip.portraitRelightFileId).catch(console.error);
     }
     withHistory(set, get, (p) => ({
       ...p,
