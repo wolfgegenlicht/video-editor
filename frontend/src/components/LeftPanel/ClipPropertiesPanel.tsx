@@ -184,6 +184,47 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
   );
 }
 
+function BlurBackgroundToggle({ clip }: { clip: Clip }) {
+  const { setClipBlurBackground, setClipAdjustment } = useProjectStore();
+  const isOn = !!clip.blurBackground;
+  const intensity = clip.blurBackgroundIntensity ?? 25;
+
+  return (
+    <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-slate-700">Blur Background</p>
+        <button
+          onClick={() => setClipBlurBackground(clip.id, !isOn)}
+          aria-label="Toggle background blur"
+          className={[
+            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
+            isOn ? "bg-teal-500" : "bg-slate-200",
+          ].join(" ")}
+        >
+          <span
+            className={[
+              "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+              isOn ? "translate-x-4" : "translate-x-0.5",
+            ].join(" ")}
+          />
+        </button>
+      </div>
+      {isOn && (
+        <SliderRow
+          label="Intensity"
+          value={intensity}
+          min={1}
+          max={100}
+          step={1}
+          onChange={(v) => setClipAdjustment(clip.id, "blurBackgroundIntensity", v)}
+          format={(v) => `${v}`}
+        />
+      )}
+      <p className="text-[11px] text-slate-400">AI background blur · applied at export</p>
+    </div>
+  );
+}
+
 export default function ClipPropertiesPanel() {
   const {
     project, files, selectedClipId, selectedOverlayId, selectedCaptionId,
@@ -456,6 +497,7 @@ export default function ClipPropertiesPanel() {
       <div className="px-3 py-3 space-y-2">
         <p className="text-[10px] font-bold text-slate-400">Effects</p>
         <EyeContactToggle clip={clip} />
+        <BlurBackgroundToggle clip={clip} />
       </div>
     </div>
   );
