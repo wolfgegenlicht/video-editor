@@ -17,6 +17,28 @@ const ENHANCE_DESCRIPTIONS: Record<AudioEnhanceType, string> = {
   clarity: "Enhances speech intelligibility",
 };
 
+function EnhanceIcon({ type }: { type: AudioEnhanceType }) {
+  if (type === "normalize") return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="1,9 4,5 7,7 10,2 12,4" /><line x1="1" y1="12" x2="12" y2="12" />
+    </svg>
+  );
+  if (type === "denoise") return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.5 1v11M4 3.5v6M9 3.5v6M1.5 5.5v2M11.5 5.5v2M2.5 4.5v4M10.5 4.5v4" />
+    </svg>
+  );
+  return (
+    <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6.5" cy="6.5" r="2.5" />
+      <line x1="6.5" y1="1" x2="6.5" y2="2.5" /><line x1="6.5" y1="10.5" x2="6.5" y2="12" />
+      <line x1="1" y1="6.5" x2="2.5" y2="6.5" /><line x1="10.5" y1="6.5" x2="12" y2="6.5" />
+      <line x1="2.7" y1="2.7" x2="3.8" y2="3.8" /><line x1="9.2" y1="9.2" x2="10.3" y2="10.3" />
+      <line x1="10.3" y1="2.7" x2="9.2" y2="3.8" /><line x1="3.8" y1="9.2" x2="2.7" y2="10.3" />
+    </svg>
+  );
+}
+
 // Module-level map so in-flight job IDs survive component unmount/remount
 const _pendingJobs = new Map<string, string>(); // clipId → jobId
 
@@ -151,62 +173,60 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
           <button
             key={type}
             onClick={() => startJob(type)}
-            className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
           >
-            {type === "normalize" && (
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="1,9 4,5 7,7 10,2 12,4" />
-                <line x1="1" y1="12" x2="12" y2="12" />
-              </svg>
-            )}
-            {type === "denoise" && (
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M6.5 1v11M4 3.5v6M9 3.5v6M1.5 5.5v2M11.5 5.5v2M2.5 4.5v4M10.5 4.5v4" />
-              </svg>
-            )}
-            {type === "clarity" && (
-              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="6.5" cy="6.5" r="2.5" />
-                <line x1="6.5" y1="1" x2="6.5" y2="2.5" />
-                <line x1="6.5" y1="10.5" x2="6.5" y2="12" />
-                <line x1="1" y1="6.5" x2="2.5" y2="6.5" />
-                <line x1="10.5" y1="6.5" x2="12" y2="6.5" />
-                <line x1="2.7" y1="2.7" x2="3.8" y2="3.8" />
-                <line x1="9.2" y1="9.2" x2="10.3" y2="10.3" />
-                <line x1="10.3" y1="2.7" x2="9.2" y2="3.8" />
-                <line x1="3.8" y1="9.2" x2="2.7" y2="10.3" />
-              </svg>
-            )}
-            {ENHANCE_LABELS[type]}
+            <span className="mt-0.5 flex-shrink-0"><EnhanceIcon type={type} /></span>
+            <span>
+              <span className="block font-medium">{ENHANCE_LABELS[type]}</span>
+              <span className="block text-[10px] text-slate-400 leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
+            </span>
           </button>
         ))}
       </div>
     );
   }
 
-  // Processing state
+  // Processing state — show progress card + other two type buttons to allow switching
   if (isProcessing) {
+    const otherProcessingTypes = (["normalize", "denoise", "clarity"] as AudioEnhanceType[]).filter(
+      (t) => t !== activeType
+    );
     return (
-      <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-slate-700">{ENHANCE_LABELS[activeType]}</span>
-          <span className="text-[10px] text-slate-400 tabular-nums">{pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}</span>
+      <div className="space-y-2">
+        <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-700">{ENHANCE_LABELS[activeType]}</span>
+            <span className="text-[10px] text-slate-400 tabular-nums">{pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}</span>
+          </div>
+          <div className="h-1 w-full rounded-full bg-slate-200">
+            <div
+              className="h-full rounded-full bg-teal-500 transition-all duration-500"
+              style={{ width: `${Math.max(2, pct)}%` }}
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-slate-400">Processing…</span>
+            <button
+              onClick={handleCancel}
+              className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
-        <div className="h-1 w-full rounded-full bg-slate-200">
-          <div
-            className="h-full rounded-full bg-teal-500 transition-all duration-500"
-            style={{ width: `${Math.max(2, pct)}%` }}
-          />
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] text-slate-400">Processing…</span>
+        {otherProcessingTypes.map((type) => (
           <button
-            onClick={handleCancel}
-            className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+            key={type}
+            onClick={async () => { await handleCancel(); startJob(type); }}
+            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
           >
-            Cancel
+            <span className="mt-0.5 flex-shrink-0"><EnhanceIcon type={type} /></span>
+            <span>
+              <span className="block font-medium">{ENHANCE_LABELS[type]}</span>
+              <span className="block text-[10px] text-slate-400 leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
+            </span>
           </button>
-        </div>
+        ))}
       </div>
     );
   }
@@ -235,42 +255,60 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
     );
   }
 
-  // Done state
+  // Done state — show current card + buttons for the other two types
   const isEnabled = !!clip.audioEnhanceEnabled;
+  const otherTypes = (["normalize", "denoise", "clarity"] as AudioEnhanceType[]).filter(
+    (t) => t !== activeType
+  );
   return (
-    <div className="py-2 px-3 rounded-lg bg-teal-50 border border-teal-100 space-y-1.5">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-slate-700">{ENHANCE_LABELS[activeType]}</span>
-        <button
-          onClick={isEnabled ? handleToggleOff : handleToggleOn}
-          aria-label={`Toggle ${ENHANCE_LABELS[activeType]}`}
-          className={[
-            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 cursor-pointer",
-            isEnabled ? "bg-teal-500" : "bg-slate-200",
-          ].join(" ")}
-        >
-          <span
+    <div className="space-y-2">
+      <div className="py-2 px-3 rounded-lg bg-teal-50 border border-teal-100 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-slate-700">{ENHANCE_LABELS[activeType]}</span>
+          <button
+            onClick={isEnabled ? handleToggleOff : handleToggleOn}
+            aria-label={`Toggle ${ENHANCE_LABELS[activeType]}`}
             className={[
-              "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
-              isEnabled ? "translate-x-4" : "translate-x-0.5",
+              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 cursor-pointer",
+              isEnabled ? "bg-teal-500" : "bg-slate-200",
             ].join(" ")}
-          />
-        </button>
+          >
+            <span
+              className={[
+                "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+                isEnabled ? "translate-x-4" : "translate-x-0.5",
+              ].join(" ")}
+            />
+          </button>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-slate-400">{ENHANCE_DESCRIPTIONS[activeType]}</span>
+          <button
+            onClick={handleReprocess}
+            title="Re-process"
+            className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-0.5"
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
+              <path d="M11 5h2.5V2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            Re-process
+          </button>
+        </div>
       </div>
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] text-slate-400">{ENHANCE_DESCRIPTIONS[activeType]}</span>
+      {otherTypes.map((type) => (
         <button
-          onClick={handleReprocess}
-          title="Re-process"
-          className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-0.5"
+          key={type}
+          onClick={() => startJob(type)}
+          className="flex items-start gap-2 w-full px-3 py-2 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
         >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
-            <path d="M11 5h2.5V2.5" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-          Re-process
+          <span className="mt-0.5 flex-shrink-0"><EnhanceIcon type={type} /></span>
+          <span>
+            <span className="block font-medium">{ENHANCE_LABELS[type]}</span>
+            <span className="block text-[10px] text-slate-400 leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
+          </span>
         </button>
-      </div>
+      ))}
     </div>
   );
 }
