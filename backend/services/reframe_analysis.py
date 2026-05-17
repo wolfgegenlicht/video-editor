@@ -180,61 +180,53 @@ def _analyse_video(
     # --- Pass 1: collect raw x values at each sample timestamp ---
     raw: list[tuple[float, Optional[float]]] = []  # (t_sec, x_norm or None)
 
-    for idx, ts_ms in enumerate(sample_times_ms):
-        if cancel_event.is_set():
-            return
+    try:
+        for idx, ts_ms in enumerate(sample_times_ms):
+            if cancel_event.is_set():
+                return
 
-        cap.set(cv2.CAP_PROP_POS_MSEC, ts_ms)
-        ret, frame = cap.read()
-        if not ret:
-            raw.append((ts_ms / 1000.0, None))
+            cap.set(cv2.CAP_PROP_POS_MSEC, ts_ms)
+            ret, frame = cap.read()
+            if not ret:
+                raw.append((ts_ms / 1000.0, None))
+                state.progress = (idx + 1) / n_samples * 0.9
+                continue
+
+            h, w = frame.shape[:2]
+            small_w = max(1, int(w * _SCALE))
+            small_h = max(1, int(h * _SCALE))
+            small = cv2.resize(frame, (small_w, small_h))
+            gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+
+            dets = detector(gray, 0)
+            if dets:
+                # Pick the largest detection (most likely the primary subject)
+                best = max(dets, key=lambda r: (r.right() - r.left()) * (r.bottom() - r.top()))
+                cx = (best.left() + best.right()) / 2.0 / small_w
+                cx = max(0.0, min(1.0, cx))
+                raw.append((ts_ms / 1000.0, cx))
+            else:
+                raw.append((ts_ms / 1000.0, None))
+
             state.progress = (idx + 1) / n_samples * 0.9
-            continue
+    finally:
+        cap.release()
 
-        h, w = frame.shape[:2]
-        small_w = max(1, int(w * _SCALE))
-        small_h = max(1, int(h * _SCALE))
-        small = cv2.resize(frame, (small_w, small_h))
-        gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
-
-        dets = detector(gray, 0)
-        if dets:
-            # Pick the largest detection (most likely the primary subject)
-            best = max(dets, key=lambda r: (r.right() - r.left()) * (r.bottom() - r.top()))
-            cx = (best.left() + best.right()) / 2.0 / small_w
-            cx = max(0.0, min(1.0, cx))
-            raw.append((ts_ms / 1000.0, cx))
-        else:
-            raw.append((ts_ms / 1000.0, None))
-
-        state.progress = (idx + 1) / n_samples * 0.9
-
-    cap.release()
-
-    # --- Pass 2: fill no-face frames via carry-forward; default 0.5 ---
-    filled: list[tuple[float, float]] = []
-    last_x = 0.5
+    # --- Pass 2: fill no-face frames via carry-forward ---
     has_any = any(x is not None for _, x in raw)
     if not has_any:
         # No faces found at all — single centre keypoint
         state.track_points = [{"t": 0.0, "x": 0.5}]
         return
 
-    # Forward fill
+    # Single-pass fill: leading no-face frames use the first real detection value
+    first_valid_x = next((x for _, x in raw if x is not None), 0.5)
+    filled: list[tuple[float, float]] = []
+    last_x = first_valid_x
     for t, x in raw:
         if x is not None:
             last_x = x
         filled.append((t, last_x))
-
-    # Backward fill leading None values (before first detection)
-    first_valid_x = next((x for _, x in filled if x != 0.5), 0.5)
-    result: list[tuple[float, float]] = []
-    for t, x in filled:
-        if x == 0.5 and not result:
-            result.append((t, first_valid_x))
-        else:
-            result.append((t, x))
-    filled = result
 
     # --- Pass 3: exponential moving average smoothing ---
     smoothed: list[tuple[float, float]] = []
