@@ -251,7 +251,15 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
           toast.success("Smart Reframe analysis done");
           return;
         }
-        if (s.status === "error") throw new Error(s.error ?? "Processing failed");
+        if (s.status === "error") {
+          if (s.error === "cancelled") {
+            _pendingReframeJobs.delete(clipId);
+            _reframeProcessingStatus.delete(clipId);
+            if (mountedRef.current) { setProcessingStatus("idle"); setProgress(0); setEta(null); }
+            return;
+          }
+          throw new Error(s.error ?? "Processing failed");
+        }
       }
       if (polls >= maxPolls) throw new Error("Processing timed out after 30 minutes");
     } catch (e) {
@@ -267,6 +275,24 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
         setEta(null);
       }
     }
+  }
+
+  async function handleReanalyze() {
+    setErrorMsg(null);
+    setClipReframeData(clip.id, null);
+    setProcessingStatus("processing");
+    setProgress(0);
+    setEta(null);
+    startedAtRef.current = Date.now();
+    const { jobId } = await api.startReframeJob(clip.fileId).catch((e) => {
+      setProcessingStatus("error");
+      setErrorMsg(e instanceof Error ? e.message : "Failed to start job");
+      return { jobId: null as unknown as string };
+    });
+    if (!jobId) return;
+    _pendingReframeJobs.set(clip.id, jobId);
+    _reframeProcessingStatus.set(clip.id, "processing");
+    pollReframeJob(clip.id, jobId);
   }
 
   async function handleToggle() {
@@ -354,7 +380,7 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
 
       {processingStatus === "done" && (
         <button
-          onClick={handleToggle}
+          onClick={handleReanalyze}
           className="text-[10px] text-slate-400 underline hover:text-slate-600 transition-colors"
         >
           Re-analyze
