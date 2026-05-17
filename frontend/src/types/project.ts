@@ -27,6 +27,15 @@ export interface UploadedFile {
   height: number;
 }
 
+export interface ReframeTrackPoint {
+  t: number; // seconds from source start
+  x: number; // normalized face center x (0–1)
+}
+
+export interface ReframeData {
+  trackPoints: ReframeTrackPoint[];
+}
+
 export interface ClipTransform {
   x: number;        // % offset from center (positive = right), relative to canvas width
   y: number;        // % offset from center (positive = down), relative to canvas height
@@ -58,6 +67,8 @@ export interface Clip {
   audioEnhanceType?: AudioEnhanceType;
   audioEnhanceEnabled?: boolean;
   audioEnhanceFileId?: string;
+  reframe?: boolean;
+  reframeData?: ReframeData;
   transform?: ClipTransform;
 }
 

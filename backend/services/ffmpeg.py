@@ -61,6 +61,47 @@ def _build_transform_filter(transform: dict, W: int, H: int) -> str:
 
     return ",".join(parts)
 
+def _make_x_expr(points: list[dict], source_start: float, speed: float) -> str:
+    """Return an FFmpeg expression for the normalized x position as a function of t."""
+    if not points:
+        return "0.5"
+
+    # Decimate to keep expression manageable
+    if len(points) > 60:
+        step = len(points) // 60
+        points = points[::step][:60]
+
+    if len(points) == 1:
+        return f"{points[0]['x']:.6f}"
+
+    def rec(i: int) -> str:
+        if i >= len(points) - 1:
+            return f"{points[-1]['x']:.6f}"
+        t0 = max(0.0, (points[i]['t'] - source_start)) / speed
+        t1 = max(0.0, (points[i + 1]['t'] - source_start)) / speed
+        x0, x1 = points[i]['x'], points[i + 1]['x']
+        # Skip duplicate timestamps to avoid division by zero
+        if abs(t1 - t0) < 1e-9:
+            return rec(i + 1)
+        lerp = f"({x0:.6f}+({x1:.6f}-{x0:.6f})*(t-{t0:.6f})/({t1:.6f}-{t0:.6f}))"
+        return f"if(lt(t,{t1:.6f}),{lerp},{rec(i + 1)})"
+
+    return rec(0)
+
+
+def _build_reframe_filter(track_points: list[dict], source_start: float, speed: float, canvas_w: int, canvas_h: int) -> str:
+    """Return an ffmpeg filter string: scale to canvas height, then dynamic crop centered on face.
+
+    track_points: list of {"t": float, "x": float} — source-absolute timestamps (seconds from start of source file), normalized x (0–1).
+    source_start: clip's sourceStart offset in the source file (seconds).
+    speed: clip playback speed.
+    canvas_w, canvas_h: target canvas dimensions.
+    """
+    x_norm_expr = _make_x_expr(track_points, source_start, speed)
+    x_pixel_expr = f"max(0,min(iw-{canvas_w},floor({x_norm_expr}*(iw-{canvas_w}))))"
+    return f"scale=-2:{canvas_h},crop={canvas_w}:{canvas_h}:{x_pixel_expr}:0"
+
+
 def _escape(text: str) -> str:
     for ch in ("\\", "'", ":", "%", "[", "]", ",", ";"):
         text = text.replace(ch, "\\" + ch)
@@ -249,7 +290,18 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         # Video filter chain
         clip_transform = clip.get("transform") or {}
         transform_filter = _build_transform_filter(clip_transform, W, H)
-        active_filter = transform_filter if transform_filter else ratio_filter
+        reframe_data = clip.get("reframeData") or {}
+        track_points = reframe_data.get("trackPoints", [])
+        if clip.get("reframe") and track_points:
+            track_points_in_range = [
+                p for p in track_points
+                if p["t"] >= ss - 0.1 and p["t"] <= se + 0.1
+            ]
+            active_filter = _build_reframe_filter(track_points_in_range, ss, speed, W, H)
+        elif transform_filter:
+            active_filter = transform_filter
+        else:
+            active_filter = ratio_filter
         vf = f"[{i}:v]setpts=(PTS-STARTPTS)/{speed:.6f},{active_filter}"
 
         brightness = clip.get("brightness")

@@ -1,4 +1,4 @@
-import type { UploadedFile, Project, AudioEnhanceType } from "../types/project";
+import type { UploadedFile, Project, AudioEnhanceType, ReframeTrackPoint } from "../types/project";
 
 export interface TranscriptWord {
   text: string;
@@ -29,6 +29,13 @@ export interface EyeContactStatusResponse {
   status: "processing" | "done" | "error" | "cancelled";
   correctedFileId?: string;
   progress?: number;
+  error?: string;
+}
+
+export interface ReframeStatusResponse {
+  status: "processing" | "done" | "error";
+  progress?: number;
+  trackPoints?: ReframeTrackPoint[];
   error?: string;
 }
 
@@ -268,4 +275,25 @@ export async function detectSilences(
   });
   if (!res.ok) throw new Error(`Silence detection failed: ${res.status}`);
   return res.json();
+}
+
+export async function startReframeJob(fileId: string): Promise<{ jobId: string }> {
+  const res = await fetch("/reframe/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileId }),
+  });
+  if (!res.ok) throw new Error(`Reframe job failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getReframeStatus(jobId: string): Promise<ReframeStatusResponse> {
+  const res = await fetch(`/reframe/status/${jobId}`);
+  if (!res.ok) throw new Error(`Reframe status check failed: ${res.status}`);
+  return res.json();
+}
+
+export async function cancelReframeJob(jobId: string): Promise<void> {
+  const res = await fetch(`/reframe/jobs/${jobId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Cancel reframe job failed: ${res.status}`);
 }

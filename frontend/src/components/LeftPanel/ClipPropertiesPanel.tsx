@@ -9,6 +9,8 @@ import { SPEEDS, Section, SliderRow } from "../properties-helpers";
 // Module-level map so in-flight job IDs survive component unmount/remount
 const _pendingJobs = new Map<string, string>(); // clipId → jobId
 const _pendingBlurBgJobs = new Map<string, string>(); // clipId → jobId
+const _pendingReframeJobs = new Map<string, string>(); // clipId → jobId
+const _reframeProcessingStatus = new Map<string, "processing" | "done" | "error">(); // clipId → status
 
 function EyeContactToggle({ clip }: { clip: Clip }) {
   const { setClipEyeContact, setClipEyeContactFileId, setEyeContactStatus, eyeContactStatus, previewOriginalClipId, setPreviewOriginalClipId } =
@@ -472,6 +474,199 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
   );
 }
 
+function SmartReframeToggle({ clip }: { clip: Clip }) {
+  const { setClipReframeData, setAspectRatio } = useProjectStore();
+  const [processingStatus, setProcessingStatus] = useState<"idle" | "processing" | "done" | "error">("idle");
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [eta, setEta] = useState<number | null>(null);
+  const mountedRef = useRef(true);
+  const startedAtRef = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    if (clip.reframe && clip.reframeData) {
+      setProcessingStatus("done");
+    }
+    // Re-attach to an in-flight job if user navigated away and back
+    const pendingJobId = _pendingReframeJobs.get(clip.id);
+    if (pendingJobId && _reframeProcessingStatus.get(clip.id) === "processing") {
+      setProcessingStatus("processing");
+      startedAtRef.current = Date.now();
+      pollReframeJob(clip.id, pendingJobId);
+    }
+    return () => { mountedRef.current = false; };
+  }, [clip.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isProcessing = processingStatus === "processing";
+  const isOn = processingStatus === "processing" || processingStatus === "done" || (!!clip.reframe && !!clip.reframeData);
+
+  async function pollReframeJob(clipId: string, jobId: string) {
+    let polls = 0;
+    const maxPolls = 900; // 30 minutes at 2s intervals
+    try {
+      while (mountedRef.current && polls < maxPolls) {
+        await new Promise<void>((r) => setTimeout(r, 2000));
+        if (!mountedRef.current) break;
+        polls++;
+        const s = await api.getReframeStatus(jobId);
+        console.log("[smart-reframe] poll", polls, s);
+        if (s.progress != null) {
+          setProgress(s.progress);
+          if (s.progress > 0.05) {
+            const elapsed = (Date.now() - startedAtRef.current) / 1000;
+            setEta(Math.round(elapsed / s.progress * (1 - s.progress)));
+          }
+        }
+        if (s.status === "done" && s.trackPoints) {
+          _pendingReframeJobs.delete(clipId);
+          _reframeProcessingStatus.set(clipId, "done");
+          setClipReframeData(clipId, { trackPoints: s.trackPoints });
+          setProcessingStatus("done");
+          setProgress(1);
+          setEta(null);
+          toast.success("Smart Reframe analysis done");
+          return;
+        }
+        if (s.status === "error") {
+          if (s.error === "cancelled") {
+            _pendingReframeJobs.delete(clipId);
+            _reframeProcessingStatus.delete(clipId);
+            if (mountedRef.current) { setProcessingStatus("idle"); setProgress(0); setEta(null); }
+            return;
+          }
+          throw new Error(s.error ?? "Processing failed");
+        }
+      }
+      if (polls >= maxPolls) throw new Error("Processing timed out after 30 minutes");
+    } catch (e) {
+      if (mountedRef.current) {
+        const msg = e instanceof Error ? e.message : "Failed";
+        console.error("[smart-reframe] error", msg);
+        _pendingReframeJobs.delete(clipId);
+        _reframeProcessingStatus.set(clipId, "error");
+        setClipReframeData(clipId, null);
+        setProcessingStatus("error");
+        setErrorMsg(msg);
+        setProgress(0);
+        setEta(null);
+      }
+    }
+  }
+
+  async function handleReanalyze() {
+    setErrorMsg(null);
+    setClipReframeData(clip.id, null);
+    setProcessingStatus("processing");
+    setProgress(0);
+    setEta(null);
+    startedAtRef.current = Date.now();
+    const { jobId } = await api.startReframeJob(clip.fileId).catch((e) => {
+      setProcessingStatus("error");
+      setErrorMsg(e instanceof Error ? e.message : "Failed to start job");
+      return { jobId: null as unknown as string };
+    });
+    if (!jobId) return;
+    _pendingReframeJobs.set(clip.id, jobId);
+    _reframeProcessingStatus.set(clip.id, "processing");
+    pollReframeJob(clip.id, jobId);
+  }
+
+  async function handleToggle() {
+    if (isProcessing) return;
+    setErrorMsg(null);
+    const enabling = !clip.reframe;
+    if (!enabling) {
+      const pendingJobId = _pendingReframeJobs.get(clip.id);
+      if (processingStatus === "processing" && pendingJobId) {
+        api.cancelReframeJob(pendingJobId).catch(() => {}); // fire-and-forget
+        _pendingReframeJobs.delete(clip.id);
+      }
+      _reframeProcessingStatus.delete(clip.id);
+      setClipReframeData(clip.id, null);
+      setProcessingStatus("idle");
+      setProgress(0);
+      setEta(null);
+      return;
+    }
+    // Re-analyze if already has data
+    if (clip.reframeData) {
+      setClipReframeData(clip.id, null);
+    }
+    setAspectRatio("9:16");
+    setProcessingStatus("processing");
+    setProgress(0);
+    setEta(null);
+    startedAtRef.current = Date.now();
+    const { jobId } = await api.startReframeJob(clip.fileId).catch((e) => {
+      setClipReframeData(clip.id, null);
+      setProcessingStatus("error");
+      setErrorMsg(e instanceof Error ? e.message : "Failed to start job");
+      return { jobId: null as unknown as string };
+    });
+    if (!jobId) return;
+    console.log("[smart-reframe] job started", jobId);
+    _pendingReframeJobs.set(clip.id, jobId);
+    _reframeProcessingStatus.set(clip.id, "processing");
+    pollReframeJob(clip.id, jobId);
+  }
+
+  const pct = Math.round(progress * 100);
+  const etaLabel = eta != null && eta > 0 ? ` · ~${eta}s left` : "";
+
+  return (
+    <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-slate-700">Smart Reframe</p>
+        <button
+          onClick={handleToggle}
+          disabled={isProcessing}
+          aria-label="Toggle smart reframe"
+          className={[
+            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
+            isOn ? "bg-teal-500" : "bg-slate-200",
+            isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+          ].join(" ")}
+        >
+          <span
+            className={[
+              "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+              isOn ? "translate-x-4" : "translate-x-0.5",
+            ].join(" ")}
+          />
+        </button>
+      </div>
+
+      {isProcessing ? (
+        <div className="space-y-1">
+          <div className="h-1 w-full rounded-full bg-slate-200 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-teal-500 transition-all duration-500"
+              style={{ width: `${Math.max(2, pct)}%` }}
+            />
+          </div>
+          <p className="text-[10px] text-slate-400 tabular-nums">
+            {pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}
+          </p>
+        </div>
+      ) : errorMsg ? (
+        <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
+      ) : (
+        <p className="text-[11px] text-slate-400">Switches project to 9:16</p>
+      )}
+
+      {processingStatus === "done" && (
+        <button
+          onClick={handleReanalyze}
+          className="text-[10px] text-slate-400 underline hover:text-slate-600 transition-colors"
+        >
+          Re-analyze
+        </button>
+      )}
+    </div>
+  );
+}
+
 export default function ClipPropertiesPanel() {
   const {
     project, files, selectedClipId, selectedOverlayId, selectedCaptionId,
@@ -745,6 +940,7 @@ export default function ClipPropertiesPanel() {
         <p className="text-[10px] font-bold text-slate-400">Effects</p>
         <EyeContactToggle clip={clip} />
         <BlurBackgroundToggle clip={clip} />
+        <SmartReframeToggle clip={clip} />
       </div>
     </div>
   );

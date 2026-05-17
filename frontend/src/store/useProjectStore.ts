@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
-import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, BlurKeyframe, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType, AudioEnhanceType } from "../types/project";
+import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, BlurKeyframe, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType, AudioEnhanceType, ReframeData } from "../types/project";
 import { saveProject, deleteEyeContactFile, deleteBlurBgFile } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
@@ -116,6 +116,7 @@ interface ProjectStore {
   setClipTransformLive: (clipId: string, transform: Partial<ClipTransform>) => void;
   setClipEyeContact: (clipId: string, enabled: boolean) => void;
   setClipEyeContactFileId: (clipId: string, fileId: string | null) => void;
+  setClipReframeData: (clipId: string, data: ReframeData | null) => void;
   setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   setClipBlurBackgroundFileId: (clipId: string, fileId: string | null) => void;
   setBlurBgStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
@@ -414,6 +415,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       eyeContactFileId: undefined,
       blurBackground: undefined,
       blurBackgroundFileId: undefined,
+      reframe: undefined,
+      reframeData: undefined,
     };
     const right: Clip = {
       ...clip,
@@ -426,6 +429,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       eyeContactFileId: undefined,
       blurBackground: undefined,
       blurBackgroundFileId: undefined,
+      reframe: undefined,
+      reframeData: undefined,
     };
     return {
       ...p,
@@ -441,7 +446,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     const found = findClip(p, clipId);
     if (!found) return p;
     const { track, clip } = found;
-    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration, eyeContact: undefined, eyeContactFileId: undefined, blurBackground: undefined, blurBackgroundFileId: undefined };
+    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration, eyeContact: undefined, eyeContactFileId: undefined, blurBackground: undefined, blurBackgroundFileId: undefined, reframe: undefined, reframeData: undefined };
     return {
       ...p,
       tracks: p.tracks.map((t) =>
@@ -668,6 +673,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     tracks: p.tracks.map((t) => ({
       ...t,
       clips: t.clips.map((c) => c.id === clipId ? { ...c, eyeContact } : c),
+    })),
+  })),
+
+  setClipReframeData: (clipId, data) => withHistory(set, get, (p) => ({
+    ...p,
+    tracks: p.tracks.map((t) => ({
+      ...t,
+      clips: t.clips.map((c) =>
+        c.id === clipId
+          ? data !== null
+            ? { ...c, reframe: true, reframeData: data }
+            : { ...c, reframe: false, reframeData: undefined }
+          : c
+      ),
     })),
   })),
 

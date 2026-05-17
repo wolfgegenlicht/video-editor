@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useProjectStore } from "../../store/useProjectStore";
 import { fileUrl, uploadFile } from "../../lib/api";
-import type { Clip, Track, EffectOverlay, ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams } from "../../types/project";
+import type { Clip, Track, EffectOverlay, ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams, ReframeTrackPoint } from "../../types/project";
 import CaptionOverlay from "./CaptionOverlay";
 import TextOverlayRenderer from "./TextOverlayRenderer";
 import VideoTransformOverlay from "./VideoTransformOverlay";
@@ -13,6 +13,15 @@ import { interpolateBlurAt } from "../../lib/blurKeyframes";
 function easeInOut(t: number): number {
   const c = Math.min(1, Math.max(0, t));
   return c < 0.5 ? 2 * c * c : -1 + (4 - 2 * c) * c;
+}
+
+function interpolateX(points: ReframeTrackPoint[], t: number): number {
+  if (points.length === 0) return 0.5;
+  if (t <= points[0].t) return points[0].x;
+  if (t >= points[points.length - 1].t) return points[points.length - 1].x;
+  const i = points.findIndex((p) => p.t > t) - 1;
+  const a = points[i], b = points[i + 1];
+  return a.x + (b.x - a.x) * (t - a.t) / (b.t - a.t);
 }
 
 function computeZoomScale(effect: EffectOverlay, playheadTime: number): number {
@@ -64,9 +73,11 @@ interface VideoLayerProps {
   externalRef?: React.RefObject<HTMLVideoElement | null>;
   speedRampEffect: EffectOverlay | null;
   onSelect: () => void;
+  reframeLeft?: number;
+  onNativeSizeChange?: (w: number, h: number) => void;
 }
 
-function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalRef, speedRampEffect, onSelect }: VideoLayerProps) {
+function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalRef, speedRampEffect, onSelect, reframeLeft, onNativeSizeChange }: VideoLayerProps) {
   const internalRef = useRef<HTMLVideoElement>(null);
   const videoRef = isPrimary && externalRef ? externalRef : internalRef;
   const missingFileIds = useProjectStore((s) => s.missingFileIds);
@@ -156,15 +167,19 @@ function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalR
   }
 
   return (
-    <div className="absolute inset-0">
+    <div className={`absolute inset-0${reframeLeft !== undefined ? " overflow-hidden" : ""}`}>
       <video
         ref={videoRef}
         key={playbackFileId}
         src={fileUrl(playbackFileId)}
-        className="w-full h-full object-cover"
+        className={reframeLeft !== undefined ? "" : "w-full h-full object-cover"}
         muted={muted}
-        style={videoStyle}
+        style={reframeLeft !== undefined
+          ? { position: "absolute", height: "100%", width: "auto", left: reframeLeft, top: 0, ...videoStyle }
+          : videoStyle
+        }
         onPointerDown={(e) => { e.stopPropagation(); onSelect(); }}
+        onLoadedMetadata={(e) => { onNativeSizeChange?.(e.currentTarget.videoWidth, e.currentTarget.videoHeight); }}
       />
       {fadeOpacity > 0 && (
         <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: fadeOpacity }} />
@@ -290,6 +305,7 @@ export default function VideoPreview({ videoRef }: Props) {
   const selectedEffectOverlayId = useProjectStore((s) => s.selectedEffectOverlayId);
   const outerRef = useRef<HTMLDivElement>(null);
   const dragCounter = useRef(0);
+  const [videoNativeSize, setVideoNativeSize] = useState<{ w: number; h: number } | null>(null);
 
   // Pan/zoom + fullscreen state
   const [viewZoom, setViewZoom] = useState(1);
@@ -347,6 +363,23 @@ export default function VideoPreview({ videoRef }: Props) {
     dragCounter.current--;
     if (dragCounter.current === 0) setIsDraggingOver(false);
   };
+
+  // Compute reframe translation if the primary clip has tracking data
+  const primaryClip = primaryLayer?.clip ?? null;
+  const isReframeActive = !!(primaryClip?.reframe && primaryClip?.reframeData);
+  let reframeLeft: number = 0;
+  if (isReframeActive && primaryClip && primaryClip.reframeData) {
+    const sourceT = playheadTime - primaryClip.startTime + primaryClip.sourceStart;
+    const x_norm = interpolateX(primaryClip.reframeData.trackPoints, sourceT);
+    const container = outerRef.current;
+    if (container && videoNativeSize && videoNativeSize.w > 0 && videoNativeSize.h > 0) {
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      const videoDisplayWidth = containerHeight * (videoNativeSize.w / videoNativeSize.h);
+      const translateX = containerWidth / 2 - x_norm * videoDisplayWidth;
+      reframeLeft = Math.max(containerWidth - videoDisplayWidth, Math.min(0, translateX));
+    }
+  }
 
   const handleDragOver = (e: React.DragEvent) => {
     if (e.dataTransfer.types.includes("Files")) e.preventDefault();
@@ -500,20 +533,25 @@ export default function VideoPreview({ videoRef }: Props) {
       <div className="absolute inset-0 bg-black overflow-hidden">
         {activeVideoLayers.length > 0 ? (
           <div className="absolute inset-0" style={zoomWrapperStyle}>
-            {[...activeVideoLayers].reverse().map(({ track, clip }) => (
-              <VideoLayer
-                key={track.id}
-                clip={clip}
-                track={track}
-                playheadTime={playheadTime}
-                isPlaying={isPlaying}
-                isPrimary={track.id === primaryLayer!.track.id}
-                muted={allMuted || (track.id === primaryLayer!.track.id ? effectiveMuted : true)}
-                externalRef={allMuted ? undefined : videoRef}
-                speedRampEffect={activeSpeedRamp}
-                onSelect={() => selectClip(clip.id)}
-              />
-            ))}
+            {[...activeVideoLayers].reverse().map(({ track, clip }) => {
+              const isPrimary = track.id === primaryLayer!.track.id;
+              return (
+                <VideoLayer
+                  key={track.id}
+                  clip={clip}
+                  track={track}
+                  playheadTime={playheadTime}
+                  isPlaying={isPlaying}
+                  isPrimary={isPrimary}
+                  muted={allMuted || (isPrimary ? effectiveMuted : true)}
+                  externalRef={allMuted ? undefined : videoRef}
+                  speedRampEffect={activeSpeedRamp}
+                  onSelect={() => selectClip(clip.id)}
+                  reframeLeft={isPrimary && isReframeActive ? reframeLeft : undefined}
+                  onNativeSizeChange={isPrimary ? (w, h) => setVideoNativeSize({ w, h }) : undefined}
+                />
+              );
+            })}
           </div>
         ) : files.length === 0 ? (
           <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
