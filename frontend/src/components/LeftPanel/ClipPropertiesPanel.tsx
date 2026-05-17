@@ -47,6 +47,7 @@ function SliderRow({ label, value, min, max, step, onChange, format }: {
 // Module-level map so in-flight job IDs survive component unmount/remount
 const _pendingJobs = new Map<string, string>(); // clipId → jobId
 const _pendingReframeJobs = new Map<string, string>(); // clipId → jobId
+const _reframeProcessingStatus = new Map<string, "processing" | "done" | "error">(); // clipId → status
 
 function EyeContactToggle({ clip }: { clip: Clip }) {
   const { setClipEyeContact, setClipEyeContactFileId, setEyeContactStatus, eyeContactStatus } =
@@ -212,7 +213,8 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
     }
     // Re-attach to an in-flight job if user navigated away and back
     const pendingJobId = _pendingReframeJobs.get(clip.id);
-    if (pendingJobId && processingStatus === "processing") {
+    if (pendingJobId && _reframeProcessingStatus.get(clip.id) === "processing") {
+      setProcessingStatus("processing");
       startedAtRef.current = Date.now();
       pollReframeJob(clip.id, pendingJobId);
     }
@@ -220,7 +222,7 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
   }, [clip.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const isProcessing = processingStatus === "processing";
-  const isOn = !!clip.reframe && (processingStatus === "done" || (!!clip.reframeData && processingStatus !== "error"));
+  const isOn = processingStatus === "processing" || processingStatus === "done" || (!!clip.reframe && !!clip.reframeData);
 
   async function pollReframeJob(clipId: string, jobId: string) {
     let polls = 0;
@@ -241,6 +243,7 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
         }
         if (s.status === "done" && s.trackPoints) {
           _pendingReframeJobs.delete(clipId);
+          _reframeProcessingStatus.set(clipId, "done");
           setClipReframeData(clipId, { trackPoints: s.trackPoints });
           setProcessingStatus("done");
           setProgress(1);
@@ -256,6 +259,7 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
         const msg = e instanceof Error ? e.message : "Failed";
         console.error("[smart-reframe] error", msg);
         _pendingReframeJobs.delete(clipId);
+        _reframeProcessingStatus.set(clipId, "error");
         setClipReframeData(clipId, null);
         setProcessingStatus("error");
         setErrorMsg(msg);
@@ -270,6 +274,12 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
     setErrorMsg(null);
     const enabling = !clip.reframe;
     if (!enabling) {
+      const pendingJobId = _pendingReframeJobs.get(clip.id);
+      if (processingStatus === "processing" && pendingJobId) {
+        api.cancelReframeJob(pendingJobId).catch(() => {}); // fire-and-forget
+        _pendingReframeJobs.delete(clip.id);
+      }
+      _reframeProcessingStatus.delete(clip.id);
       setClipReframeData(clip.id, null);
       setProcessingStatus("idle");
       setProgress(0);
@@ -294,6 +304,7 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
     if (!jobId) return;
     console.log("[smart-reframe] job started", jobId);
     _pendingReframeJobs.set(clip.id, jobId);
+    _reframeProcessingStatus.set(clip.id, "processing");
     pollReframeJob(clip.id, jobId);
   }
 
