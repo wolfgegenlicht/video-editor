@@ -1,4 +1,4 @@
-import type { UploadedFile, Project } from "../types/project";
+import type { UploadedFile, Project, ReframeTrackPoint } from "../types/project";
 
 export interface TranscriptWord {
   text: string;
@@ -28,6 +28,13 @@ export interface EyeContactStatusResponse {
   status: "processing" | "done" | "error";
   correctedFileId?: string;
   progress?: number;
+  error?: string;
+}
+
+export interface ReframeStatusResponse {
+  status: "processing" | "done" | "error";
+  progress?: number;
+  trackPoints?: ReframeTrackPoint[];
   error?: string;
 }
 
@@ -139,4 +146,25 @@ export async function getEyeContactStatus(jobId: string): Promise<EyeContactStat
 export async function deleteEyeContactFile(fileId: string): Promise<void> {
   const res = await fetch(`/eye-contact/files/${fileId}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete eye contact file failed: ${res.status}`);
+}
+
+export async function startReframeJob(fileId: string): Promise<{ jobId: string }> {
+  const res = await fetch("/reframe/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ fileId }),
+  });
+  if (!res.ok) throw new Error(`Reframe job failed: ${res.status}`);
+  return res.json();
+}
+
+export async function getReframeStatus(jobId: string): Promise<ReframeStatusResponse> {
+  const res = await fetch(`/reframe/status/${jobId}`);
+  if (!res.ok) throw new Error(`Reframe status check failed: ${res.status}`);
+  return res.json();
+}
+
+export async function cancelReframeJob(jobId: string): Promise<void> {
+  const res = await fetch(`/reframe/jobs/${jobId}`, { method: "DELETE" });
+  if (!res.ok) throw new Error(`Cancel reframe job failed: ${res.status}`);
 }
