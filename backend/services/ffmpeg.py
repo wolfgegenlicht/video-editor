@@ -57,7 +57,7 @@ def _make_x_expr(points: list[dict], source_start: float, speed: float) -> str:
     # Decimate to keep expression manageable
     if len(points) > 60:
         step = len(points) // 60
-        points = points[::step]
+        points = points[::step][:60]
 
     if len(points) == 1:
         return f"{points[0]['x']:.6f}"
@@ -65,8 +65,8 @@ def _make_x_expr(points: list[dict], source_start: float, speed: float) -> str:
     def rec(i: int) -> str:
         if i >= len(points) - 1:
             return f"{points[-1]['x']:.6f}"
-        t0 = (points[i]['t'] + source_start) / speed
-        t1 = (points[i + 1]['t'] + source_start) / speed
+        t0 = max(0.0, (points[i]['t'] - source_start)) / speed
+        t1 = max(0.0, (points[i + 1]['t'] - source_start)) / speed
         x0, x1 = points[i]['x'], points[i + 1]['x']
         # Skip duplicate timestamps to avoid division by zero
         if abs(t1 - t0) < 1e-9:
@@ -142,8 +142,11 @@ def export(project: dict, uploads_dir: Path) -> Path:
         reframe_data = clip.get("reframeData") or {}
         track_points = reframe_data.get("trackPoints", [])
         if clip.get("reframe") and track_points:
-            source_start = clip.get("sourceStart", 0)
-            active_filter = _build_reframe_filter(track_points, source_start, speed, W, H)
+            track_points_in_range = [
+                p for p in track_points
+                if p["t"] >= ss - 0.1 and p["t"] <= se + 0.1
+            ]
+            active_filter = _build_reframe_filter(track_points_in_range, ss, speed, W, H)
         elif transform_filter:
             active_filter = transform_filter
         else:
