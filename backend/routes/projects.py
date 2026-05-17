@@ -71,12 +71,14 @@ def create_project(body: CreateProjectBody):
 
 def _collect_file_ids(project: dict) -> set[str]:
     ids: set[str] = set()
+    processed_fields = ("eyeContactFileId", "blurBackgroundFileId")
     for track in project.get("tracks", []):
         for clip in track.get("clips", []):
             if fid := clip.get("fileId"):
                 ids.add(fid)
-            if fid := clip.get("eyeContactFileId"):
-                ids.add(fid)
+            for field in processed_fields:
+                if fid := clip.get(field):
+                    ids.add(fid)
     return ids
 
 

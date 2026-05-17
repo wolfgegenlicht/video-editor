@@ -35,6 +35,14 @@ async def get_status(job_id: str):
     }
 
 
+@router.delete("/eye-contact/jobs/{job_id}")
+async def cancel_job(job_id: str):
+    ok = svc.cancel_job(job_id)
+    if not ok:
+        raise HTTPException(404, "Job not found or not processing")
+    return {"ok": True}
+
+
 @router.delete("/eye-contact/files/{file_id}")
 async def delete_corrected_file(file_id: str):
     for match in UPLOADS.glob(f"{file_id}.*"):

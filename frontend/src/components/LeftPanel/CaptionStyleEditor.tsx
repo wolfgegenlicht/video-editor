@@ -1,4 +1,5 @@
 import { useProjectStore, makeDefaultCaptionStyle } from "../../store/useProjectStore";
+import CaptionPresetPicker from "./CaptionPresetPicker";
 
 const FONT_FAMILIES = [
   { value: "sans-serif", label: "Sans-serif" },
@@ -18,7 +19,9 @@ export default function CaptionStyleEditor() {
 
   return (
     <div className="flex-1 overflow-y-auto p-3 space-y-4">
-      <p className="text-[10px] text-gray-400 font-medium">Caption Style</p>
+      <CaptionPresetPicker />
+
+      <p className="text-[10px] text-gray-400 font-medium border-t border-gray-100 pt-3">Caption Style</p>
 
       {/* Font family */}
       <div>

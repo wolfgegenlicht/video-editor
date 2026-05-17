@@ -5,6 +5,18 @@ export function useKeyboardShortcuts(toggle: () => void) {
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "KeyZ") {
+        e.preventDefault();
+        useProjectStore.getState().redo();
+        return;
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ") {
+        e.preventDefault();
+        useProjectStore.getState().undo();
+        return;
+      }
+
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       if (e.code === "Space") {
@@ -14,20 +26,24 @@ export function useKeyboardShortcuts(toggle: () => void) {
       }
 
       if (e.code === "Delete" || e.code === "Backspace") {
-        const { focusedTrackId, deleteTrack, setFocusedTrackId, selectedClipId, deleteClip, selectedOverlayId, deleteTextOverlay, selectedEffectOverlayId, deleteEffectOverlay } = useProjectStore.getState();
+        const state = useProjectStore.getState();
+        const { focusedTrackId, deleteTrack, setFocusedTrackId, selectedItemIds, deleteClip, deleteCaption, deleteTextOverlay, deleteEffectOverlay, project } = state;
         if (focusedTrackId) {
           e.preventDefault();
           deleteTrack(focusedTrackId);
           setFocusedTrackId(null);
-        } else if (selectedClipId) {
+        } else if (selectedItemIds.size > 0) {
           e.preventDefault();
-          deleteClip(selectedClipId);
-        } else if (selectedOverlayId) {
-          e.preventDefault();
-          deleteTextOverlay(selectedOverlayId);
-        } else if (selectedEffectOverlayId) {
-          e.preventDefault();
-          deleteEffectOverlay(selectedEffectOverlayId);
+          const captionIds = new Set(project.captions.map((c) => c.id));
+          const clipIds = new Set(project.tracks.flatMap((t) => t.clips).map((c) => c.id));
+          const overlayIds = new Set((project.textOverlays ?? []).map((o) => o.id));
+          const effectIds = new Set((project.effectOverlays ?? []).map((ef) => ef.id));
+          for (const id of [...selectedItemIds]) {
+            if (captionIds.has(id)) deleteCaption(id);
+            else if (clipIds.has(id)) deleteClip(id);
+            else if (overlayIds.has(id)) deleteTextOverlay(id);
+            else if (effectIds.has(id)) deleteEffectOverlay(id);
+          }
         }
         return;
       }
@@ -57,18 +73,6 @@ export function useKeyboardShortcuts(toggle: () => void) {
           );
           if (active) duplicateClip(active.id);
         }
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.code === "KeyZ") {
-        e.preventDefault();
-        useProjectStore.getState().redo();
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ") {
-        e.preventDefault();
-        useProjectStore.getState().undo();
         return;
       }
 

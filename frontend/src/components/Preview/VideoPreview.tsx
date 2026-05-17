@@ -70,11 +70,13 @@ function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalR
   const internalRef = useRef<HTMLVideoElement>(null);
   const videoRef = isPrimary && externalRef ? externalRef : internalRef;
   const missingFileIds = useProjectStore((s) => s.missingFileIds);
+  const previewOriginalClipId = useProjectStore((s) => s.previewOriginalClipId);
   const prevPlayheadTimeRef = useRef(playheadTime);
 
-  const playbackFileId =
-    (clip.blurBackground && clip.blurBackgroundFileId) ? clip.blurBackgroundFileId :
-    (clip.eyeContact && clip.eyeContactFileId) ? clip.eyeContactFileId :
+  const ok = (id?: string) => !!id && !missingFileIds.has(id);
+  const playbackFileId = previewOriginalClipId === clip.id ? clip.fileId :
+    (clip.blurBackground && ok(clip.blurBackgroundFileId)) ? clip.blurBackgroundFileId! :
+    (clip.eyeContact && ok(clip.eyeContactFileId)) ? clip.eyeContactFileId! :
     clip.fileId;
 
   // Play/pause + initial seek

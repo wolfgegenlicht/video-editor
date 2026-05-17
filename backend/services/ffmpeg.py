@@ -180,9 +180,7 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                     file_id = clip["audioEnhanceFileId"]
                 else:
                     file_id = (
-                        clip.get("portraitRelightFileId")
-                        or clip.get("faceRestoreFileId")
-                        or clip.get("eyeContactFileId")
+                        clip.get("eyeContactFileId")
                         or clip["fileId"]
                     )
                 matches = list(uploads_dir.glob(f"{file_id}.*"))
@@ -199,9 +197,7 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                 file_id = clip["audioEnhanceFileId"]
             else:
                 file_id = (
-                    clip.get("portraitRelightFileId")
-                    or clip.get("faceRestoreFileId")
-                    or clip.get("eyeContactFileId")
+                    clip.get("eyeContactFileId")
                     or clip["fileId"]
                 )
             matches = list(uploads_dir.glob(f"{file_id}.*"))

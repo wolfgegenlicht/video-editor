@@ -22,10 +22,20 @@ _jobs_lock = threading.Lock()
 
 @dataclass
 class _JobState:
-    status: Literal["processing", "done", "error"] = "processing"
+    status: Literal["processing", "done", "error", "cancelled"] = "processing"
     corrected_file_id: Optional[str] = None
     progress: float = 0.0
     error: Optional[str] = None
+    cancelled: bool = False
+
+
+def cancel_job(job_id: str) -> bool:
+    with _jobs_lock:
+        state = _jobs.get(job_id)
+        if state is None or state.status != "processing":
+            return False
+        state.cancelled = True
+    return True
 
 
 def start_job(file_id: str) -> str:
@@ -76,6 +86,11 @@ def _run_job(job_id: str, file_id: str, state: _JobState) -> None:
         corrected_id = str(uuid.uuid4())
         output_path = str(UPLOADS / f"{corrected_id}.mp4")
         _process_video(input_path, output_path, state, job_id)
+        if state.cancelled:
+            Path(output_path).unlink(missing_ok=True)
+            state.status = "cancelled"
+            print(f"[eye-contact] job {job_id[:8]}: cancelled", flush=True)
+            return
         state.corrected_file_id = corrected_id
         _register_corrected_file(file_id, corrected_id, output_path)
         state.status = "done"
@@ -119,6 +134,8 @@ def _process_video(input_path: str, output_path: str, state: _JobState, job_id: 
             ret, frame = cap.read()
             if not ret:
                 break
+            if state.cancelled:
+                break
             corrected, faces = corrector.correct_frame(frame)
             if faces:
                 frames_with_faces += 1
@@ -132,6 +149,11 @@ def _process_video(input_path: str, output_path: str, state: _JobState, job_id: 
     finally:
         cap.release()
         writer.release()
+
+    if state.cancelled:
+        Path(temp_path).unlink(missing_ok=True)
+        return
+
     print(f"{tag} face detection: {frames_with_faces}/{frame_idx} frames had detectable faces", flush=True)
 
     # Merge corrected video with original audio track

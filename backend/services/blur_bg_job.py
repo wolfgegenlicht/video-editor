@@ -10,10 +10,14 @@ from pathlib import Path
 from typing import Literal, Optional
 
 from database import get_db
-from services.background_blur import blur_background_clip
+from services.background_blur import blur_background_clip, recomposite_from_mask
 
 UPLOADS = Path(__file__).parent.parent / "uploads"
 _executor = ThreadPoolExecutor(max_workers=1)
+
+
+class _CancelledError(Exception):
+    pass
 atexit.register(_executor.shutdown, wait=False)
 _jobs: dict[str, "_JobState"] = {}
 _jobs_lock = threading.Lock()
@@ -22,14 +26,24 @@ _active_file_jobs: dict[str, str] = {}  # f"{file_id}:{intensity}" → job_id
 
 @dataclass
 class _JobState:
-    status: Literal["processing", "done", "error"] = "processing"
+    status: Literal["processing", "done", "error", "cancelled"] = "processing"
     blurred_file_id: Optional[str] = None
     progress: float = 0.0
     error: Optional[str] = None
+    cancelled: bool = False
+
+
+def cancel_job(job_id: str) -> bool:
+    with _jobs_lock:
+        state = _jobs.get(job_id)
+        if state is None or state.status != "processing":
+            return False
+        state.cancelled = True
+    return True
 
 
 def start_job(file_id: str, intensity: int) -> str:
-    cache_key = f"{file_id}:{intensity}"
+    cache_key = file_id  # intensity no longer determines uniqueness — mask caching handles it
     with _jobs_lock:
         existing = _active_file_jobs.get(cache_key)
         if existing and _jobs.get(existing, _JobState()).status == "processing":
@@ -79,33 +93,49 @@ def _run_job(job_id: str, file_id: str, intensity: int, state: _JobState) -> Non
         temp_path = str(UPLOADS / f"tmp_{uuid.uuid4().hex}.mp4")
         output_path = UPLOADS / f"{blurred_id}.mp4"
 
+        mask_path = UPLOADS / f"{file_id}_blur_mask.mp4"
+
         def progress_cb(p: float) -> None:
+            if state.cancelled:
+                raise _CancelledError()
             state.progress = p * 0.9  # reserve last 10% for re-encode
 
+        cancelled = False
         try:
-            blur_background_clip(input_path, temp_path, 0.0, float("inf"), intensity, progress_cb)
-
-            # Merge blurred video with original audio
-            print(f"[blur-bg] job {job_id[:8]}: re-encoding with audio…", flush=True)
-            result = subprocess.run(
-                [
-                    "ffmpeg", "-y",
-                    "-i", temp_path,
-                    "-i", input_path,
-                    "-c:v", "libx264", "-preset", "fast", "-crf", "15",
-                    "-c:a", "aac",
-                    "-map", "0:v:0",
-                    "-map", "1:a:0?",
-                    "-shortest",
-                    str(output_path),
-                ],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode != 0:
-                raise RuntimeError(f"FFmpeg re-encode failed:\n{result.stderr[-2000:]}")
+            if mask_path.exists():
+                print(f"[blur-bg] job {job_id[:8]}: cached mask found — skipping RVM inference", flush=True)
+                recomposite_from_mask(input_path, str(mask_path), temp_path, intensity, progress_cb)
+            else:
+                blur_background_clip(input_path, temp_path, 0.0, float("inf"), intensity, progress_cb, str(mask_path))
+        except _CancelledError:
+            cancelled = True
         finally:
             Path(temp_path).unlink(missing_ok=True)
+
+        if cancelled:
+            state.status = "cancelled"
+            print(f"[blur-bg] job {job_id[:8]}: cancelled", flush=True)
+            return
+
+        # Merge blurred video with original audio
+        print(f"[blur-bg] job {job_id[:8]}: re-encoding with audio…", flush=True)
+        result = subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", temp_path,
+                "-i", input_path,
+                "-c:v", "libx264", "-preset", "fast", "-crf", "15",
+                "-c:a", "aac",
+                "-map", "0:v:0",
+                "-map", "1:a:0?",
+                "-shortest",
+                str(output_path),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"FFmpeg re-encode failed:\n{result.stderr[-2000:]}")
 
         state.blurred_file_id = blurred_id
         _register_blurred_file(file_id, blurred_id, output_path)

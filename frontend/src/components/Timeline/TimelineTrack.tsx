@@ -16,7 +16,7 @@ const EFFECT_DEFAULT_PARAMS: Record<EffectType, object> = {
 };
 
 export default function TimelineTrack({ track, zoom, height, onSnapChange }: Props) {
-  const { moveClip, addClip, selectClip, files, addEffectOverlay, addClipTransition } = useProjectStore();
+  const { moveClip, addClip, addTrackWithClip, selectClip, files, addEffectOverlay, addClipTransition } = useProjectStore();
 
   function onDragOver(e: React.DragEvent) {
     e.preventDefault();
@@ -37,13 +37,23 @@ export default function TimelineTrack({ track, zoom, height, onSnapChange }: Pro
     } else if (fileId) {
       const file = files.find((f) => f.id === fileId);
       if (file) {
-        addClip(track.id, {
+        const newClip = {
           fileId,
           startTime: dropTime,
           duration: file.duration,
           sourceStart: 0,
           sourceEnd: file.duration,
-        });
+        };
+        const occupied = track.type === "video" && track.clips.some(
+          (c) => dropTime < c.startTime + c.duration && dropTime + file.duration > c.startTime
+        );
+        if (occupied) {
+          const { project } = useProjectStore.getState();
+          const videoCount = project.tracks.filter((t) => t.type === "video").length;
+          addTrackWithClip("video", newClip, `Video ${videoCount + 1}`);
+        } else {
+          addClip(track.id, newClip);
+        }
       }
     } else if (effectType === "dissolve") {
       const { project } = useProjectStore.getState();

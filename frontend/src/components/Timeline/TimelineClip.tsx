@@ -236,7 +236,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
           className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-700" : "bg-teal-700"}`}
           onMouseDown={(e) => startDrag(e, "trim-left")}
         />
-        {isAudioTrack && file && (
+        {file && (
           <WaveformCanvas
             fileId={clip.fileId}
             fileDuration={file.duration}
@@ -245,6 +245,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
             width={width}
             height={trackHeight - 8}
             volume={clip.volume ?? 1}
+            opacity={isAudioTrack ? 0.65 : 0.40}
           />
         )}
         <span className="px-2 text-[10px] text-white font-semibold truncate pointer-events-none flex-1 relative z-10 flex items-center gap-1">

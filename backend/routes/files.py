@@ -20,5 +20,7 @@ def delete_file(file_id: str):
         if not row:
             raise HTTPException(404, "File not found")
         Path(row["path"]).unlink(missing_ok=True)
+        # Remove any cached blur mask tied to this source file
+        (UPLOADS / f"{file_id}_blur_mask.mp4").unlink(missing_ok=True)
         conn.execute("DELETE FROM files WHERE id = ?", (file_id,))
     return {"ok": True}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
-import { transcribeFile } from "../../lib/api";
+import { transcribeFile, detectSilences } from "../../lib/api";
 import { v4 as uuid } from "uuid";
 import type { Caption, CaptionWord } from "../../types/project";
 
@@ -8,10 +8,48 @@ interface Props { seek: (t: number) => void }
 
 interface CursorPosition { captionId: string; wordIdx: number }
 
+const FILLER_WORDS = new Set([
+  // English
+  "um", "uh", "like", "basically", "literally", "actually", "right", "hmm",
+  // German
+  "äh", "ähm", "halt", "eigentlich", "quasi", "sozusagen", "irgendwie", "naja",
+  "also", "ne", "genau", "ja", "okay", "genau",
+]);
+
 function formatTime(s: number) {
   const m = Math.floor(s / 60);
   const sec = Math.floor(s % 60);
   return `${m}:${sec.toString().padStart(2, "0")}`;
+}
+
+function fillerKey(captionId: string, wordStart: number) {
+  return `${captionId}|${wordStart}`;
+}
+
+function isFillerWord(text: string) {
+  return FILLER_WORDS.has(text.toLowerCase().replace(/[.,!?…]/g, ""));
+}
+
+function SilenceBadge({
+  silence,
+  onDismiss,
+}: {
+  silence: { start: number; end: number };
+  onDismiss: () => void;
+}) {
+  const dur = (silence.end - silence.start).toFixed(1);
+  return (
+    <span className="inline-flex items-center gap-0.5 mx-0.5 px-1 py-px bg-slate-200 text-slate-500 text-[10px] rounded align-middle select-none">
+      {dur}s
+      <button
+        className="hover:text-red-500 transition-colors leading-none ml-0.5"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+      >
+        ×
+      </button>
+    </span>
+  );
 }
 
 export default function TranscriptTab({ seek }: Props) {
@@ -26,11 +64,24 @@ export default function TranscriptTab({ seek }: Props) {
   const [editText, setEditText] = useState("");
   const [cursorPosition, setCursorPosition] = useState<CursorPosition | null>(null);
 
+  // Filler word state
+  const [fillerMode, setFillerMode] = useState(false);
+  const [fillerSet, setFillerSet] = useState<Set<string>>(new Set());
+
+  // Silence state
+  const [silencePending, setSilencePending] = useState<{ start: number; end: number }[]>([]);
+  const [silenceLoading, setSilenceLoading] = useState(false);
+
   const selectionAnchor = useRef<{ captionId: string; wordIdx: number } | null>(null);
   const dragAnchorTime = useRef<number | null>(null);
   const isDragging = useRef(false);
   const didDrag = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-exit filler mode when all fillers dismissed
+  useEffect(() => {
+    if (fillerMode && fillerSet.size === 0) setFillerMode(false);
+  }, [fillerMode, fillerSet.size]);
 
   useEffect(() => {
     function onMouseUp() {
@@ -59,6 +110,78 @@ export default function TranscriptTab({ seek }: Props) {
     } finally {
       setLoading(false);
     }
+  }
+
+  function detectFillers() {
+    const keys = new Set<string>();
+    for (const cap of project.captions) {
+      for (const w of cap.words ?? []) {
+        if (isFillerWord(w.text)) {
+          keys.add(fillerKey(cap.id, w.start));
+        }
+      }
+    }
+    setFillerSet(keys);
+    setFillerMode(true);
+  }
+
+  function handleCutAllFillers() {
+    type FillerItem = { captionId: string; wordStart: number; captionStartTime: number };
+    const items: FillerItem[] = [];
+
+    for (const key of fillerSet) {
+      const pipeIdx = key.indexOf("|");
+      const captionId = key.slice(0, pipeIdx);
+      const wordStart = parseFloat(key.slice(pipeIdx + 1));
+      const cap = useProjectStore.getState().project.captions.find((c) => c.id === captionId);
+      if (cap) items.push({ captionId, wordStart, captionStartTime: cap.startTime });
+    }
+
+    // Process from last to first so earlier word indices stay valid after each cut
+    items.sort((a, b) => b.captionStartTime - a.captionStartTime || b.wordStart - a.wordStart);
+
+    for (const item of items) {
+      const cap = useProjectStore.getState().project.captions.find((c) => c.id === item.captionId);
+      if (!cap) continue;
+      const wordIdx = (cap.words ?? []).findIndex((w) => Math.abs(w.start - item.wordStart) < 0.001);
+      if (wordIdx >= 0) cutWord(item.captionId, wordIdx);
+    }
+
+    setFillerSet(new Set());
+    setFillerMode(false);
+  }
+
+  async function handleDetectSilences() {
+    const fileId = project.captionSourceFileId;
+    if (!fileId) {
+      alert("Transcribe the video first to enable silence detection.");
+      return;
+    }
+    setSilenceLoading(true);
+    try {
+      const result = await detectSilences(fileId);
+      setSilencePending(result.ranges);
+    } catch (e) {
+      alert("Silence detection failed: " + String(e));
+    } finally {
+      setSilenceLoading(false);
+    }
+  }
+
+  function handleCutAllSilences() {
+    const sorted = [...silencePending].sort((a, b) => b.start - a.start);
+    for (const s of sorted) {
+      deleteTimeRange(s.start, s.end);
+    }
+    setSilencePending([]);
+  }
+
+  function dismissSilence(start: number) {
+    setSilencePending((prev) => prev.filter((s) => s.start !== start));
+  }
+
+  function silencesInGap(gapStart: number, gapEnd: number) {
+    return silencePending.filter((s) => s.start < gapEnd && s.end > gapStart);
   }
 
   function applyWords(cap: Caption, newWords: CaptionWord[]) {
@@ -145,7 +268,6 @@ export default function TranscriptTab({ seek }: Props) {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    // Let inline edits handle their own keys
     if (editKey) return;
 
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
@@ -231,15 +353,84 @@ export default function TranscriptTab({ seek }: Props) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="px-4 pt-3 pb-2 border-b border-slate-100 flex-shrink-0 flex gap-2">
+      {/* Toolbar */}
+      <div className="px-4 pt-3 pb-2 border-b border-slate-100 flex-shrink-0 space-y-2">
         <button
           onClick={handleTranscribe}
           disabled={loading}
-          className="flex-1 py-1.5 text-xs text-slate-500 border border-slate-200 rounded hover:border-slate-400 hover:text-slate-700 disabled:opacity-50 transition-colors bg-white"
+          className="w-full py-1.5 text-xs text-slate-500 border border-slate-200 rounded hover:border-slate-400 hover:text-slate-700 disabled:opacity-50 transition-colors bg-white"
         >
           {loading ? "Transcribing…" : project.captions.length > 0 ? "Re-transcribe" : "Auto-Transcribe"}
         </button>
+
+        {project.captions.length > 0 && (
+          <div className="flex gap-2">
+            <button
+              onClick={detectFillers}
+              className={`flex-1 py-1 text-[11px] border rounded transition-colors ${
+                fillerMode
+                  ? "bg-orange-100 border-orange-300 text-orange-700"
+                  : "border-slate-200 text-slate-400 hover:border-orange-300 hover:text-orange-600 bg-white"
+              }`}
+            >
+              ✂ Fillers
+            </button>
+            <button
+              onClick={handleDetectSilences}
+              disabled={silenceLoading || !project.captionSourceFileId}
+              className={`flex-1 py-1 text-[11px] border rounded transition-colors disabled:opacity-40 ${
+                silencePending.length > 0
+                  ? "bg-slate-100 border-slate-300 text-slate-600"
+                  : "border-slate-200 text-slate-400 hover:border-slate-400 hover:text-slate-600 bg-white"
+              }`}
+            >
+              {silenceLoading ? "Detecting…" : "⏱ Silences"}
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Filler action bar */}
+      {fillerMode && fillerSet.size > 0 && (
+        <div className="flex items-center px-3 py-1.5 border-b border-orange-200 bg-orange-50 flex-shrink-0 gap-2">
+          <span className="text-[11px] text-orange-800 flex-1 font-medium">
+            ✂ {fillerSet.size} filler{fillerSet.size !== 1 ? "s" : ""} detected
+          </span>
+          <button
+            onClick={() => { setFillerSet(new Set()); setFillerMode(false); }}
+            className="text-[11px] text-orange-600 hover:text-orange-800 cursor-pointer transition-colors"
+          >
+            Dismiss
+          </button>
+          <button
+            onClick={handleCutAllFillers}
+            className="text-[11px] text-red-600 hover:text-red-800 font-semibold px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 transition-colors cursor-pointer"
+          >
+            Cut All
+          </button>
+        </div>
+      )}
+
+      {/* Silence action bar */}
+      {silencePending.length > 0 && (
+        <div className="flex items-center px-3 py-1.5 border-b border-slate-200 bg-slate-50 flex-shrink-0 gap-2">
+          <span className="text-[11px] text-slate-600 flex-1 font-medium">
+            ⏱ {silencePending.length} silence{silencePending.length !== 1 ? "s" : ""} detected
+          </span>
+          <button
+            onClick={() => setSilencePending([])}
+            className="text-[11px] text-slate-500 hover:text-slate-700 cursor-pointer transition-colors"
+          >
+            Dismiss
+          </button>
+          <button
+            onClick={handleCutAllSilences}
+            className="text-[11px] text-red-600 hover:text-red-800 font-semibold px-2 py-0.5 rounded bg-red-100 hover:bg-red-200 transition-colors cursor-pointer"
+          >
+            Cut All
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto min-h-0">
         {project.captions.length === 0 && (
@@ -268,6 +459,9 @@ export default function TranscriptTab({ seek }: Props) {
               }
             }
 
+            // Silence badges between captions
+            const interCapSilences = prevCap ? silencesInGap(prevCap.endTime, cap.startTime) : [];
+
             const wordNodes = words.length > 0 ? words.map((w, i) => {
               const key = `${cap.id}:${i}`;
               const isActive = i === activeWordIdx;
@@ -276,6 +470,11 @@ export default function TranscriptTab({ seek }: Props) {
               const isCursor = cursorPosition?.captionId === cap.id && cursorPosition.wordIdx === i;
               const showCursorBefore = i === 0 &&
                 cursorPosition?.captionId === cap.id && cursorPosition.wordIdx === -1;
+              const isFiller = fillerMode && fillerSet.has(fillerKey(cap.id, w.start));
+
+              // Silences in the gap after this word
+              const nextWordStart = i + 1 < words.length ? words[i + 1].start : cap.endTime;
+              const postWordSilences = silencesInGap(w.end, nextWordStart);
 
               if (editKey === key) {
                 return (
@@ -318,21 +517,39 @@ export default function TranscriptTab({ seek }: Props) {
                   )}
                   <span
                     className={`relative inline-block cursor-pointer rounded-sm transition-colors
-                      ${isSelected
+                      ${isFiller && !isSelected
+                        ? "bg-orange-100 text-orange-800 hover:bg-orange-200"
+                        : isSelected
                         ? "bg-blue-200 text-blue-900"
                         : isActive
                         ? "bg-teal-50 text-teal-700"
                         : isPast
-                        ? "text-slate-400"
-                        : "text-slate-700"}
-                      hover:bg-slate-100`}
+                        ? "text-slate-400 hover:bg-slate-100"
+                        : "text-slate-700 hover:bg-slate-100"}`}
                     onMouseDown={(e) => onWordMouseDown(e, w)}
                     onMouseEnter={() => onWordMouseEnter(w)}
                     onClick={() => onWordClick(cap, w, i)}
                     title="Click: place cursor · Drag: select range · Delete: cut from video"
                   >
                     {w.text}
-                    {/* Floating tooltip above the clicked word */}
+
+                    {/* Filler dismiss button */}
+                    {isFiller && !isSelected && (
+                      <span
+                        className="absolute -top-1.5 -right-0.5 z-10 flex items-center justify-center w-3 h-3 rounded-full bg-orange-400 text-white text-[8px] leading-none hover:bg-red-500 cursor-pointer transition-colors"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const next = new Set(fillerSet);
+                          next.delete(fillerKey(cap.id, w.start));
+                          setFillerSet(next);
+                        }}
+                      >
+                        ×
+                      </span>
+                    )}
+
+                    {/* Cursor tooltip */}
                     {isCursor && !editKey && (
                       <span
                         className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 pointer-events-auto"
@@ -354,6 +571,9 @@ export default function TranscriptTab({ seek }: Props) {
                   {isCursor && !editKey && (
                     <span className="inline-block w-[1.5px] h-[1.1em] bg-slate-700 cursor-blink align-text-bottom mx-px" />
                   )}
+                  {postWordSilences.map((s) => (
+                    <SilenceBadge key={s.start} silence={s} onDismiss={() => dismissSilence(s.start)} />
+                  ))}
                   {" "}
                 </React.Fragment>
               );
@@ -367,11 +587,20 @@ export default function TranscriptTab({ seek }: Props) {
             );
 
             return (
-              <>
+              <React.Fragment key={cap.id}>
                 {capIdx > 0 && (
                   pauseGap > 1.5
-                    ? <div key={`br-${cap.id}`} className="h-[0.7em] w-full" />
-                    : " "
+                    ? <div key={`br-${cap.id}`} className="h-[0.7em] w-full">
+                        {interCapSilences.map((s) => (
+                          <SilenceBadge key={s.start} silence={s} onDismiss={() => dismissSilence(s.start)} />
+                        ))}
+                      </div>
+                    : <>
+                        {interCapSilences.map((s) => (
+                          <SilenceBadge key={s.start} silence={s} onDismiss={() => dismissSilence(s.start)} />
+                        ))}
+                        {" "}
+                      </>
                 )}
                 {(capIdx === 0 || pauseGap > 1.5) && (
                   <button
@@ -384,7 +613,7 @@ export default function TranscriptTab({ seek }: Props) {
                   </button>
                 )}
                 {wordNodes}
-              </>
+              </React.Fragment>
             );
           })}
         </div>

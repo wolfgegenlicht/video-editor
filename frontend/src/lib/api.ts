@@ -26,7 +26,7 @@ export interface ProjectData {
 }
 
 export interface EyeContactStatusResponse {
-  status: "processing" | "done" | "error";
+  status: "processing" | "done" | "error" | "cancelled";
   correctedFileId?: string;
   progress?: number;
   error?: string;
@@ -193,8 +193,12 @@ export async function deleteEyeContactFile(fileId: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete eye contact file failed: ${res.status}`);
 }
 
+export async function cancelEyeContactJob(jobId: string): Promise<void> {
+  await fetch(`/eye-contact/jobs/${jobId}`, { method: "DELETE" });
+}
+
 export interface BlurBgStatusResponse {
-  status: "processing" | "done" | "error";
+  status: "processing" | "done" | "error" | "cancelled";
   blurredFileId?: string;
   progress?: number;
   error?: string;
@@ -221,8 +225,12 @@ export async function deleteBlurBgFile(fileId: string): Promise<void> {
   if (!res.ok) throw new Error(`Delete blur background file failed: ${res.status}`);
 }
 
+export async function cancelBlurBgJob(jobId: string): Promise<void> {
+  await fetch(`/blur-bg/jobs/${jobId}`, { method: "DELETE" });
+}
+
 export interface AudioEnhanceStatusResponse {
-  status: "processing" | "done" | "error";
+  status: "processing" | "done" | "error" | "cancelled";
   progress?: number;
   enhancedFileId?: string;
   error?: string;
@@ -249,58 +257,15 @@ export async function cancelAudioEnhanceJob(jobId: string): Promise<void> {
   if (!res.ok) throw new Error(`Cancel audio enhance job failed: ${res.status}`);
 }
 
-export interface FaceRestoreStatusResponse {
-  status: "processing" | "done" | "error";
-  restoredFileId?: string;
-  progress?: number;
-  error?: string;
-}
-
-export async function startFaceRestoreJob(fileId: string, fidelityWeight: number): Promise<{ jobId: string }> {
-  const res = await fetch("/face-restore/process", {
+export async function detectSilences(
+  fileId: string,
+  opts?: { minSilence?: number; threshold?: number }
+): Promise<{ ranges: { start: number; end: number }[] }> {
+  const res = await fetch("/silence-detect", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileId, fidelityWeight }),
+    body: JSON.stringify({ fileId, ...opts }),
   });
-  if (!res.ok) throw new Error(`Face restore job failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Silence detection failed: ${res.status}`);
   return res.json();
-}
-
-export async function getFaceRestoreStatus(jobId: string): Promise<FaceRestoreStatusResponse> {
-  const res = await fetch(`/face-restore/status/${jobId}`);
-  if (!res.ok) throw new Error(`Face restore status check failed: ${res.status}`);
-  return res.json();
-}
-
-export async function deleteFaceRestoreFile(fileId: string): Promise<void> {
-  const res = await fetch(`/face-restore/files/${fileId}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(`Delete face restore file failed: ${res.status}`);
-}
-
-export interface PortraitRelightStatusResponse {
-  status: "processing" | "done" | "error";
-  relitFileId?: string;
-  progress?: number;
-  error?: string;
-}
-
-export async function startPortraitRelightJob(fileId: string, preset: string, intensity: number): Promise<{ jobId: string }> {
-  const res = await fetch("/portrait-relight/process", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileId, preset, intensity }),
-  });
-  if (!res.ok) throw new Error(`Portrait relight job failed: ${res.status}`);
-  return res.json();
-}
-
-export async function getPortraitRelightStatus(jobId: string): Promise<PortraitRelightStatusResponse> {
-  const res = await fetch(`/portrait-relight/status/${jobId}`);
-  if (!res.ok) throw new Error(`Portrait relight status check failed: ${res.status}`);
-  return res.json();
-}
-
-export async function deletePortraitRelightFile(fileId: string): Promise<void> {
-  const res = await fetch(`/portrait-relight/files/${fileId}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(`Delete portrait relight file failed: ${res.status}`);
 }

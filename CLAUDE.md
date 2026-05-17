@@ -10,7 +10,10 @@ A browser-based video editor with a React/TypeScript frontend and a Python/FastA
 
 ### Frontend (`frontend/`)
 
+Must run from the `frontend/` directory:
+
 ```bash
+cd frontend
 pnpm dev        # Start dev server at http://localhost:5173
 pnpm build      # Type-check + build to dist/
 pnpm lint       # Run ESLint
@@ -20,7 +23,10 @@ No test suite exists yet.
 
 ### Backend (`backend/`)
 
+Must run from the `backend/` directory:
+
 ```bash
+cd backend
 uvicorn main:app --reload   # Start API server at http://localhost:8000
 ```
 

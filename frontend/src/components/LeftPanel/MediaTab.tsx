@@ -45,7 +45,7 @@ function EmptyState() {
 }
 
 export default function MediaTab() {
-  const { files, addFile, removeFile, addClip, project, activeProjectId } = useProjectStore();
+  const { files, addFile, removeFile, addClip, addTrackWithClip, project, activeProjectId } = useProjectStore();
   const inputRef = useRef<HTMLInputElement>(null);
   const [draggingOver, setDraggingOver] = useState(false);
   const dragCounter = useRef(0);
@@ -71,6 +71,21 @@ export default function MediaTab() {
     removeFile(fileId);
   }
 
+  function addUploadedToTimeline(uploaded: { id: string; duration: number; width: number; height: number }) {
+    const trackType = isAudio(uploaded) ? "audio" : "video";
+    // Read fresh state so multiple back-to-back uploads don't stomp each other
+    const currentProject = useProjectStore.getState().project;
+    const matchingTrack = currentProject.tracks.find((t) => t.type === trackType);
+    const startTime = matchingTrack
+      ? matchingTrack.clips.reduce((max, c) => Math.max(max, c.startTime + c.duration), 0)
+      : 0;
+    if (matchingTrack) {
+      addClip(matchingTrack.id, { fileId: uploaded.id, startTime, duration: uploaded.duration, sourceStart: 0, sourceEnd: uploaded.duration });
+    } else {
+      addTrackWithClip(trackType, { fileId: uploaded.id, startTime: 0, duration: uploaded.duration, sourceStart: 0, sourceEnd: uploaded.duration });
+    }
+  }
+
   async function uploadFiles(fileList: FileList | File[]) {
     const selected = Array.from(fileList).filter(
       (f) => f.type.startsWith("video/") || f.type.startsWith("audio/")
@@ -82,6 +97,7 @@ export default function MediaTab() {
       try {
         const uploaded = await uploadFile(file, activeProjectId ?? undefined);
         addFile(uploaded);
+        addUploadedToTimeline(uploaded);
       } catch (err) {
         setUploadError("Upload failed: " + String(err));
       }
@@ -124,19 +140,7 @@ export default function MediaTab() {
   function handleAddToTimeline(fileId: string) {
     const file = files.find((f) => f.id === fileId);
     if (!file) return;
-    const firstTrack = project.tracks[0];
-    if (!firstTrack) return;
-    const lastClipEnd = firstTrack.clips.reduce(
-      (max, c) => Math.max(max, c.startTime + c.duration),
-      0
-    );
-    addClip(firstTrack.id, {
-      fileId,
-      startTime: lastClipEnd,
-      duration: file.duration,
-      sourceStart: 0,
-      sourceEnd: file.duration,
-    });
+    addUploadedToTimeline(file);
   }
 
   return (

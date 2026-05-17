@@ -1,37 +1,51 @@
-import atexit
 import os
+import threading
 import cv2
 import numpy as np
 from typing import Callable, Optional
 
-_segmenter = None
-_MEDIAPIPE_AVAILABLE = False
+_MODEL_LOCK = threading.Lock()
+_model = None
+_device = None
+_rvm_ready: Optional[bool] = None  # None = not yet checked
 
-# Model lives at backend/models/selfie_segmenter_landscape.tflite
-_MODEL_PATH = os.path.join(os.path.dirname(__file__), "..", "models", "selfie_segmenter_landscape.tflite")
 
-try:
-    import mediapipe as mp
-    from mediapipe.tasks import python as mp_tasks
-    from mediapipe.tasks.python import vision as mp_vision
+def _load_model() -> bool:
+    """Lazy-initialize RobustVideoMatting. Returns True if ready."""
+    global _model, _device, _rvm_ready
+    if _rvm_ready is not None:
+        return _rvm_ready
+    with _MODEL_LOCK:
+        if _rvm_ready is not None:
+            return _rvm_ready
+        try:
+            import torch
+            if torch.cuda.is_available():
+                _device = torch.device("cuda")
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                _device = torch.device("mps")
+            else:
+                _device = torch.device("cpu")
 
-    if os.path.exists(_MODEL_PATH):
-        _base_options = mp_tasks.BaseOptions(model_asset_path=os.path.abspath(_MODEL_PATH))
-        _options = mp_vision.ImageSegmenterOptions(
-            base_options=_base_options,
-            output_category_mask=True,  # category 0=background, 1=person
-        )
-        _segmenter = mp_vision.ImageSegmenter.create_from_options(_options)
-        atexit.register(_segmenter.close)
-        _MEDIAPIPE_AVAILABLE = True
-    else:
-        print(
-            "[background_blur] WARNING: model file not found at "
-            f"{_MODEL_PATH!r} — blur_background_clip will copy frames unchanged. "
-            "Download selfie_segmenter_landscape.tflite to backend/models/."
-        )
-except (ImportError, AttributeError) as _exc:
-    print(f"[background_blur] WARNING: mediapipe Tasks API unavailable ({_exc}) — blur_background_clip will copy frames unchanged")
+            _local = os.path.join(os.path.dirname(__file__), "..", "models", "rvm_mobilenetv3.pth")
+            if os.path.exists(_local):
+                _model = torch.hub.load(
+                    "PeterL1n/RobustVideoMatting", "mobilenetv3",
+                    pretrained=False, trust_repo=True,
+                )
+                _model.load_state_dict(torch.load(_local, map_location="cpu"))
+            else:
+                _model = torch.hub.load(
+                    "PeterL1n/RobustVideoMatting", "mobilenetv3",
+                    trust_repo=True,
+                )
+            _model = _model.eval().to(_device)
+            _rvm_ready = True
+            print(f"[background_blur] RobustVideoMatting/MobileNetV3 ready on {_device}", flush=True)
+        except Exception as exc:
+            print(f"[background_blur] WARNING: RVM unavailable ({exc}) — blur will copy frames unchanged", flush=True)
+            _rvm_ready = False
+    return _rvm_ready
 
 
 def blur_background_clip(
@@ -41,20 +55,21 @@ def blur_background_clip(
     source_end: float,
     intensity: int = 25,
     progress_cb: Optional[Callable[[float], None]] = None,
+    mask_output_path: Optional[str] = None,
 ) -> None:
-    """Pre-process a clip segment by blurring the background behind detected persons.
+    """Run RVM inference, composite blurred background, and optionally save the alpha mask.
 
-    Reads frames from source_start..source_end, runs MediaPipe ImageSegmenter
-    (Tasks API, selfie_segmenter_landscape model) per frame, composites sharp
-    foreground over blurred background, and writes video-only output to
-    output_path. Audio is not included — FFmpeg adds it later.
+    The mask (grayscale video, one channel repeated 3×) is saved to mask_output_path
+    when provided. Subsequent intensity changes can skip inference entirely by calling
+    recomposite_from_mask() with the cached mask.
 
-    Falls back to copying original frames when MediaPipe is unavailable or when
-    no person is detected in a frame.
+    Falls back to copying frames unchanged when RVM is unavailable.
     """
-    if not _MEDIAPIPE_AVAILABLE or _segmenter is None:
+    if not _load_model():
         _copy_frames(input_path, output_path, source_start, source_end, progress_cb)
         return
+
+    import torch
 
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
@@ -65,16 +80,23 @@ def blur_background_clip(
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
 
-        # Seek to source_start
         cap.set(cv2.CAP_PROP_POS_MSEC, source_start * 1000.0)
 
-        # Kernel must be odd and >= 3
         k = max(3, int(intensity * 0.5) | 1)
+        ds_ratio = 0.25 if max(w, h) >= 1000 else 0.5
 
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
         if not out.isOpened():
             raise RuntimeError(f"Could not open VideoWriter for: {output_path}")
+
+        mask_out: Optional[cv2.VideoWriter] = None
+        if mask_output_path:
+            mask_out = cv2.VideoWriter(mask_output_path, fourcc, fps, (w, h))
+            if not mask_out.isOpened():
+                mask_out = None  # non-fatal — just skip mask saving
+
+        rec = [None] * 4
         frame_idx = 0
         try:
             while True:
@@ -86,26 +108,90 @@ def blur_background_clip(
                     break
 
                 rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-                result = _segmenter.segment(mp_image)
+                src = (
+                    torch.from_numpy(np.ascontiguousarray(rgb))
+                    .permute(2, 0, 1)
+                    .unsqueeze(0)
+                    .float()
+                    .div(255.0)
+                    .to(_device)
+                )
 
-                # category_mask is an mp.Image; numpy_view() gives uint8 (H, W, 1) or (H, W)
-                raw_mask = result.category_mask.numpy_view()
-                if raw_mask.ndim == 3:
-                    raw_mask = raw_mask[:, :, 0]  # collapse channel dim
+                with torch.no_grad():
+                    _fgr, pha, *rec = _model(src, *rec, downsample_ratio=ds_ratio)
 
-                # 1 = person, 0 = background
-                mask = (raw_mask == 1).astype(np.float32)
+                alpha = pha.squeeze().cpu().numpy()  # H×W float32, 0–1
 
-                if mask.max() < 0.05:
-                    # No person detected — write original frame unchanged
-                    out.write(frame)
-                else:
-                    blurred = cv2.GaussianBlur(frame, (k, k), 0)
-                    mask_3ch = np.stack([mask, mask, mask], axis=-1)
-                    composite = (frame.astype(np.float32) * mask_3ch +
-                                 blurred.astype(np.float32) * (1.0 - mask_3ch))
-                    out.write(composite.astype(np.uint8))
+                if mask_out is not None:
+                    alpha_u8 = (alpha * 255).clip(0, 255).astype(np.uint8)
+                    mask_out.write(np.stack([alpha_u8, alpha_u8, alpha_u8], axis=-1))
+
+                blurred = cv2.GaussianBlur(frame, (k, k), 0)
+                mask_3ch = np.stack([alpha, alpha, alpha], axis=-1)
+                composite = (
+                    frame.astype(np.float32) * mask_3ch
+                    + blurred.astype(np.float32) * (1.0 - mask_3ch)
+                )
+                out.write(composite.astype(np.uint8))
+
+                frame_idx += 1
+                if progress_cb is not None and total_frames > 0:
+                    progress_cb(frame_idx / total_frames)
+        finally:
+            out.release()
+            if mask_out is not None:
+                mask_out.release()
+    finally:
+        cap.release()
+
+
+def recomposite_from_mask(
+    original_path: str,
+    mask_path: str,
+    output_path: str,
+    intensity: int = 25,
+    progress_cb: Optional[Callable[[float], None]] = None,
+) -> None:
+    """Fast path: re-composite using a cached alpha mask at a new intensity.
+
+    Skips RVM inference entirely — only Gaussian blur + composite, so this is
+    typically 10–20× faster than a full re-process.
+    """
+    cap_orig = cv2.VideoCapture(original_path)
+    cap_mask = cv2.VideoCapture(mask_path)
+    if not cap_orig.isOpened():
+        raise RuntimeError(f"Could not open original video: {original_path}")
+    if not cap_mask.isOpened():
+        raise RuntimeError(f"Could not open mask video: {mask_path}")
+    try:
+        fps = cap_orig.get(cv2.CAP_PROP_FPS) or 25.0
+        w = int(cap_orig.get(cv2.CAP_PROP_FRAME_WIDTH))
+        h = int(cap_orig.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap_orig.get(cv2.CAP_PROP_FRAME_COUNT)) or 1
+
+        k = max(3, int(intensity * 0.5) | 1)
+
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        out = cv2.VideoWriter(output_path, fourcc, fps, (w, h))
+        if not out.isOpened():
+            raise RuntimeError(f"Could not open VideoWriter for: {output_path}")
+
+        frame_idx = 0
+        try:
+            while True:
+                ret1, frame = cap_orig.read()
+                ret2, mask_frame = cap_mask.read()
+                if not ret1 or not ret2:
+                    break
+
+                alpha = mask_frame[:, :, 0].astype(np.float32) / 255.0
+                blurred = cv2.GaussianBlur(frame, (k, k), 0)
+                mask_3ch = np.stack([alpha, alpha, alpha], axis=-1)
+                composite = (
+                    frame.astype(np.float32) * mask_3ch
+                    + blurred.astype(np.float32) * (1.0 - mask_3ch)
+                )
+                out.write(composite.astype(np.uint8))
 
                 frame_idx += 1
                 if progress_cb is not None and total_frames > 0:
@@ -113,7 +199,8 @@ def blur_background_clip(
         finally:
             out.release()
     finally:
-        cap.release()
+        cap_orig.release()
+        cap_mask.release()
 
 
 def _copy_frames(
@@ -123,7 +210,7 @@ def _copy_frames(
     source_end: float,
     progress_cb: Optional[Callable[[float], None]] = None,
 ) -> None:
-    """Copy frames from source_start to source_end without modification."""
+    """Copy frames unchanged — fallback when RVM is unavailable."""
     cap = cv2.VideoCapture(input_path)
     if not cap.isOpened():
         raise RuntimeError(f"Could not open video: {input_path}")

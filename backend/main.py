@@ -11,8 +11,7 @@ from routes.projects import router as projects_router
 from routes.eye_contact import router as eye_contact_router
 from routes.enhance_audio import router as enhance_audio_router
 from routes.blur_bg import router as blur_bg_router
-from routes.face_restore import router as face_restore_router
-from routes.portrait_relight import router as portrait_relight_router
+from routes.silence_detect import router as silence_detect_router
 
 init_db()
 
@@ -32,6 +31,5 @@ app.include_router(projects_router)
 app.include_router(eye_contact_router)
 app.include_router(enhance_audio_router)
 app.include_router(blur_bg_router)
-app.include_router(face_restore_router)
-app.include_router(portrait_relight_router)
+app.include_router(silence_detect_router)
 app.mount("/fonts", StaticFiles(directory=str(Path(__file__).parent / "fonts")), name="fonts")
