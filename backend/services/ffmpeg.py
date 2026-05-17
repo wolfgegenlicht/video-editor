@@ -80,7 +80,7 @@ def _make_x_expr(points: list[dict], source_start: float, speed: float) -> str:
 def _build_reframe_filter(track_points: list[dict], source_start: float, speed: float, canvas_w: int, canvas_h: int) -> str:
     """Return an ffmpeg filter string: scale to canvas height, then dynamic crop centered on face.
 
-    track_points: list of {"t": float, "x": float} — source-relative timestamps (from 0), normalized x (0–1).
+    track_points: list of {"t": float, "x": float} — source-absolute timestamps (seconds from start of source file), normalized x (0–1).
     source_start: clip's sourceStart offset in the source file (seconds).
     speed: clip playback speed.
     canvas_w, canvas_h: target canvas dimensions.
