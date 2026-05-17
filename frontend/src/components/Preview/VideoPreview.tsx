@@ -1,7 +1,7 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import { fileUrl } from "../../lib/api";
-import type { EffectOverlay, ZoomParams } from "../../types/project";
+import type { EffectOverlay, ZoomParams, ReframeTrackPoint } from "../../types/project";
 import CaptionOverlay from "./CaptionOverlay";
 import TextOverlayRenderer from "./TextOverlayRenderer";
 import VideoTransformOverlay from "./VideoTransformOverlay";
@@ -9,6 +9,15 @@ import VideoTransformOverlay from "./VideoTransformOverlay";
 function easeInOut(t: number): number {
   const c = Math.min(1, Math.max(0, t));
   return c < 0.5 ? 2 * c * c : -1 + (4 - 2 * c) * c;
+}
+
+function interpolateX(points: ReframeTrackPoint[], t: number): number {
+  if (points.length === 0) return 0.5;
+  if (t <= points[0].t) return points[0].x;
+  if (t >= points[points.length - 1].t) return points[points.length - 1].x;
+  const i = points.findIndex((p) => p.t > t) - 1;
+  const a = points[i], b = points[i + 1];
+  return a.x + (b.x - a.x) * (t - a.t) / (b.t - a.t);
 }
 
 function computeZoomScale(effect: EffectOverlay, playheadTime: number): number {
@@ -41,6 +50,7 @@ export default function VideoPreview({ videoRef }: Props) {
   // selectClip(id) — select; deselection happens when user clicks elsewhere in the app (timeline, panels)
   const effectOverlays = useProjectStore((s) => s.project.effectOverlays);
   const outerRef = useRef<HTMLDivElement>(null);
+  const [videoNativeSize, setVideoNativeSize] = useState<{ w: number; h: number } | null>(null);
 
   const videoTracks = project.tracks.filter((t) => t.type !== "audio");
   const activeTrack = videoTracks.find((t) =>
@@ -99,6 +109,22 @@ export default function VideoPreview({ videoRef }: Props) {
       : {}),
   };
 
+  // Compute reframe translation if the active clip has tracking data
+  const isReframeActive = !!(activeClip?.reframe && activeClip.reframeData);
+  let reframeLeft: number = 0;
+  if (isReframeActive && activeClip && activeClip.reframeData) {
+    const sourceT = playheadTime - activeClip.startTime + activeClip.sourceStart;
+    const x_norm = interpolateX(activeClip.reframeData.trackPoints, sourceT);
+    const container = outerRef.current;
+    if (container && videoNativeSize && videoNativeSize.w > 0 && videoNativeSize.h > 0) {
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      const videoDisplayWidth = containerHeight * (videoNativeSize.w / videoNativeSize.h);
+      const translateX = containerWidth / 2 - x_norm * videoDisplayWidth;
+      reframeLeft = Math.max(containerWidth - videoDisplayWidth, Math.min(0, translateX));
+    }
+  }
+
   const showOverlay = !!activeClip && selectedClipId === activeClip.id;
 
   return (
@@ -118,9 +144,17 @@ export default function VideoPreview({ videoRef }: Props) {
               ref={videoRef}
               key={playbackFileId}
               src={fileUrl(playbackFileId)}
-              className="w-full h-full object-cover"
+              className={isReframeActive ? "" : "w-full h-full object-cover"}
               muted={effectiveMuted}
-              style={videoStyle}
+              style={
+                isReframeActive
+                  ? { position: "absolute", height: "100%", width: "auto", left: reframeLeft, top: 0, ...videoStyle }
+                  : videoStyle
+              }
+              onLoadedMetadata={(e) => {
+                const vid = e.currentTarget;
+                setVideoNativeSize({ w: vid.videoWidth, h: vid.videoHeight });
+              }}
               onPointerDown={(e) => {
                 if (activeClip) {
                   e.stopPropagation();
