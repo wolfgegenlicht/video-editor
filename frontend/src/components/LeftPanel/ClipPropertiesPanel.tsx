@@ -578,7 +578,7 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
     const enabling = !clip.reframe;
     if (!enabling) {
       const pendingJobId = _pendingReframeJobs.get(clip.id);
-      if (processingStatus === "processing" && pendingJobId) {
+      if (pendingJobId) {
         api.cancelReframeJob(pendingJobId).catch(() => {}); // fire-and-forget
         _pendingReframeJobs.delete(clip.id);
       }

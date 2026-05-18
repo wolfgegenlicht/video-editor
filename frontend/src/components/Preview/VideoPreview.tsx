@@ -74,10 +74,11 @@ interface VideoLayerProps {
   speedRampEffect: EffectOverlay | null;
   onSelect: () => void;
   reframeLeft?: number;
+  reframeVideoWidth?: number;
   onNativeSizeChange?: (w: number, h: number) => void;
 }
 
-function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalRef, speedRampEffect, onSelect, reframeLeft, onNativeSizeChange }: VideoLayerProps) {
+function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalRef, speedRampEffect, onSelect, reframeLeft, reframeVideoWidth, onNativeSizeChange }: VideoLayerProps) {
   const internalRef = useRef<HTMLVideoElement>(null);
   const videoRef = isPrimary && externalRef ? externalRef : internalRef;
   const missingFileIds = useProjectStore((s) => s.missingFileIds);
@@ -175,7 +176,15 @@ function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalR
         className={reframeLeft !== undefined ? "" : "w-full h-full object-cover"}
         muted={muted}
         style={reframeLeft !== undefined
-          ? { position: "absolute", height: "100%", width: "auto", left: reframeLeft, top: 0, ...videoStyle }
+          ? {
+              position: "absolute",
+              height: "100%",
+              width: reframeVideoWidth !== undefined ? `${reframeVideoWidth}px` : "auto",
+              maxWidth: "none",
+              left: reframeLeft,
+              top: 0,
+              ...videoStyle,
+            }
           : videoStyle
         }
         onPointerDown={(e) => { e.stopPropagation(); onSelect(); }}
@@ -364,23 +373,6 @@ export default function VideoPreview({ videoRef }: Props) {
     if (dragCounter.current === 0) setIsDraggingOver(false);
   };
 
-  // Compute reframe translation if the primary clip has tracking data
-  const primaryClip = primaryLayer?.clip ?? null;
-  const isReframeActive = !!(primaryClip?.reframe && primaryClip?.reframeData);
-  let reframeLeft: number = 0;
-  if (isReframeActive && primaryClip && primaryClip.reframeData) {
-    const sourceT = playheadTime - primaryClip.startTime + primaryClip.sourceStart;
-    const x_norm = interpolateX(primaryClip.reframeData.trackPoints, sourceT);
-    const container = outerRef.current;
-    if (container && videoNativeSize && videoNativeSize.w > 0 && videoNativeSize.h > 0) {
-      const containerWidth = container.clientWidth;
-      const containerHeight = container.clientHeight;
-      const videoDisplayWidth = containerHeight * (videoNativeSize.w / videoNativeSize.h);
-      const translateX = containerWidth / 2 - x_norm * videoDisplayWidth;
-      reframeLeft = Math.max(containerWidth - videoDisplayWidth, Math.min(0, translateX));
-    }
-  }
-
   const handleDragOver = (e: React.DragEvent) => {
     if (e.dataTransfer.types.includes("Files")) e.preventDefault();
   };
@@ -459,6 +451,31 @@ export default function VideoPreview({ videoRef }: Props) {
 
   const primaryLayer = activeVideoLayers[0] ?? null;
   const effectiveMuted = !!primaryLayer?.clip.muted || !!primaryLayer?.track.muted;
+
+  // Compute reframe translation if the primary clip has tracking data
+  const primaryClip = primaryLayer?.clip ?? null;
+  const isReframeActive = !!(primaryClip?.reframe && primaryClip?.reframeData);
+  // Use UploadedFile dimensions (available immediately) with videoNativeSize as runtime fallback
+  const primarySrcFile = primaryClip ? files.find((f) => f.id === primaryClip.fileId) ?? null : null;
+  const reframeNativeW = primarySrcFile?.width ?? videoNativeSize?.w ?? 0;
+  const reframeNativeH = primarySrcFile?.height ?? videoNativeSize?.h ?? 0;
+  const reframeNativeSize = reframeNativeW > 0 && reframeNativeH > 0 ? { w: reframeNativeW, h: reframeNativeH } : null;
+
+  let reframeLeft: number = 0;
+  let reframeVideoWidth: number | undefined;
+  if (isReframeActive && primaryClip && primaryClip.reframeData && reframeNativeSize) {
+    const sourceT = playheadTime - primaryClip.startTime + primaryClip.sourceStart;
+    const x_norm = interpolateX(primaryClip.reframeData.trackPoints, sourceT);
+    const container = outerRef.current;
+    if (container) {
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      const videoDisplayWidth = containerHeight * (reframeNativeW / reframeNativeH);
+      reframeVideoWidth = videoDisplayWidth;
+      const translateX = containerWidth / 2 - x_norm * videoDisplayWidth;
+      reframeLeft = Math.max(containerWidth - videoDisplayWidth, Math.min(0, translateX));
+    }
+  }
 
   const activeEffect = !hiddenEffectLanes?.zoom
     ? effectOverlays.find((e) => e.type === "zoom" && playheadTime >= e.startTime && playheadTime < e.endTime) ?? null
@@ -548,6 +565,7 @@ export default function VideoPreview({ videoRef }: Props) {
                   speedRampEffect={activeSpeedRamp}
                   onSelect={() => selectClip(clip.id)}
                   reframeLeft={isPrimary && isReframeActive ? reframeLeft : undefined}
+                  reframeVideoWidth={isPrimary && isReframeActive ? reframeVideoWidth : undefined}
                   onNativeSizeChange={isPrimary ? (w, h) => setVideoNativeSize({ w, h }) : undefined}
                 />
               );
