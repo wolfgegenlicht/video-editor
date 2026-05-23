@@ -9,3 +9,4 @@ tf_keras
 opencv-python
 deepfilternet
 soundfile
+mediapipe

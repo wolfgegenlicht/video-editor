@@ -47,7 +47,7 @@ export default function TransitionsTrack({ zoom, totalWidth, height }: Props) {
 
   return (
     <div
-      className="border-b border-slate-100 relative bg-teal-50"
+      className="border-b border-black/[0.06] relative bg-white"
       style={{ width: totalWidth, height }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}

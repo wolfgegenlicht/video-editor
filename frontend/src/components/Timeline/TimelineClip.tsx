@@ -209,17 +209,17 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
         className={`absolute top-1 bottom-1 rounded flex items-center overflow-hidden select-none group cursor-grab active:cursor-grabbing
           ${isAudioTrack
             ? isSelected
-              ? "bg-emerald-800 border-2 border-emerald-200"
-              : "bg-emerald-500 border border-emerald-600"
+              ? "bg-[#bee8cf] border border-emerald-500/55 ring-1 ring-emerald-500/30"
+              : "bg-[#d1f5e0] border border-emerald-400/35"
             : clip.muted
               ? isSelected
-                ? "bg-teal-400 border-2 border-white opacity-75"
-                : "bg-teal-300 border border-teal-400 opacity-75"
+                ? "bg-[#b8ede9] border border-[#0ea5a0]/60 opacity-75"
+                : "bg-[#ccf2ef] border border-[#0ea5a0]/25 opacity-75"
               : isSelected
-                ? "bg-teal-800 border-2 border-teal-200"
-                : "bg-teal-500 border border-teal-600"
+                ? "bg-[#b8ede9] border border-[#0ea5a0]/60 ring-1 ring-[#0ea5a0]/30"
+                : "bg-[#ccf2ef] border border-[#0ea5a0]/25"
           }
-          ${isMultiSelected ? "ring-2 ring-blue-400" : ""}`}
+          ${isMultiSelected ? "ring-2 ring-[#0ea5a0]/50" : ""}`}
         style={{ left, width }}
         draggable
         onDragStart={onDragStart}
@@ -233,7 +233,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
       >
         {/* Trim left handle */}
         <div
-          className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-700" : "bg-teal-700"}`}
+          className={`absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-400/60 hover:bg-emerald-400" : "bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60"}`}
           onMouseDown={(e) => startDrag(e, "trim-left")}
         />
         {file && (
@@ -248,14 +248,14 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
             opacity={isAudioTrack ? 0.65 : 0.40}
           />
         )}
-        <span className="px-2 text-[10px] text-white font-semibold truncate pointer-events-none flex-1 relative z-10 flex items-center gap-1">
+        <span className={`px-2 text-[11px] font-semibold truncate pointer-events-none flex-1 relative z-10 flex items-center gap-1 ${isAudioTrack ? "text-[#1a5c3a]" : "text-[#1a5c5a]"}`}>
           {isAudioTrack && <MusicIcon className="flex-shrink-0" />}
           {!isAudioTrack && clip.muted && <VolumeXIcon className="flex-shrink-0" />}
           {label}
         </span>
         {/* Trim right handle */}
         <div
-          className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-700" : "bg-teal-700"}`}
+          className={`absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-400/60 hover:bg-emerald-400" : "bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60"}`}
           onMouseDown={(e) => startDrag(e, "trim-right")}
         />
       </div>

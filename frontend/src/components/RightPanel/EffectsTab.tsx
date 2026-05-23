@@ -46,8 +46,8 @@ export default function EffectsTab() {
 
   return (
     <div className="flex-1 overflow-y-auto p-3 space-y-4">
-      <p className="text-[10px] font-bold text-slate-400">Video Effects</p>
-      <p className="text-[11px] text-slate-400">Drag or double-click to add to the timeline.</p>
+      <p className="text-[11px] font-bold text-[#6b6b78]">Video Effects</p>
+      <p className="text-[11px] text-[#6b6b78]">Drag or double-click to add to the timeline.</p>
 
       <EffectCard
         effectType="zoom" label="Zoom" desc="Zooms in, holds, zooms out"
@@ -116,8 +116,8 @@ export default function EffectsTab() {
         }
       />
 
-      <p className="text-[10px] font-bold text-slate-400 pt-2">Transitions</p>
-      <p className="text-[11px] text-slate-400">Double-click with playhead near a clip boundary.</p>
+      <p className="text-[11px] font-bold text-[#6b6b78] pt-2">Transitions</p>
+      <p className="text-[11px] text-[#6b6b78]">Double-click with playhead near a clip boundary.</p>
 
       <EffectCard
         effectType="dissolve" label="Cross Dissolve" desc="Dip to black between clips"
@@ -147,12 +147,12 @@ export default function EffectsTab() {
 type CardColor = "violet" | "amber" | "sky" | "rose" | "orange" | "teal";
 
 const COLOR_CLASSES: Record<CardColor, { border: string; bg: string; hover: string; title: string; desc: string }> = {
-  violet: { border: "border-violet-200", bg: "bg-violet-50", hover: "hover:bg-violet-100", title: "text-violet-800", desc: "text-violet-500" },
-  amber:  { border: "border-amber-200",  bg: "bg-amber-50",  hover: "hover:bg-amber-100",  title: "text-amber-800",  desc: "text-amber-500"  },
-  sky:    { border: "border-sky-200",    bg: "bg-sky-50",    hover: "hover:bg-sky-100",    title: "text-sky-800",    desc: "text-sky-500"    },
-  rose:   { border: "border-rose-200",   bg: "bg-rose-50",   hover: "hover:bg-rose-100",   title: "text-rose-800",   desc: "text-rose-500"   },
-  orange: { border: "border-orange-200", bg: "bg-orange-50", hover: "hover:bg-orange-100", title: "text-orange-800", desc: "text-orange-500" },
-  teal:   { border: "border-teal-200",   bg: "bg-teal-50",   hover: "hover:bg-teal-100",   title: "text-teal-800",   desc: "text-teal-500"   },
+  violet: { border: "border-violet-200", bg: "bg-violet-50", hover: "hover:bg-violet-100", title: "text-violet-700", desc: "text-violet-500" },
+  amber:  { border: "border-amber-200",  bg: "bg-amber-50",  hover: "hover:bg-amber-100",  title: "text-amber-700",  desc: "text-amber-500"  },
+  sky:    { border: "border-sky-200",    bg: "bg-sky-50",    hover: "hover:bg-sky-100",    title: "text-sky-700",    desc: "text-sky-500"    },
+  rose:   { border: "border-rose-200",   bg: "bg-rose-50",   hover: "hover:bg-rose-100",   title: "text-rose-700",   desc: "text-rose-500"   },
+  orange: { border: "border-orange-200", bg: "bg-orange-50", hover: "hover:bg-orange-100", title: "text-orange-700", desc: "text-orange-500" },
+  teal:   { border: "border-teal-200",   bg: "bg-teal-50",   hover: "hover:bg-teal-100",   title: "text-teal-700",   desc: "text-teal-500"   },
 };
 
 function EffectCard({ effectType, label, desc, color, icon, draggable = true, onDragStart, onDragEnd, onDoubleClick }: {

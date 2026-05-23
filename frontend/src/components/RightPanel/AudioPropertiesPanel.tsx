@@ -173,12 +173,12 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
           <button
             key={type}
             onClick={() => startJob(type)}
-            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
+            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#f7f7fa] transition-colors text-left"
           >
             <span className="mt-0.5 flex-shrink-0"><EnhanceIcon type={type} /></span>
             <span>
-              <span className="block font-medium">{ENHANCE_LABELS[type]}</span>
-              <span className="block text-[10px] text-slate-400 leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
+              <span className="block font-medium text-[#141416]">{ENHANCE_LABELS[type]}</span>
+              <span className="block text-[11px] text-[#6b6b78] leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
             </span>
           </button>
         ))}
@@ -193,22 +193,22 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
     );
     return (
       <div className="space-y-2">
-        <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+        <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-700">{ENHANCE_LABELS[activeType]}</span>
-            <span className="text-[10px] text-slate-400 tabular-nums">{pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}</span>
+            <span className="text-xs font-medium text-[#141416]">{ENHANCE_LABELS[activeType]}</span>
+            <span className="text-[11px] text-[#6b6b78] tabular-nums">{pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}</span>
           </div>
-          <div className="h-1 w-full rounded-full bg-slate-200">
+          <div className="h-1 w-full rounded-full bg-[#e4e4ea]">
             <div
-              className="h-full rounded-full bg-teal-500 transition-all duration-500"
+              className="h-full rounded-full bg-[#0ea5a0] transition-all duration-500"
               style={{ width: `${Math.max(2, pct)}%` }}
             />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[10px] text-slate-400">Processing…</span>
+            <span className="text-[11px] text-[#6b6b78]">Processing…</span>
             <button
               onClick={handleCancel}
-              className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+              className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors"
             >
               Cancel
             </button>
@@ -218,12 +218,12 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
           <button
             key={type}
             onClick={async () => { await handleCancel(); startJob(type); }}
-            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-slate-500 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
+            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#f7f7fa] transition-colors text-left"
           >
             <span className="mt-0.5 flex-shrink-0"><EnhanceIcon type={type} /></span>
             <span>
-              <span className="block font-medium">{ENHANCE_LABELS[type]}</span>
-              <span className="block text-[10px] text-slate-400 leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
+              <span className="block font-medium text-[#141416]">{ENHANCE_LABELS[type]}</span>
+              <span className="block text-[11px] text-[#6b6b78] leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
             </span>
           </button>
         ))}
@@ -234,12 +234,12 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
   // Error state
   if (status === "error") {
     return (
-      <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+      <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-slate-700">{ENHANCE_LABELS[activeType]}</span>
+          <span className="text-xs font-medium text-[#141416]">{ENHANCE_LABELS[activeType]}</span>
         </div>
         {errorMsg && (
-          <p className="text-[10px] text-amber-600 leading-snug">{errorMsg}</p>
+          <p className="text-[11px] text-amber-500 leading-snug">{errorMsg}</p>
         )}
         <button
           onClick={() => {
@@ -247,7 +247,7 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
             setClipAudioEnhance(clip.id, activeType, false);
             setErrorMsg(null);
           }}
-          className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors"
+          className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors"
         >
           Dismiss
         </button>
@@ -262,15 +262,15 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
   );
   return (
     <div className="space-y-2">
-      <div className="py-2 px-3 rounded-lg bg-teal-50 border border-teal-100 space-y-1.5">
+      <div className="py-2 px-3 rounded-lg bg-[rgba(14,165,160,0.08)] border border-[rgba(14,165,160,0.15)] space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-slate-700">{ENHANCE_LABELS[activeType]}</span>
+          <span className="text-xs font-medium text-[#141416]">{ENHANCE_LABELS[activeType]}</span>
           <button
             onClick={isEnabled ? handleToggleOff : handleToggleOn}
             aria-label={`Toggle ${ENHANCE_LABELS[activeType]}`}
             className={[
               "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 cursor-pointer",
-              isEnabled ? "bg-teal-500" : "bg-slate-200",
+              isEnabled ? "bg-[#0ea5a0]" : "bg-[#e4e4ea]",
             ].join(" ")}
           >
             <span
@@ -282,11 +282,11 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
           </button>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-slate-400">{ENHANCE_DESCRIPTIONS[activeType]}</span>
+          <span className="text-[11px] text-[#6b6b78]">{ENHANCE_DESCRIPTIONS[activeType]}</span>
           <button
             onClick={handleReprocess}
             title="Re-process"
-            className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-0.5"
+            className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors flex items-center gap-0.5"
           >
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
@@ -300,12 +300,12 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
         <button
           key={type}
           onClick={() => startJob(type)}
-          className="flex items-start gap-2 w-full px-3 py-2 text-xs text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors text-left"
+          className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#f7f7fa] transition-colors text-left"
         >
           <span className="mt-0.5 flex-shrink-0"><EnhanceIcon type={type} /></span>
           <span>
-            <span className="block font-medium">{ENHANCE_LABELS[type]}</span>
-            <span className="block text-[10px] text-slate-400 leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
+            <span className="block font-medium text-[#141416]">{ENHANCE_LABELS[type]}</span>
+            <span className="block text-[11px] text-[#6b6b78] leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
           </span>
         </button>
       ))}
@@ -331,7 +331,7 @@ export default function AudioPropertiesPanel() {
   if (!clip) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-xs text-slate-400 text-center">Select an audio clip to edit its properties</p>
+        <p className="text-xs text-[#6b6b78] text-center">Select an audio clip to edit its properties</p>
       </div>
     );
   }
@@ -350,9 +350,9 @@ export default function AudioPropertiesPanel() {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Clip info */}
-      <div className="px-3 py-2.5 border-b border-slate-100">
-        <p className="text-xs font-medium text-slate-700 truncate">{clipFile?.originalName ?? "Audio Clip"}</p>
-        <p className="text-[11px] text-slate-400">{clip.duration.toFixed(2)}s</p>
+      <div className="px-3 py-2.5 border-b border-black/[0.06]">
+        <p className="text-xs font-medium text-[#141416] truncate">{clipFile?.originalName ?? "Audio Clip"}</p>
+        <p className="text-[11px] text-[#6b6b78]">{clip.duration.toFixed(2)}s</p>
       </div>
 
       {/* Playback */}
@@ -372,7 +372,7 @@ export default function AudioPropertiesPanel() {
           format={formatPan}
         />
         <div>
-          <span className="text-xs text-slate-600 block mb-1.5">Speed</span>
+          <span className="text-xs text-[#6b6b78] block mb-1.5">Speed</span>
           <div className="flex flex-wrap gap-1">
             {SPEEDS.map((s) => (
               <button
@@ -380,8 +380,8 @@ export default function AudioPropertiesPanel() {
                 onClick={() => setClipSpeed(clip.id, s)}
                 className={`px-2.5 py-1 rounded text-[11px] border transition-colors
                   ${speed === s
-                    ? "bg-teal-600 text-white border-teal-600"
-                    : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"}`}
+                    ? "bg-[#0ea5a0] text-white border-[#0ea5a0]"
+                    : "border-black/10 text-[#6b6b78] hover:border-black/[0.18] hover:bg-[#ebebef]"}`}
               >
                 {s}×
               </button>

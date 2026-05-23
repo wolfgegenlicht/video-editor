@@ -44,23 +44,23 @@ export default function ClipContextMenu({ x, y, items, onClose }: Props) {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-xl py-1 min-w-[180px]"
+      className="fixed z-50 bg-white border border-black/10 rounded-xl shadow-lg shadow-black/15 py-1 min-w-[180px]"
       style={{ left, top }}
       onContextMenu={(e) => e.preventDefault()}
     >
       {items.map((item, i) =>
         item.label === "---" ? (
-          <div key={i} className="my-1 border-t border-slate-100" />
+          <div key={i} className="my-1 border-t border-black/[0.06]" />
         ) : (
           <button
             key={i}
             disabled={item.disabled}
             className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors cursor-pointer
               ${item.disabled
-                ? "text-slate-300 cursor-not-allowed"
+                ? "text-[#a0a0ae] cursor-not-allowed"
                 : item.danger
-                  ? "text-red-600 hover:bg-red-50"
-                  : "text-slate-700 hover:bg-slate-50"
+                  ? "text-[#dc2626] hover:bg-red-50"
+                  : "text-[#141416] hover:bg-[#f7f7fa]"
               }`}
             onClick={() => {
               if (!item.disabled) {

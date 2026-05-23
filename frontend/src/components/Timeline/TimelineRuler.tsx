@@ -26,8 +26,8 @@ export default function TimelineRuler({ totalWidth, zoom, seek }: Props) {
     const x = t * zoom;
     ticks.push(
       <div key={t} className="absolute top-0 flex flex-col items-center" style={{ left: x }}>
-        <div className="w-px h-2 bg-slate-300" />
-        <span className="text-slate-400 text-[9px] mt-0.5 select-none whitespace-nowrap">{t}s</span>
+        <div className="w-px h-2 bg-[#c0c0cc]" />
+        <span className="text-[#6b6b78] text-[10px] mt-0.5 select-none whitespace-nowrap">{t}s</span>
       </div>
     );
   }
@@ -35,7 +35,7 @@ export default function TimelineRuler({ totalWidth, zoom, seek }: Props) {
   return (
     <div
       ref={rulerRef}
-      className="relative h-6 bg-slate-50 border-b border-slate-200 cursor-pointer flex-shrink-0"
+      className="relative h-6 bg-[#f2f2f6] border-b border-black/[0.07] cursor-pointer flex-shrink-0"
       style={{ width: totalWidth }}
       onClick={handleClick}
     >

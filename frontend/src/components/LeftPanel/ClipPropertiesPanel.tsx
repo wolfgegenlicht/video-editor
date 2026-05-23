@@ -147,16 +147,16 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
   const etaLabel = eta != null && eta > 0 ? ` · ~${eta}s left` : "";
 
   return (
-    <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+    <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-slate-700">Eye Contact</p>
+        <p className="text-xs font-medium text-[#141416]">Eye Contact</p>
         <button
           onClick={handleToggle}
           disabled={isProcessing}
           aria-label="Toggle eye contact correction"
           className={[
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
-            isOn ? "bg-teal-500" : "bg-slate-200",
+            isOn ? "bg-[#0ea5a0]" : "bg-[#e4e4ea]",
             isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
           ].join(" ")}
         >
@@ -172,31 +172,31 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
       {isProcessing ? (
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="h-1 flex-1 rounded-full bg-slate-200 overflow-hidden">
+            <div className="h-1 flex-1 rounded-full bg-[#e4e4ea] overflow-hidden">
               <div
-                className="h-full rounded-full bg-teal-500 transition-all duration-500"
+                className="h-full rounded-full bg-[#0ea5a0] transition-all duration-500"
                 style={{ width: `${Math.max(2, pct)}%` }}
               />
             </div>
-            <button onClick={handleCancel} title="Cancel" className="flex-shrink-0 text-[11px] text-slate-400 hover:text-red-400 transition-colors leading-none cursor-pointer">✕</button>
+            <button onClick={handleCancel} title="Cancel" className="flex-shrink-0 text-[11px] text-[#6b6b78] hover:text-red-500 transition-colors leading-none cursor-pointer">✕</button>
           </div>
-          <p className="text-[10px] text-slate-400 tabular-nums">
+          <p className="text-[11px] text-[#6b6b78] tabular-nums">
             {pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}
           </p>
         </div>
       ) : errorMsg ? (
-        <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
+        <p className="text-[11px] text-amber-500 leading-snug">⚠ {errorMsg}</p>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-[11px] text-slate-400">AI gaze correction</p>
+          <p className="text-[11px] text-[#6b6b78]">AI gaze correction</p>
           {isOn && clip.eyeContactFileId && (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPreviewOriginalClipId(isComparing ? null : clip.id)}
                 title={isComparing ? "Show processed" : "Preview original"}
                 className={[
-                  "text-[10px] transition-colors flex items-center gap-0.5",
-                  isComparing ? "text-teal-600 font-medium" : "text-slate-400 hover:text-slate-600",
+                  "text-[11px] transition-colors flex items-center gap-0.5",
+                  isComparing ? "text-[#0d9488] font-medium" : "text-[#6b6b78] hover:text-[#141416]",
                 ].join(" ")}
               >
                 <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -208,7 +208,7 @@ function EyeContactToggle({ clip }: { clip: Clip }) {
               <button
                 onClick={handleReprocess}
                 title="Re-process"
-                className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-0.5"
+                className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors flex items-center gap-0.5"
               >
                 <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
@@ -385,16 +385,16 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
   const etaLabel = eta != null && eta > 0 ? ` · ~${eta}s left` : "";
 
   return (
-    <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+    <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-slate-700">Blur Background</p>
+        <p className="text-xs font-medium text-[#141416]">Blur Background</p>
         <button
           onClick={handleToggle}
           disabled={isProcessing}
           aria-label="Toggle background blur"
           className={[
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
-            isOn ? "bg-teal-500" : "bg-slate-200",
+            isOn ? "bg-[#0ea5a0]" : "bg-[#e4e4ea]",
             isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
           ].join(" ")}
         >
@@ -422,31 +422,31 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
       {isProcessing ? (
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="h-1 flex-1 rounded-full bg-slate-200 overflow-hidden">
+            <div className="h-1 flex-1 rounded-full bg-[#e4e4ea] overflow-hidden">
               <div
-                className="h-full rounded-full bg-teal-500 transition-all duration-500"
+                className="h-full rounded-full bg-[#0ea5a0] transition-all duration-500"
                 style={{ width: `${Math.max(2, pct)}%` }}
               />
             </div>
-            <button onClick={handleCancel} title="Cancel" className="flex-shrink-0 text-[11px] text-slate-400 hover:text-red-400 transition-colors leading-none cursor-pointer">✕</button>
+            <button onClick={handleCancel} title="Cancel" className="flex-shrink-0 text-[11px] text-[#6b6b78] hover:text-red-500 transition-colors leading-none cursor-pointer">✕</button>
           </div>
-          <p className="text-[10px] text-slate-400 tabular-nums">
+          <p className="text-[11px] text-[#6b6b78] tabular-nums">
             {pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}
           </p>
         </div>
       ) : errorMsg ? (
-        <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
+        <p className="text-[11px] text-amber-500 leading-snug">⚠ {errorMsg}</p>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-[11px] text-slate-400">AI background blur · preview applies to playback</p>
+          <p className="text-[11px] text-[#6b6b78]">AI background blur · preview applies to playback</p>
           {isOn && clip.blurBackgroundFileId && (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setPreviewOriginalClipId(isComparing ? null : clip.id)}
                 title={isComparing ? "Show processed" : "Preview original"}
                 className={[
-                  "text-[10px] transition-colors flex items-center gap-0.5",
-                  isComparing ? "text-teal-600 font-medium" : "text-slate-400 hover:text-slate-600",
+                  "text-[11px] transition-colors flex items-center gap-0.5",
+                  isComparing ? "text-[#0d9488] font-medium" : "text-[#6b6b78] hover:text-[#141416]",
                 ].join(" ")}
               >
                 <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -458,7 +458,7 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
               <button
                 onClick={handleReprocess}
                 title="Re-process"
-                className="text-[10px] text-slate-400 hover:text-slate-600 transition-colors flex items-center gap-0.5"
+                className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors flex items-center gap-0.5"
               >
                 <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
@@ -615,16 +615,16 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
   const etaLabel = eta != null && eta > 0 ? ` · ~${eta}s left` : "";
 
   return (
-    <div className="py-2 px-3 rounded-lg bg-slate-50 border border-slate-100 space-y-1.5">
+    <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-slate-700">Smart Reframe</p>
+        <p className="text-xs font-medium text-[#141416]">Smart Reframe</p>
         <button
           onClick={handleToggle}
           disabled={isProcessing}
           aria-label="Toggle smart reframe"
           className={[
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
-            isOn ? "bg-teal-500" : "bg-slate-200",
+            isOn ? "bg-[#0ea5a0]" : "bg-[#e4e4ea]",
             isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
           ].join(" ")}
         >
@@ -639,26 +639,26 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
 
       {isProcessing ? (
         <div className="space-y-1">
-          <div className="h-1 w-full rounded-full bg-slate-200 overflow-hidden">
+          <div className="h-1 w-full rounded-full bg-[#e4e4ea] overflow-hidden">
             <div
-              className="h-full rounded-full bg-teal-500 transition-all duration-500"
+              className="h-full rounded-full bg-[#0ea5a0] transition-all duration-500"
               style={{ width: `${Math.max(2, pct)}%` }}
             />
           </div>
-          <p className="text-[10px] text-slate-400 tabular-nums">
+          <p className="text-[11px] text-[#6b6b78] tabular-nums">
             {pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}
           </p>
         </div>
       ) : errorMsg ? (
-        <p className="text-[10px] text-amber-600 leading-snug">⚠ {errorMsg}</p>
+        <p className="text-[11px] text-amber-500 leading-snug">⚠ {errorMsg}</p>
       ) : (
-        <p className="text-[11px] text-slate-400">Switches project to 9:16</p>
+        <p className="text-[11px] text-[#6b6b78]">Switches project to 9:16</p>
       )}
 
       {processingStatus === "done" && (
         <button
           onClick={handleReanalyze}
-          className="text-[10px] text-slate-400 underline hover:text-slate-600 transition-colors"
+          className="text-[11px] text-[#6b6b78] underline hover:text-[#141416] transition-colors"
         >
           Re-analyze
         </button>
@@ -686,71 +686,71 @@ export default function ClipPropertiesPanel() {
     return (
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         <div>
-          <label className="text-xs text-slate-400 block mb-1">Text</label>
+          <label className="text-xs text-[#6b6b78] block mb-1">Text</label>
           <textarea
             value={overlay.text}
             onChange={(e) => updateTextOverlay(overlay.id, { text: e.target.value })}
-            className="w-full text-sm border border-slate-200 rounded p-2 resize-none outline-none focus:ring-1 focus:ring-teal-500"
+            className="w-full text-sm bg-[#f2f2f6] border border-black/10 text-[#141416] rounded p-2 resize-none outline-none focus:ring-1 focus:ring-[#0ea5a0]"
             rows={3}
           />
         </div>
         <div>
-          <label className="text-xs text-slate-400 block mb-1">
+          <label className="text-xs text-[#6b6b78] block mb-1">
             Font Size — {overlay.fontSize}px
           </label>
           <input type="range" min={12} max={120} step={2} value={overlay.fontSize}
             onChange={(e) => updateTextOverlay(overlay.id, { fontSize: parseInt(e.target.value) })}
-            className="w-full accent-teal-600" />
+            className="w-full accent-[#0ea5a0]" />
         </div>
         <div>
-          <label className="text-xs text-slate-400 block mb-1">Color</label>
+          <label className="text-xs text-[#6b6b78] block mb-1">Color</label>
           <input type="color" value={overlay.color}
             onChange={(e) => updateTextOverlay(overlay.id, { color: e.target.value })}
-            className="w-full h-8 rounded border border-slate-200 cursor-pointer" />
+            className="w-full h-8 rounded border border-black/10 cursor-pointer" />
         </div>
         <div>
-          <label className="text-xs text-slate-400 block mb-1">Weight</label>
+          <label className="text-xs text-[#6b6b78] block mb-1">Weight</label>
           <div className="flex gap-2">
             {(["normal", "bold"] as const).map((w) => (
               <button key={w} onClick={() => updateTextOverlay(overlay.id, { fontWeight: w })}
                 className={`flex-1 py-1 rounded text-xs border transition-colors
-                  ${overlay.fontWeight === w ? "bg-teal-600 text-white border-teal-600" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+                  ${overlay.fontWeight === w ? "bg-[#0ea5a0] text-white border-[#0ea5a0]" : "border-black/10 text-[#6b6b78] hover:bg-[#ebebef]"}`}>
                 {w}
               </button>
             ))}
           </div>
         </div>
         <div>
-          <label className="text-xs text-slate-400 block mb-1">Position X — {overlay.x.toFixed(0)}%</label>
+          <label className="text-xs text-[#6b6b78] block mb-1">Position X — {overlay.x.toFixed(0)}%</label>
           <input type="range" min={0} max={100} value={overlay.x}
             onChange={(e) => updateTextOverlay(overlay.id, { x: parseInt(e.target.value) })}
-            className="w-full accent-teal-600" />
+            className="w-full accent-[#0ea5a0]" />
         </div>
         <div>
-          <label className="text-xs text-slate-400 block mb-1">Position Y — {overlay.y.toFixed(0)}%</label>
+          <label className="text-xs text-[#6b6b78] block mb-1">Position Y — {overlay.y.toFixed(0)}%</label>
           <input type="range" min={0} max={100} value={overlay.y}
             onChange={(e) => updateTextOverlay(overlay.id, { y: parseInt(e.target.value) })}
-            className="w-full accent-teal-600" />
+            className="w-full accent-[#0ea5a0]" />
         </div>
         <div>
-          <label className="text-xs text-slate-400 block mb-1">
+          <label className="text-xs text-[#6b6b78] block mb-1">
             Duration — {(overlay.endTime - overlay.startTime).toFixed(1)}s
           </label>
           <input type="range" min={0.5} max={30} step={0.5} value={overlay.endTime - overlay.startTime}
             onChange={(e) => updateTextOverlay(overlay.id, { endTime: overlay.startTime + parseFloat(e.target.value) })}
-            className="w-full accent-teal-600" />
+            className="w-full accent-[#0ea5a0]" />
         </div>
         <div>
-          <label className="text-xs text-slate-400 block mb-1">Background</label>
+          <label className="text-xs text-[#6b6b78] block mb-1">Background</label>
           <div className="flex gap-2">
             <button onClick={() => updateTextOverlay(overlay.id, { background: "transparent" })}
               className={`flex-1 py-1 rounded text-xs border transition-colors
-                ${overlay.background === "transparent" ? "bg-teal-600 text-white border-teal-600" : "border-slate-200 text-slate-700 hover:bg-slate-50"}`}>
+                ${overlay.background === "transparent" ? "bg-[#0ea5a0] text-white border-[#0ea5a0]" : "border-black/10 text-[#6b6b78] hover:bg-[#ebebef]"}`}>
               None
             </button>
             <input type="color" value={overlay.background === "transparent" ? "#000000" : overlay.background}
               onChange={(e) => updateTextOverlay(overlay.id, { background: e.target.value })}
-              className="flex-1 h-8 rounded border border-slate-200 cursor-pointer" title="Background color" />
+              className="flex-1 h-8 rounded border border-black/10 cursor-pointer" title="Background color" />
           </div>
         </div>
       </div>
@@ -764,7 +764,7 @@ export default function ClipPropertiesPanel() {
   if (!clip) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-xs text-slate-400 text-center">Select a clip, caption, or text overlay to edit its properties</p>
+        <p className="text-xs text-[#6b6b78] text-center">Select a clip, caption, or text overlay to edit its properties</p>
       </div>
     );
   }
@@ -788,15 +788,15 @@ export default function ClipPropertiesPanel() {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Clip info */}
-      <div className="px-3 py-2.5 border-b border-slate-100">
-        <p className="text-xs font-medium text-slate-700 truncate">{clipFile?.originalName ?? "Clip"}</p>
-        <p className="text-[11px] text-slate-400">{clip.duration.toFixed(2)}s</p>
+      <div className="px-3 py-2.5 border-b border-black/[0.06]">
+        <p className="text-xs font-medium text-[#141416] truncate">{clipFile?.originalName ?? "Clip"}</p>
+        <p className="text-[11px] text-[#6b6b78]">{clip.duration.toFixed(2)}s</p>
       </div>
 
       {/* Playback */}
       <Section title="Playback">
         <div>
-          <span className="text-xs text-slate-600 block mb-1.5">Speed</span>
+          <span className="text-xs text-[#6b6b78] block mb-1.5">Speed</span>
           <div className="flex flex-wrap gap-1">
             {SPEEDS.map((s) => (
               <button
@@ -804,8 +804,8 @@ export default function ClipPropertiesPanel() {
                 onClick={() => setClipSpeed(clip.id, s)}
                 className={`px-2.5 py-1 rounded text-[11px] border transition-colors
                   ${speed === s
-                    ? "bg-teal-600 text-white border-teal-600"
-                    : "border-slate-200 text-slate-600 hover:border-slate-400 hover:bg-slate-50"}`}
+                    ? "bg-[#0ea5a0] text-white border-[#0ea5a0]"
+                    : "border-black/10 text-[#6b6b78] hover:border-black/[0.18] hover:bg-[#ebebef]"}`}
               >
                 {s}×
               </button>
@@ -869,7 +869,7 @@ export default function ClipPropertiesPanel() {
               setClipAdjustment(clip.id, "contrast", 1);
               setClipAdjustment(clip.id, "saturation", 1);
             }}
-            className="text-[11px] text-slate-400 border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50 hover:text-slate-600 transition-colors"
+            className="text-[11px] text-[#6b6b78] border border-black/10 rounded px-2 py-0.5 hover:bg-[#ebebef] hover:text-[#141416] transition-colors"
           >
             Reset adjustments
           </button>
@@ -880,55 +880,55 @@ export default function ClipPropertiesPanel() {
       <Section title="Transform">
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-xs text-slate-600">X offset</span>
-            <span className="text-[11px] text-slate-400 tabular-nums">{tx.toFixed(1)}%</span>
+            <span className="text-xs text-[#6b6b78]">X offset</span>
+            <span className="text-[11px] text-[#6b6b78] tabular-nums">{tx.toFixed(1)}%</span>
           </div>
           <input
             type="range" min={-200} max={200} step={1} value={tx}
             onChange={(e) => setClipTransform(clip.id, { x: parseFloat(e.target.value) })}
-            className="w-full accent-teal-600 h-1"
+            className="w-full accent-[#0ea5a0] h-1"
           />
         </div>
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-xs text-slate-600">Y offset</span>
-            <span className="text-[11px] text-slate-400 tabular-nums">{ty.toFixed(1)}%</span>
+            <span className="text-xs text-[#6b6b78]">Y offset</span>
+            <span className="text-[11px] text-[#6b6b78] tabular-nums">{ty.toFixed(1)}%</span>
           </div>
           <input
             type="range" min={-200} max={200} step={1} value={ty}
             onChange={(e) => setClipTransform(clip.id, { y: parseFloat(e.target.value) })}
-            className="w-full accent-teal-600 h-1"
+            className="w-full accent-[#0ea5a0] h-1"
           />
         </div>
         {tScale === 1 && (tx !== 0 || ty !== 0) && (
-          <p className="text-[10px] text-amber-500">Increase scale to pan — translation has no effect at 100%</p>
+          <p className="text-[11px] text-amber-600">Increase scale to pan — translation has no effect at 100%</p>
         )}
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-xs text-slate-600">Scale</span>
-            <span className="text-[11px] text-slate-400 tabular-nums">{Math.round(tScale * 100)}%</span>
+            <span className="text-xs text-[#6b6b78]">Scale</span>
+            <span className="text-[11px] text-[#6b6b78] tabular-nums">{Math.round(tScale * 100)}%</span>
           </div>
           <input
             type="range" min={100} max={500} step={1} value={Math.round(tScale * 100)}
             onChange={(e) => setClipTransform(clip.id, { scale: parseInt(e.target.value) / 100 })}
-            className="w-full accent-teal-600 h-1"
+            className="w-full accent-[#0ea5a0] h-1"
           />
         </div>
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-xs text-slate-600">Rotation</span>
-            <span className="text-[11px] text-slate-400 tabular-nums">{tRotation.toFixed(1)}°</span>
+            <span className="text-xs text-[#6b6b78]">Rotation</span>
+            <span className="text-[11px] text-[#6b6b78] tabular-nums">{tRotation.toFixed(1)}°</span>
           </div>
           <input
             type="range" min={-180} max={180} step={1} value={tRotation}
             onChange={(e) => setClipTransform(clip.id, { rotation: parseFloat(e.target.value) })}
-            className="w-full accent-teal-600 h-1"
+            className="w-full accent-[#0ea5a0] h-1"
           />
         </div>
         {hasTransform && (
           <button
             onClick={() => setClipTransform(clip.id, { x: 0, y: 0, scale: 1, rotation: 0 })}
-            className="text-[11px] text-slate-400 border border-slate-200 rounded px-2 py-0.5 hover:bg-slate-50 hover:text-slate-600 transition-colors"
+            className="text-[11px] text-[#6b6b78] border border-black/10 rounded px-2 py-0.5 hover:bg-[#ebebef] hover:text-[#141416] transition-colors"
           >
             Reset transform
           </button>
@@ -937,7 +937,7 @@ export default function ClipPropertiesPanel() {
 
       {/* Effects */}
       <div className="px-3 py-3 space-y-2">
-        <p className="text-[10px] font-bold text-slate-400">Effects</p>
+        <p className="text-[11px] font-bold text-[#6b6b78]">Effects</p>
         <EyeContactToggle clip={clip} />
         <BlurBackgroundToggle clip={clip} />
         <SmartReframeToggle clip={clip} />

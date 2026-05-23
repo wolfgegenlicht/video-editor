@@ -6,7 +6,7 @@ import type { ProjectSummary } from "../../lib/api";
 const THUMB_GRADIENTS = [
   "from-teal-400 to-emerald-500",
   "from-violet-400 to-indigo-500",
-  "from-amber-400 to-orange-500",
+  "from-amber-400 to-orange-400",
   "from-rose-400 to-pink-500",
   "from-sky-400 to-blue-500",
 ];
@@ -83,35 +83,35 @@ export default function ProjectPicker() {
 
   return (
     <div
-      className="min-h-screen bg-slate-50 text-slate-900 flex flex-col"
+      className="min-h-screen bg-[#f0f0f4] text-[#141416] flex flex-col"
       onClick={() => setOpenMenu(null)}
     >
       {/* Top bar */}
-      <div className="h-[52px] bg-white border-b border-slate-200 flex items-center px-7 gap-3 flex-shrink-0">
-        <div className="w-7 h-7 bg-teal-600 rounded-lg flex items-center justify-center flex-shrink-0">
+      <div className="h-[52px] bg-white border-b border-black/[0.08] flex items-center px-7 gap-3 flex-shrink-0">
+        <div className="w-7 h-7 bg-[#0ea5a0] rounded-lg flex items-center justify-center flex-shrink-0">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="1.5" y="3" width="12" height="10" rx="2" />
             <path d="M5.5 6.5l4 2-4 2V6.5z" fill="white" stroke="none" />
           </svg>
         </div>
-        <span className="text-[15px] font-bold text-slate-900 tracking-tight">Video Editor</span>
+        <span className="text-[15px] font-semibold text-[#141416] tracking-tight">Video Editor</span>
       </div>
 
       {/* Content */}
       <div className="p-8 max-w-5xl mx-auto w-full">
         <div className="flex items-center justify-between mb-7">
-          <h1 className="text-[18px] font-bold text-slate-900 tracking-tight">Projects</h1>
+          <h1 className="text-xl font-semibold text-[#141416] tracking-tight">Projects</h1>
           <button
-            className="flex items-center gap-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 bg-[#0ea5a0] hover:bg-[#0c9490] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer"
             onClick={() => setCreating(true)}
           >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round"><path d="M6 1v10M1 6h10"/></svg>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 1v10M1 6h10"/></svg>
             New Project
           </button>
         </div>
 
         {loading ? (
-          <p className="text-slate-400 text-sm">Loading...</p>
+          <p className="text-[#6b6b78] text-sm">Loading...</p>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {projects.map((project, i) => {
@@ -119,21 +119,21 @@ export default function ProjectPicker() {
               return (
                 <div
                   key={project.id}
-                  className="relative group bg-white rounded-xl overflow-hidden cursor-pointer border border-slate-200 hover:border-slate-300 hover:shadow-md hover:-translate-y-px transition-all"
+                  className="relative group bg-white rounded-xl overflow-hidden cursor-pointer border border-black/[0.07] shadow-sm hover:shadow-md hover:border-[#0ea5a0]/40 hover:-translate-y-px transition-all duration-200"
                   onClick={() => handleOpen(project.id)}
                 >
                   <div className={`bg-gradient-to-br ${gradient} aspect-video flex items-center justify-center`}>
-                    <div className="w-8 h-8 rounded-full bg-white/80 flex items-center justify-center">
-                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-slate-600 translate-x-px">
+                    <div className="w-8 h-8 rounded-full bg-white/80 border border-white/50 flex items-center justify-center">
+                      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-slate-700 translate-x-px">
                         <polygon points="2,1 11,6 2,11" fill="currentColor" stroke="none" />
                       </svg>
                     </div>
                   </div>
-                  <div className="p-3">
+                  <div className="p-3 border-t border-black/[0.07]">
                     {renamingId === project.id ? (
                       <input
                         autoFocus
-                        className="text-sm font-semibold bg-slate-100 text-slate-900 rounded px-1 w-full outline-none ring-1 ring-teal-500"
+                        className="text-sm font-medium bg-[#f2f2f6] text-[#141416] rounded px-1 w-full outline-none ring-1 ring-[#0ea5a0] border-none"
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
                         onClick={(e) => e.stopPropagation()}
@@ -144,13 +144,13 @@ export default function ProjectPicker() {
                         }}
                       />
                     ) : (
-                      <p className="text-sm font-semibold text-slate-900 truncate">{project.name}</p>
+                      <p className="text-sm font-medium text-[#141416] truncate">{project.name}</p>
                     )}
-                    <p className="text-xs text-slate-400 mt-0.5">{formatDate(project.updated_at)}</p>
+                    <p className="text-xs text-[#6b6b78] mt-0.5">{formatDate(project.updated_at)}</p>
                   </div>
 
                   <button
-                    className="absolute top-2 right-2 w-6 h-6 rounded-md bg-white/85 border border-slate-200 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs hover:bg-white cursor-pointer"
+                    className="absolute top-2 right-2 w-6 h-6 rounded-md bg-white/90 border border-black/10 text-[#6b6b78] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs hover:text-[#141416] hover:bg-[#f0f0f4] cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenMenu(openMenu === project.id ? null : project.id);
@@ -161,17 +161,17 @@ export default function ProjectPicker() {
 
                   {openMenu === project.id && (
                     <div
-                      className="absolute top-8 right-2 bg-white border border-slate-200 rounded-lg shadow-xl z-10 min-w-28 overflow-hidden py-1"
+                      className="absolute top-8 right-2 bg-white border border-black/10 rounded-xl shadow-xl shadow-black/15 z-10 min-w-28 overflow-hidden py-1"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
-                        className="block w-full text-left px-3 py-2 text-xs text-slate-700 hover:bg-slate-50 cursor-pointer"
+                        className="block w-full text-left px-3 py-2 text-xs text-[#141416] hover:bg-[#f7f7fa] cursor-pointer"
                         onClick={() => startRename(project.id, project.name)}
                       >
                         Rename
                       </button>
                       <button
-                        className="block w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 cursor-pointer"
+                        className="block w-full text-left px-3 py-2 text-xs text-[#dc2626] hover:bg-red-50 cursor-pointer"
                         onClick={() => handleDelete(project.id)}
                       >
                         Delete
@@ -183,10 +183,10 @@ export default function ProjectPicker() {
             })}
 
             {creating ? (
-              <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col gap-2 justify-center min-h-32">
+              <div className="bg-white rounded-xl border border-black/10 p-4 flex flex-col gap-2 justify-center min-h-32">
                 <input
                   autoFocus
-                  className="text-sm bg-slate-50 text-slate-900 rounded-lg px-2 py-1.5 outline-none ring-1 ring-teal-500 border border-slate-200 w-full"
+                  className="text-sm bg-[#f2f2f6] text-[#141416] rounded-lg px-2 py-1.5 outline-none ring-1 ring-[#0ea5a0] focus:border-[#0ea5a0] border border-black/10 w-full"
                   placeholder="Project name"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
@@ -197,13 +197,13 @@ export default function ProjectPicker() {
                 />
                 <div className="flex gap-2">
                   <button
-                    className="flex-1 text-xs py-1.5 bg-teal-600 hover:bg-teal-700 rounded-lg text-white font-semibold transition-colors cursor-pointer"
+                    className="flex-1 text-xs py-1.5 bg-[#0ea5a0] hover:bg-[#0c9490] rounded-lg text-white font-semibold transition-colors cursor-pointer"
                     onClick={handleCreate}
                   >
                     Create
                   </button>
                   <button
-                    className="flex-1 text-xs py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 transition-colors cursor-pointer"
+                    className="flex-1 text-xs py-1.5 bg-[#f2f2f6] hover:bg-[#ebebef] rounded-lg text-[#6b6b78] transition-colors cursor-pointer"
                     onClick={() => { setCreating(false); setNewName(""); }}
                   >
                     Cancel
@@ -212,15 +212,15 @@ export default function ProjectPicker() {
               </div>
             ) : (
               <div
-                className="bg-transparent rounded-xl border-2 border-dashed border-slate-300 hover:border-teal-500 hover:bg-teal-50 flex flex-col items-center justify-center gap-2 cursor-pointer min-h-32 transition-all group"
+                className="bg-transparent rounded-xl border-2 border-dashed border-black/[0.15] hover:border-[#0ea5a0]/60 hover:bg-[rgba(14,165,160,0.04)] flex flex-col items-center justify-center gap-2 cursor-pointer min-h-32 transition-all group"
                 onClick={() => setCreating(true)}
               >
-                <div className="w-8 h-8 rounded-full border-2 border-slate-300 group-hover:border-teal-500 flex items-center justify-center transition-colors">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-slate-400 group-hover:text-teal-500 transition-colors">
+                <div className="w-8 h-8 rounded-full border border-black/20 group-hover:border-[#0ea5a0]/60 flex items-center justify-center transition-colors">
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-[#6b6b78] group-hover:text-[#0ea5a0] transition-colors">
                     <path d="M7 1v12M1 7h12"/>
                   </svg>
                 </div>
-                <span className="text-xs font-semibold text-slate-400 group-hover:text-teal-600 transition-colors">New Project</span>
+                <span className="text-xs font-semibold text-[#6b6b78] group-hover:text-[#0ea5a0] transition-colors">New Project</span>
               </div>
             )}
           </div>

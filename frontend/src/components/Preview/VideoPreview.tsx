@@ -572,7 +572,7 @@ export default function VideoPreview({ videoRef }: Props) {
             })}
           </div>
         ) : files.length === 0 ? (
-          <div className="w-full h-full flex items-center justify-center text-gray-400 text-sm">
+          <div className="w-full h-full flex items-center justify-center text-[#6b6b78] text-sm">
             Upload media to get started
           </div>
         ) : null}

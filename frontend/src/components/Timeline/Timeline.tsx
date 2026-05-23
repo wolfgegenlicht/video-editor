@@ -37,7 +37,7 @@ const MAX_TRACK_H = 160;
 const CHROME_H = 64;
 
 const TRACK_DOT_COLORS: Record<string, string> = {
-  video: "bg-teal-500",
+  video: "bg-[#0ea5a0]",
   audio: "bg-emerald-500",
 };
 
@@ -169,12 +169,12 @@ export default function Timeline({ toggle, seek }: Props) {
   const hasTransitions = (project.clipTransitions ?? []).length > 0;
 
   const GHOST_COLORS: Record<string, { bg: string; border: string; dot: string; text: string; label: string }> = {
-    zoom:       { bg: "bg-violet-50",  border: "border-violet-300", dot: "bg-violet-500",  text: "text-violet-500",  label: "zoom" },
-    fade:       { bg: "bg-amber-50",   border: "border-amber-300",  dot: "bg-amber-400",   text: "text-amber-500",   label: "fade" },
-    blur:       { bg: "bg-sky-50",     border: "border-sky-300",    dot: "bg-sky-500",     text: "text-sky-500",     label: "blur" },
-    colorgrade: { bg: "bg-rose-50",    border: "border-rose-300",   dot: "bg-rose-400",    text: "text-rose-500",    label: "color" },
-    speedramp:  { bg: "bg-orange-50",  border: "border-orange-300", dot: "bg-orange-500",  text: "text-orange-500",  label: "speed" },
-    dissolve:   { bg: "bg-teal-50",    border: "border-teal-300",   dot: "bg-teal-500",    text: "text-teal-500",    label: "transitions" },
+    zoom:       { bg: "bg-violet-500/10",  border: "border-violet-400/40", dot: "bg-violet-500",  text: "text-violet-400",  label: "zoom" },
+    fade:       { bg: "bg-amber-500/10",   border: "border-amber-400/40",  dot: "bg-amber-400",   text: "text-amber-400",   label: "fade" },
+    blur:       { bg: "bg-sky-500/10",     border: "border-sky-400/40",    dot: "bg-sky-500",     text: "text-sky-400",     label: "blur" },
+    colorgrade: { bg: "bg-rose-500/10",    border: "border-rose-400/40",   dot: "bg-rose-400",    text: "text-rose-400",    label: "color" },
+    speedramp:  { bg: "bg-orange-500/10",  border: "border-orange-400/40", dot: "bg-orange-500",  text: "text-orange-400",  label: "speed" },
+    dissolve:   { bg: "bg-[rgba(14,165,160,0.08)]",   border: "border-[#0ea5a0]/40",  dot: "bg-[#0ea5a0]",   text: "text-[#0d9488]",   label: "transitions" },
   };
   const EFFECT_DURATION_GHOST: Record<string, number> = { zoom: 3, fade: 1, blur: 3, colorgrade: 3, speedramp: 2 };
   const EFFECT_PARAMS_GHOST: Record<string, object> = {
@@ -414,27 +414,27 @@ export default function Timeline({ toggle, seek }: Props) {
   const scrubberPct = totalDuration > 0 ? Math.min(1, playheadTime / totalDuration) * 100 : 0;
 
   return (
-    <div className="flex flex-col bg-white border-t border-slate-200 flex-shrink-0" style={{ height: Math.max(minHeight, height) }}>
+    <div className="flex flex-col bg-[#f0f0f4] border-t border-black/[0.08] flex-shrink-0" style={{ height: Math.max(minHeight, height) }}>
       {/* Scrubber bar */}
       <div
-        className="h-1 bg-slate-200 flex-shrink-0 relative cursor-pointer"
+        className="h-1 bg-[#e4e4ea] flex-shrink-0 relative cursor-pointer"
         onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
           seek((e.clientX - rect.left) / rect.width * totalDuration);
         }}
       >
-        <div className="absolute left-0 top-0 h-full bg-teal-500 transition-none" style={{ width: `${scrubberPct}%` }} />
+        <div className="absolute left-0 top-0 h-full bg-[#0ea5a0] transition-none" style={{ width: `${scrubberPct}%` }} />
       </div>
       {/* Height resize handle */}
       <div
-        className="h-1 cursor-ns-resize bg-transparent hover:bg-teal-400 transition-colors flex-shrink-0"
+        className="h-1 cursor-ns-resize bg-transparent hover:bg-[rgba(14,165,160,0.4)] transition-colors flex-shrink-0"
         onMouseDown={onDragHandleMouseDown}
       />
       <TimelineToolbar onSplit={handleSplit} toggle={toggle} seek={seek} />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Track labels */}
         <div
-          className="flex-shrink-0 bg-slate-50 border-r border-slate-200 relative"
+          className="flex-shrink-0 bg-[#f2f2f6] border-r border-black/[0.07] relative"
           style={{ width: labelWidth }}
           onDragOver={(e) => { if (e.dataTransfer.types.includes("effecttype")) e.preventDefault(); }}
           onDrop={(e) => {
@@ -475,18 +475,18 @@ export default function Timeline({ toggle, seek }: Props) {
             if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverIndex(null);
           }}
         >
-          <div className="h-6 border-b border-slate-200" />
+          <div className="h-6 border-b border-black/[0.07]" />
           {project.tracks.map((track, trackIdx) => {
             const trackSelected = track.clips.some((c) => selectedItemIds.has(c.id));
             return (
             <React.Fragment key={track.id}>
               {dragOverIndex === trackIdx && draggedTrackId !== null && (
-                <div className="h-0.5 bg-blue-500 mx-2 flex-shrink-0 rounded-full" />
+                <div className="h-0.5 bg-[#0ea5a0] mx-2 flex-shrink-0 rounded-full" />
               )}
               <div
                 draggable
-                className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-grab active:cursor-grabbing select-none transition-colors
-                  ${trackSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+                className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-grab active:cursor-grabbing select-none transition-colors
+                  ${trackSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
                 style={{ height: trackH(track.id), opacity: draggedTrackId === track.id ? 0.4 : 1 }}
                 onContextMenu={(e) => openContextMenu(track.id, e)}
                 onClick={(e) => onTrackLabelClick(e, track.id)}
@@ -511,19 +511,19 @@ export default function Timeline({ toggle, seek }: Props) {
                   setDragOverIndex(null);
                 }}
               >
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${TRACK_DOT_COLORS[track.type] ?? "bg-slate-400"}`} />
+                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${TRACK_DOT_COLORS[track.type] ?? "bg-[#6b6b78]"}`} />
                 {renamingTrackId === track.id ? (
                   <input
                     draggable={false}
                     autoFocus
-                    className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                    className="flex-1 text-[11px] font-bold text-[#141416] bg-[#f2f2f6] border border-[#0ea5a0]/60 rounded px-1 outline-none min-w-0"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     onBlur={commitRename}
                     onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
                   />
                 ) : (
-                  <span className="text-[10px] font-bold text-slate-500 flex-1 truncate pointer-events-none">
+                  <span className="text-[11px] font-bold text-[#6b6b78] flex-1 truncate pointer-events-none">
                     {track.label ?? track.type}
                   </span>
                 )}
@@ -532,7 +532,7 @@ export default function Timeline({ toggle, seek }: Props) {
                   title={track.muted ? "Unmute track" : "Mute track"}
                   onClick={(e) => { e.stopPropagation(); setTrackMuted(track.id, !track.muted); }}
                   className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer
-                    ${track.muted ? "text-amber-500 hover:text-amber-700" : "text-slate-400 hover:text-slate-600"}`}
+                    ${track.muted ? "text-amber-400 hover:text-amber-300" : "text-[#6b6b78] hover:text-[#141416]"}`}
                 >
                   {track.muted ? <VolumeXIcon /> : <Volume2Icon />}
                 </button>
@@ -542,14 +542,14 @@ export default function Timeline({ toggle, seek }: Props) {
                     title={track.hidden ? "Show track" : "Hide track"}
                     onClick={(e) => { e.stopPropagation(); setTrackHidden(track.id, !track.hidden); }}
                     className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer
-                      ${track.hidden ? "text-slate-500 hover:text-slate-700" : "text-slate-400 hover:text-slate-600"}`}
+                      ${track.hidden ? "text-[#6b6b78] hover:text-[#141416]" : "text-[#6b6b78] hover:text-[#141416]"}`}
                   >
                     {track.hidden ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
                 )}
                 <div
                   draggable={false}
-                  className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
+                  className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                   onMouseDown={(e) => onTrackResizeDown(track.id, e)}
                 />
               </div>
@@ -557,13 +557,13 @@ export default function Timeline({ toggle, seek }: Props) {
             );
           })}
           {dragOverIndex === project.tracks.length && draggedTrackId !== null && (
-            <div className="h-0.5 bg-blue-500 mx-2 flex-shrink-0 rounded-full" />
+            <div className="h-0.5 bg-[#0ea5a0] mx-2 flex-shrink-0 rounded-full" />
           )}
           {project.textOverlays.length > 0 && (() => {
             const rowSelected = project.textOverlays.some((o) => selectedItemIds.has(o.id));
             return (
-            <div className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
-              ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+            <div className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
+              ${rowSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
               style={{ height: trackH("text") }}
               onClick={(e) => onTrackLabelClick(e, "text")}
               onContextMenu={(e) => openContextMenu("text", e)}>
@@ -571,19 +571,19 @@ export default function Timeline({ toggle, seek }: Props) {
               {renamingTrackId === "text" ? (
                 <input
                   autoFocus
-                  className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                  className="flex-1 text-[11px] font-bold text-[#141416] bg-[#f2f2f6] border border-[#0ea5a0]/60 rounded px-1 outline-none min-w-0"
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onBlur={commitRename}
                   onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
                 />
               ) : (
-                <span className="text-[10px] font-bold text-slate-500 flex-1 truncate pointer-events-none">
+                <span className="text-[11px] font-bold text-[#6b6b78] flex-1 truncate pointer-events-none">
                   {project.rowLabels?.["text"] ?? "text"}
                 </span>
               )}
               <div
-                className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
+                className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("text", e)}
               />
             </div>
@@ -592,8 +592,8 @@ export default function Timeline({ toggle, seek }: Props) {
           {project.captions.length > 0 && (() => {
             const rowSelected = project.captions.some((c) => selectedItemIds.has(c.id));
             return (
-            <div className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
-              ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+            <div className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
+              ${rowSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
               style={{ height: trackH("captions") }}
               onClick={(e) => onTrackLabelClick(e, "captions")}
               onContextMenu={(e) => openContextMenu("captions", e)}>
@@ -601,19 +601,19 @@ export default function Timeline({ toggle, seek }: Props) {
               {renamingTrackId === "captions" ? (
                 <input
                   autoFocus
-                  className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                  className="flex-1 text-[11px] font-bold text-[#141416] bg-[#f2f2f6] border border-[#0ea5a0]/60 rounded px-1 outline-none min-w-0"
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onBlur={commitRename}
                   onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
                 />
               ) : (
-                <span className="text-[10px] font-bold text-slate-500 flex-1 truncate pointer-events-none">
+                <span className="text-[11px] font-bold text-[#6b6b78] flex-1 truncate pointer-events-none">
                   {project.rowLabels?.["captions"] ?? "captions"}
                 </span>
               )}
               <div
-                className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
+                className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("captions", e)}
               />
             </div>
@@ -622,28 +622,28 @@ export default function Timeline({ toggle, seek }: Props) {
           {hasTransitions && (() => {
             const rowSelected = (project.clipTransitions ?? []).some((t) => selectedItemIds.has(t.id));
             return (
-            <div className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
-              ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+            <div className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
+              ${rowSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
               style={{ height: trackH("transitions") }}
               onClick={(e) => onTrackLabelClick(e, "transitions")}
               onContextMenu={(e) => openContextMenu("transitions", e)}>
-              <div className="w-2 h-2 rounded-full bg-teal-500 flex-shrink-0" />
+              <div className="w-2 h-2 rounded-full bg-[#0ea5a0] flex-shrink-0" />
               {renamingTrackId === "transitions" ? (
                 <input
                   autoFocus
-                  className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                  className="flex-1 text-[11px] font-bold text-[#141416] bg-[#f2f2f6] border border-[#0ea5a0]/60 rounded px-1 outline-none min-w-0"
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onBlur={commitRename}
                   onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
                 />
               ) : (
-                <span className="text-[10px] font-bold text-slate-500 flex-1 truncate pointer-events-none">
+                <span className="text-[11px] font-bold text-[#6b6b78] flex-1 truncate pointer-events-none">
                   {project.rowLabels?.["transitions"] ?? "transitions"}
                 </span>
               )}
               <div
-                className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
+                className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("transitions", e)}
               />
             </div>
@@ -654,8 +654,8 @@ export default function Timeline({ toggle, seek }: Props) {
             const rowKey = `fx-${effectType}`;
             const rowSelected = project.effectOverlays.filter((e) => e.type === effectType).some((e) => selectedItemIds.has(e.id));
             return (
-              <div key={effectType} className={`relative flex items-center gap-1.5 px-2 border-b border-slate-100 cursor-pointer select-none transition-colors
-                ${rowSelected ? "bg-blue-50 border-l-2 border-l-blue-400 hover:bg-blue-100" : "hover:bg-slate-100"}`}
+              <div key={effectType} className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
+                ${rowSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
                 style={{ height: trackH(rowKey) }}
                 onClick={(e) => onTrackLabelClick(e, rowKey)}
                 onContextMenu={(e) => openContextMenu(rowKey, e)}>
@@ -663,26 +663,26 @@ export default function Timeline({ toggle, seek }: Props) {
                 {renamingTrackId === rowKey ? (
                   <input
                     autoFocus
-                    className="flex-1 text-[10px] font-bold text-slate-700 bg-white border border-teal-400 rounded px-1 outline-none min-w-0"
+                    className="flex-1 text-[11px] font-bold text-[#141416] bg-[#f2f2f6] border border-[#0ea5a0]/60 rounded px-1 outline-none min-w-0"
                     value={renameValue}
                     onChange={(e) => setRenameValue(e.target.value)}
                     onBlur={commitRename}
                     onKeyDown={(e) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenamingTrackId(null); }}
                   />
                 ) : (
-                  <span className={`text-[10px] font-bold flex-1 truncate pointer-events-none ${isHidden ? "text-slate-300" : "text-slate-500"}`}>
+                  <span className={`text-[11px] font-bold flex-1 truncate pointer-events-none ${isHidden ? "text-[#6b6b78] opacity-50" : "text-[#6b6b78]"}`}>
                     {project.rowLabels?.[rowKey] ?? EFFECT_LANE_LABELS[effectType]}
                   </span>
                 )}
                 <button
                   title={isHidden ? "Enable effects" : "Disable effects"}
                   onClick={(e) => { e.stopPropagation(); setEffectLaneHidden(effectType, !isHidden); }}
-                  className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer text-slate-400 hover:text-slate-600"
+                  className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer text-[#6b6b78] hover:text-[#141416]"
                 >
                   {isHidden ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
                 <div
-                  className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-teal-400 transition-colors z-10"
+                  className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                   onMouseDown={(e) => onTrackResizeDown(rowKey, e)}
                 />
               </div>
@@ -698,13 +698,13 @@ export default function Timeline({ toggle, seek }: Props) {
                 onDrop={handleGhostDrop}
               >
                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${g.dot}`} />
-                <span className={`text-[10px] font-bold ${g.text}`}>+ {g.label}</span>
+                <span className={`text-[11px] font-bold ${g.text}`}>+ {g.label}</span>
               </div>
             );
           })()}
           {/* Label column right-border resize handle */}
           <div
-            className="absolute top-0 right-0 bottom-0 w-1 cursor-ew-resize hover:bg-teal-400 transition-colors z-20"
+            className="absolute top-0 right-0 bottom-0 w-1 cursor-ew-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-20"
             onMouseDown={onLabelResizeDown}
           />
         </div>
@@ -757,13 +757,13 @@ export default function Timeline({ toggle, seek }: Props) {
             })()}
             {/* Playhead */}
             <div
-              className="absolute top-0 bottom-0 w-px bg-red-500 pointer-events-none z-10"
+              className="absolute top-0 bottom-0 w-px bg-[#0ea5a0] pointer-events-none z-10"
               style={{ left: playheadX }}
             />
             {/* Snap indicator */}
             {snapIndicatorTime !== null && (
               <div
-                className="absolute top-0 bottom-0 w-px bg-amber-400 pointer-events-none z-20 opacity-80"
+                className="absolute top-0 bottom-0 w-px bg-[#0ea5a0] pointer-events-none z-20 opacity-60"
                 style={{ left: snapIndicatorTime * zoom }}
               />
             )}
@@ -774,7 +774,7 @@ export default function Timeline({ toggle, seek }: Props) {
               const bandHeight = Math.abs(rubberBand.y2 - rubberBand.y1);
               return (
                 <div
-                  className="absolute pointer-events-none z-20 border border-blue-400 bg-blue-400/10"
+                  className="absolute pointer-events-none z-20 border border-[#0ea5a0]/40 bg-[rgba(14,165,160,0.08)]"
                   style={{ left, top, width, height: bandHeight }}
                 />
               );
@@ -785,18 +785,18 @@ export default function Timeline({ toggle, seek }: Props) {
       {/* Track context menu */}
       {contextMenu && (
         <div
-          className="fixed z-50 bg-white border border-slate-200 rounded-lg shadow-lg py-1 min-w-[140px]"
+          className="fixed z-50 bg-white border border-black/10 rounded-xl shadow-lg shadow-black/15 py-1 min-w-[140px]"
           style={{ left: contextMenu.x, top: contextMenu.y }}
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button
-            className="w-full text-left px-3 py-1.5 text-[13px] text-slate-700 hover:bg-slate-100 transition-colors"
+            className="w-full text-left px-3 py-1.5 text-[13px] text-[#141416] hover:bg-[#f7f7fa] transition-colors"
             onClick={() => startRename(contextMenu.rowKey)}
           >
             Rename
           </button>
           <button
-            className="w-full text-left px-3 py-1.5 text-[13px] text-red-600 hover:bg-red-50 transition-colors"
+            className="w-full text-left px-3 py-1.5 text-[13px] text-[#dc2626] hover:bg-red-50 transition-colors"
             onClick={() => {
               const { rowKey, isRealTrack } = contextMenu;
               if (isRealTrack) {

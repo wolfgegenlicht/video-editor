@@ -8,6 +8,9 @@ os.environ.setdefault("TF_USE_LEGACY_KERAS", "1")
 
 import cv2
 import dlib
+import mediapipe as mp
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision as mp_vision
 import numpy as np
 import tensorflow as tf
 
@@ -23,11 +26,28 @@ _MODEL_DIR = str(_BASE / "weights" / "warping_model" / "flx" / "12") + "/"
 _SIZE_I = (48, 64)
 _PIXEL_CUT = (3, 4)
 
-_IRIS_SCALE = 150.0
+_IRIS_SCALE = 150.0          # scale for fallback dark-pixel iris detection
+_MP_IRIS_SCALE = 100.0       # scale for MediaPipe iris detection
 _CORRECTION_STRENGTH = 0.8
 _MAX_ANGLE_DEG = 12.0
-_DETECT_SCALE = 0.5   # run face detection at this fraction of full resolution
-_INFER_EVERY_N = 1    # run TF model every frame (caching causes misalignment when face moves)
+_DETECT_SCALE = 0.5
+_INFER_EVERY_N = 1
+
+# Temporal smoothing: EMA keeps the correction signal from jumping on saccades.
+# Lower alpha = smoother output but slower to track real gaze shifts.
+_GAZE_SMOOTH_ALPHA = 0.12
+
+# Rate limiter: caps how many degrees the applied correction can change per frame.
+# Prevents sudden discontinuities even if the smoothed estimate jumps.
+_RATE_LIMIT_DEG_PER_FRAME = 0.8
+
+# MediaPipe FaceMesh landmark indices (requires refine_landmarks=True, 478 total)
+_MP_LEFT_IRIS_CENTER = 468   # subject's left eye iris centre
+_MP_RIGHT_IRIS_CENTER = 473  # subject's right eye iris centre
+_MP_LEFT_EYE_OUTER = 33      # temporal (outer) corner, left eye
+_MP_LEFT_EYE_INNER = 133     # nasal (inner) corner, left eye
+_MP_RIGHT_EYE_INNER = 362    # nasal (inner) corner, right eye
+_MP_RIGHT_EYE_OUTER = 263    # temporal (outer) corner, right eye
 
 
 def _load_eye_model(side: str, conf):
@@ -106,11 +126,8 @@ def _get_eye_inputs(frame, shape, pos):
     return img_eye / 255.0, ach_map, ori_size, lt
 
 
-def _iris_offset(eye_patch_norm: np.ndarray) -> tuple[float, float]:
-    """
-    Return iris centre offset from patch centre as fractions of patch w/h.
-    Positive dx = iris right, positive dy = iris below centre.
-    """
+def _iris_offset_fallback(eye_patch_norm: np.ndarray) -> tuple[float, float]:
+    """Fallback: estimate iris centre from dark-pixel centroid in the eye patch."""
     gray = cv2.cvtColor((eye_patch_norm * 255).astype(np.uint8), cv2.COLOR_BGR2GRAY)
     threshold = float(np.percentile(gray, 20))
     mask = (gray <= threshold).astype(np.uint8)
@@ -121,7 +138,6 @@ def _iris_offset(eye_patch_norm: np.ndarray) -> tuple[float, float]:
     cx = M["m10"] / M["m00"]
     cy = M["m01"] / M["m00"]
     return (cx - w / 2.0) / w, (cy - h / 2.0) / h
-
 
 
 class GazeCorrector:
@@ -138,6 +154,59 @@ class GazeCorrector:
         self._infer_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
         self._frame_idx = 0
         self._patch_cache: list[tuple] = []
+
+        # MediaPipe FaceLandmarker (Tasks API) with iris refinement for accurate iris detection
+        _task_path = str(_BASE / "face_landmarker.task")
+        _base_opts = mp_python.BaseOptions(model_asset_path=_task_path)
+        _fl_opts = mp_vision.FaceLandmarkerOptions(
+            base_options=_base_opts,
+            output_face_blendshapes=False,
+            output_facial_transformation_matrixes=False,
+            num_faces=1,
+        )
+        self._mp_landmarker = mp_vision.FaceLandmarker.create_from_options(_fl_opts)
+
+        # Temporal smoothing state (EMA + rate limiter)
+        self._smoothed_a_h = 0.0
+        self._smoothed_a_v = 0.0
+        self._prev_a_h = 0.0
+        self._prev_a_v = 0.0
+
+    def _iris_offset_mp(self, frame: np.ndarray, h: int, w: int) -> tuple[float | None, float | None]:
+        """Return (dx, dy) iris gaze offset using MediaPipe iris landmarks.
+        Positive dx = iris right of eye centre, positive dy = iris below centre.
+        Both values normalised by eye width.  Returns (None, None) if no face found.
+        """
+        mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        result = self._mp_landmarker.detect(mp_img)
+        if not result.face_landmarks:
+            return None, None
+
+        lm = result.face_landmarks[0]
+
+        def xy(idx: int) -> tuple[float, float]:
+            return lm[idx].x * w, lm[idx].y * h
+
+        # Left eye (subject's perspective)
+        li_x, li_y = xy(_MP_LEFT_IRIS_CENTER)
+        lo_x, lo_y = xy(_MP_LEFT_EYE_OUTER)
+        lin_x, lin_y = xy(_MP_LEFT_EYE_INNER)
+        le_cx, le_cy = (lo_x + lin_x) / 2, (lo_y + lin_y) / 2
+        le_w = abs(lo_x - lin_x)
+
+        # Right eye (subject's perspective)
+        ri_x, ri_y = xy(_MP_RIGHT_IRIS_CENTER)
+        rin_x, rin_y = xy(_MP_RIGHT_EYE_INNER)
+        ro_x, ro_y = xy(_MP_RIGHT_EYE_OUTER)
+        re_cx, re_cy = (rin_x + ro_x) / 2, (rin_y + ro_y) / 2
+        re_w = abs(ro_x - rin_x)
+
+        if le_w < 1 or re_w < 1:
+            return None, None
+
+        dx = ((li_x - le_cx) / le_w + (ri_x - re_cx) / re_w) / 2
+        dy = ((li_y - le_cy) / le_w + (ri_y - re_cy) / re_w) / 2
+        return dx, dy
 
     def _infer_eye(self, sess, t, img, fp, alpha) -> np.ndarray:
         return sess.run(t["img_pred"], feed_dict={
@@ -156,7 +225,10 @@ class GazeCorrector:
         if run_infer:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-            # Detect at reduced resolution
+            # MediaPipe iris detection — run once per frame before the dlib loop
+            mp_dx, mp_dy = self._iris_offset_mp(frame, h, w)
+
+            # Face detection at reduced resolution (dlib needed for FLX eye patches)
             dw, dh = max(1, int(w * _DETECT_SCALE)), max(1, int(h * _DETECT_SCALE))
             small_gray = cv2.resize(gray, (dw, dh))
             raw_dets = self._detector(small_gray, 0)
@@ -181,19 +253,45 @@ class GazeCorrector:
                 if not eye_data:
                     continue
 
-                offsets = [_iris_offset(d[0]) for d in eye_data.values()]
-                dx = sum(o[0] for o in offsets) / len(offsets)
-                dy = sum(o[1] for o in offsets) / len(offsets)
-                a_h = max(-_MAX_ANGLE_DEG, min(_MAX_ANGLE_DEG, -dx * _IRIS_SCALE * _CORRECTION_STRENGTH))
-                a_v = max(-_MAX_ANGLE_DEG, min(_MAX_ANGLE_DEG, -dy * _IRIS_SCALE * _CORRECTION_STRENGTH))
+                # Prefer MediaPipe iris offsets; fall back to dark-pixel centroid
+                if mp_dx is not None:
+                    dx, dy = mp_dx, mp_dy
+                    scale = _MP_IRIS_SCALE
+                else:
+                    offsets = [_iris_offset_fallback(d[0]) for d in eye_data.values()]
+                    dx = sum(o[0] for o in offsets) / len(offsets)
+                    dy = sum(o[1] for o in offsets) / len(offsets)
+                    scale = _IRIS_SCALE
+
+                a_h_raw = max(-_MAX_ANGLE_DEG, min(_MAX_ANGLE_DEG, -dx * scale * _CORRECTION_STRENGTH))
+                a_v_raw = max(-_MAX_ANGLE_DEG, min(_MAX_ANGLE_DEG, -dy * scale * _CORRECTION_STRENGTH))
+
+                # EMA smoothing: keeps the correction from jumping on saccades
+                self._smoothed_a_h = _GAZE_SMOOTH_ALPHA * a_h_raw + (1 - _GAZE_SMOOTH_ALPHA) * self._smoothed_a_h
+                self._smoothed_a_v = _GAZE_SMOOTH_ALPHA * a_v_raw + (1 - _GAZE_SMOOTH_ALPHA) * self._smoothed_a_v
+
+                # Rate limiter: caps the change between consecutive frames
+                a_h = self._prev_a_h + np.clip(
+                    self._smoothed_a_h - self._prev_a_h,
+                    -_RATE_LIMIT_DEG_PER_FRAME,
+                    _RATE_LIMIT_DEG_PER_FRAME,
+                )
+                a_v = self._prev_a_v + np.clip(
+                    self._smoothed_a_v - self._prev_a_v,
+                    -_RATE_LIMIT_DEG_PER_FRAME,
+                    _RATE_LIMIT_DEG_PER_FRAME,
+                )
+                self._prev_a_h = a_h
+                self._prev_a_v = a_v
 
                 _gaze_log["total"] += 1
                 _gaze_log["av_sum"] += abs(a_v)
                 _gaze_log["ah_sum"] += abs(a_h)
                 if _gaze_log["total"] % 100 == 0:
                     n = _gaze_log["total"]
+                    src = "mp" if mp_dx is not None else "fallback"
                     print(
-                        f"[gaze] frames={n} "
+                        f"[gaze] frames={n} src={src} "
                         f"avg|a_v|={_gaze_log['av_sum']/n:.1f}° "
                         f"avg|a_h|={_gaze_log['ah_sum']/n:.1f}°",
                         flush=True,

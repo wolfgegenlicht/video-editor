@@ -7,7 +7,7 @@ export default function CaptionPresetPicker() {
 
   return (
     <div>
-      <p className="text-[10px] text-gray-400 font-medium mb-2">Presets</p>
+      <p className="text-[11px] text-[#6b6b78] font-medium mb-2">Presets</p>
       <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
         {CAPTION_PRESETS.map((preset) => {
           const isActive =
@@ -22,7 +22,7 @@ export default function CaptionPresetPicker() {
               key={preset.name}
               onClick={() => setCaptionTrackStyle(preset.style)}
               className={`flex-shrink-0 flex flex-col items-center gap-1 rounded-lg p-0.5 border-2 transition-all ${
-                isActive ? "border-blue-500" : "border-transparent hover:border-slate-200"
+                isActive ? "border-[#0ea5a0]" : "border-transparent hover:border-black/10"
               }`}
               title={preset.name}
             >
@@ -44,7 +44,7 @@ export default function CaptionPresetPicker() {
                   <span style={{ color: preset.preview.highlight }}>{hasBg ? "Welt" : "Welt"}</span>
                 </span>
               </div>
-              <span className="text-[9px] text-gray-400 leading-none">{preset.name}</span>
+              <span className="text-[11px] text-[#6b6b78] leading-none">{preset.name}</span>
             </button>
           );
         })}

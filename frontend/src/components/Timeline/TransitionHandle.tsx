@@ -50,7 +50,7 @@ export default function TransitionHandle({ transition, zoom }: Props) {
     <div
       className={`absolute top-0 bottom-0 z-20 flex items-center justify-center cursor-pointer select-none
         ${selected ? "opacity-100" : "opacity-70 hover:opacity-100"}
-        ${selectedItemIds.size > 1 && selectedItemIds.has(transition.id) ? "ring-2 ring-blue-400" : ""}`}
+        ${selectedItemIds.size > 1 && selectedItemIds.has(transition.id) ? "ring-2 ring-[#0ea5a0]/50" : ""}`}
       style={{ left, width }}
       onMouseDown={(e) => {
         e.stopPropagation();
@@ -62,30 +62,30 @@ export default function TransitionHandle({ transition, zoom }: Props) {
       <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
         <defs>
           <pattern id={`stripe-${transition.id}`} patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
-            <rect width="4" height="8" fill={selected ? "rgba(13,148,136,0.5)" : "rgba(13,148,136,0.3)"} />
+            <rect width="4" height="8" fill={selected ? "rgba(14,165,160,0.5)" : "rgba(14,165,160,0.3)"} />
           </pattern>
         </defs>
         <rect width="100%" height="100%" fill={`url(#stripe-${transition.id})`} />
       </svg>
       {/* Border */}
       <div
-        className={`absolute inset-0 border-2 ${selected ? "border-teal-400" : "border-teal-300"}`}
+        className={`absolute inset-0 border-2 ${selected ? "border-[#0ea5a0]" : "border-[#0ea5a0]/50"}`}
         style={{ borderRadius: 3 }}
       />
       {/* Left resize handle */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 hover:bg-teal-400/40"
+        className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 hover:bg-[rgba(14,165,160,0.4)]"
         onMouseDown={(e) => startResize(e, "left")}
       />
       {/* Label */}
       {width > 40 && (
-        <span className="relative text-[9px] font-bold text-teal-700 pointer-events-none z-10 px-1">
+        <span className="relative text-[10px] font-bold text-[#0d9488] pointer-events-none z-10 px-1">
           dissolve
         </span>
       )}
       {/* Right resize handle */}
       <div
-        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 hover:bg-teal-400/40"
+        className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 hover:bg-[rgba(14,165,160,0.4)]"
         onMouseDown={(e) => startResize(e, "right")}
       />
     </div>

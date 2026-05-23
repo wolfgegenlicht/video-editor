@@ -17,14 +17,14 @@ function Editor() {
   const deselectAll = useProjectStore((s) => s.deselectAll);
   useKeyboardShortcuts(toggle);
   return (
-    <div className="flex flex-col h-screen bg-slate-100 text-slate-900 overflow-hidden">
+    <div className="flex flex-col h-screen bg-[#f0f0f4] text-[#141416] overflow-hidden">
       <Header />
       <div className="flex flex-1 min-h-0">
         {/* Floating card — contains the editing area and timeline */}
-        <div className="flex-1 flex flex-col ml-2 mb-2 rounded-xl border border-slate-200 shadow-sm bg-white overflow-hidden">
+        <div className="flex-1 flex flex-col ml-2 mb-2 rounded-xl border border-black/[0.06] bg-white shadow-sm overflow-hidden">
           <div className="flex flex-1 min-h-0">
             <LeftPanel seek={seek} />
-            <main className="flex-1 flex items-center justify-center bg-slate-100 min-w-0" onPointerDown={deselectAll}>
+            <main className="flex-1 flex items-center justify-center bg-[#f0f0f4] min-w-0" onPointerDown={deselectAll}>
               <VideoPreview videoRef={videoRef} />
             </main>
           </div>
@@ -53,8 +53,8 @@ export default function App() {
 
   if (restoring) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <span className="text-slate-400 text-sm">Opening project…</span>
+      <div className="min-h-screen bg-[#f0f0f4] flex items-center justify-center">
+        <span className="text-[#6b6b78] text-sm">Opening project…</span>
       </div>
     );
   }

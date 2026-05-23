@@ -13,22 +13,22 @@ export default function Header() {
 
   return (
     <>
-    <header className="h-9 flex items-center px-3 gap-2 flex-shrink-0 bg-white border-b border-slate-200">
+    <header className="h-9 flex items-center px-3 gap-2 flex-shrink-0 bg-white border-b border-black/[0.08]">
       {/* Left group */}
       <div className="flex items-center gap-2 flex-1">
         <button
           onClick={closeProject}
-          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-800 cursor-pointer transition-colors"
+          className="flex items-center gap-1 text-xs text-[#6b6b78] hover:text-[#141416] cursor-pointer transition-colors"
         >
           <ChevronLeftIcon />
           Projects
         </button>
-        <div className="w-px h-3.5 bg-slate-200" />
+        <div className="w-px h-3.5 bg-black/[0.08]" />
         <div className="flex gap-0.5">
           <button
             onClick={undo}
             disabled={!history.length}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[#ebebef] disabled:opacity-30 cursor-pointer transition-colors"
             title="Undo (⌘Z)"
           >
             <UndoIcon />
@@ -36,7 +36,7 @@ export default function Header() {
           <button
             onClick={redo}
             disabled={!future.length}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-slate-100 disabled:opacity-40 cursor-pointer transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[#ebebef] disabled:opacity-30 cursor-pointer transition-colors"
             title="Redo (⌘⇧Z)"
           >
             <RedoIcon />
@@ -45,7 +45,7 @@ export default function Header() {
         <select
           value={project.aspectRatio}
           onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
-          className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-slate-50 text-slate-700 cursor-pointer"
+          className="text-xs border border-black/10 rounded-md px-2 py-0.5 bg-[#f2f2f6] text-[#141416] cursor-pointer"
         >
           {ASPECT_RATIOS.map((r) => (
             <option key={r} value={r}>{r}</option>
@@ -56,7 +56,7 @@ export default function Header() {
       {/* Center group — project name */}
       <div className="flex items-center justify-center">
         <input
-          className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-teal-500 rounded px-1 w-44 text-center text-slate-900"
+          className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-[#0ea5a0] rounded px-1 w-44 text-center text-[#141416]"
           value={project.name}
           onChange={(e) => setProjectName(e.target.value)}
         />
@@ -64,12 +64,12 @@ export default function Header() {
 
       {/* Right group */}
       <div className="flex items-center gap-2 flex-1 justify-end">
-        <span className="text-xs text-slate-400 select-none">
+        <span className="text-xs text-[#6b6b78] select-none">
           {saveStatus === "saving" ? "Saving…" : "Saved"}
         </span>
         <button
           onClick={() => setShowExport(true)}
-          className="px-3 py-0.5 text-xs bg-teal-600 text-white rounded hover:bg-teal-700 font-semibold cursor-pointer transition-colors"
+          className="px-3 py-0.5 text-xs bg-[#0ea5a0] hover:bg-[#0c9490] text-white rounded font-semibold cursor-pointer transition-colors"
         >
           Export
         </button>
