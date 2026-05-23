@@ -6,5 +6,7 @@ __pycache__/
 backend/services/gaze_correction/face_landmarker.task
 backend/models/*.tflite
 backend/models/*.pth
+CodeFormer/weights/**/*.pth
+*.jpeg
 .playwright-mcp/
 .superpowers/
