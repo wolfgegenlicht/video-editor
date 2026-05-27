@@ -5,6 +5,7 @@ import EffectsTab from "./EffectsTab";
 import EffectPropertiesPanel from "./EffectPropertiesPanel";
 import TransitionPropertiesPanel from "./TransitionPropertiesPanel";
 import AudioPropertiesPanel from "./AudioPropertiesPanel";
+import TextOverlayPropertiesPanel from "./TextOverlayPropertiesPanel";
 
 function PropertiesIcon({ active }: { active: boolean }) {
   return (
@@ -51,7 +52,7 @@ const TABS = [
 ] as const;
 
 export default function RightPanel() {
-  const { rightPanelTab, setRightPanelTab, selectedEffectOverlayId, selectedTransitionId, selectedItemIds, selectedClipId, project } = useProjectStore();
+  const { rightPanelTab, setRightPanelTab, selectedEffectOverlayId, selectedTransitionId, selectedItemIds, selectedClipId, selectedOverlayId, project } = useProjectStore();
 
   const selectedTrack = project.tracks.find((t) =>
     t.clips.some((c) => c.id === selectedClipId)
@@ -65,6 +66,7 @@ export default function RightPanel() {
         <div className="w-[260px] flex flex-col bg-white border-l border-r border-black/[0.06]">
           <div className="flex items-center gap-2 px-3 py-2 border-b border-black/[0.06] flex-shrink-0">
             <button
+              type="button"
               onClick={() => setRightPanelTab(null)}
               className="p-1 rounded hover:bg-[#ebebef] text-[#6b6b78] hover:text-[#141416] transition-colors cursor-pointer"
               title="Close panel"
@@ -90,6 +92,7 @@ export default function RightPanel() {
                 </div>
               ) : selectedEffectOverlayId ? <EffectPropertiesPanel />
               : selectedTransitionId ? <TransitionPropertiesPanel />
+              : selectedOverlayId ? <TextOverlayPropertiesPanel />
               : isAudioClip ? <AudioPropertiesPanel />
               : <ClipPropertiesPanel />
             ) : rightPanelTab === "effects" ? (
@@ -107,6 +110,7 @@ export default function RightPanel() {
           const active = rightPanelTab === id;
           return (
             <button
+              type="button"
               key={id}
               onClick={() => setRightPanelTab(active ? null : id)}
               className={`w-[52px] flex flex-col items-center gap-1 py-3 px-1 rounded-lg transition-colors cursor-pointer
