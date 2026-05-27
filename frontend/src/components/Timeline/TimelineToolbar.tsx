@@ -64,6 +64,24 @@ export default function TimelineToolbar({ onSplit, toggle, seek }: Props) {
     });
   }
 
+  function handleAddBellyBand() {
+    addTextOverlay({
+      text: "Your text here",
+      startTime: playheadTime,
+      endTime: playheadTime + 5,
+      x: 50,
+      y: 85,
+      fontSize: 20,
+      color: "#ffffff",
+      fontWeight: "bold",
+      background: "#7c3aed",
+      shape: "pill",
+      animateIn: "slide-up",
+      animateOut: "slide-down",
+      animateDuration: 0.4,
+    });
+  }
+
   const btnClass = "px-2 py-0.5 rounded-md border border-black/[0.08] bg-[#f2f2f6] hover:bg-[#ebebef] text-[#6b6b78] hover:text-[#141416] text-[11px] font-medium cursor-pointer transition-colors";
 
   return (
@@ -82,9 +100,12 @@ export default function TimelineToolbar({ onSplit, toggle, seek }: Props) {
           />
         ) : (
           <span
+            role="button"
+            tabIndex={0}
             className="font-mono text-[#0d9488] cursor-text hover:underline underline-offset-2 w-24 text-[11px] font-medium"
             title="Click to enter timecode"
             onClick={startEdit}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") startEdit(); }}
           >
             {fmt(playheadTime)}
           </span>
@@ -93,7 +114,7 @@ export default function TimelineToolbar({ onSplit, toggle, seek }: Props) {
 
       {/* Center: playback + editing controls */}
       <div className="flex items-center gap-1.5">
-        <button onClick={toggle} className={`px-2 py-0.5 w-8 rounded-md border border-[#0ea5a0]/30 bg-[rgba(14,165,160,0.08)] hover:bg-[rgba(14,165,160,0.12)] text-[#0d9488] text-[11px] font-medium cursor-pointer transition-colors flex items-center justify-center`}>
+        <button type="button" onClick={toggle} className={`px-2 py-0.5 w-8 rounded-md border border-[#0ea5a0]/30 bg-[rgba(14,165,160,0.08)] hover:bg-[rgba(14,165,160,0.12)] text-[#0d9488] text-[11px] font-medium cursor-pointer transition-colors flex items-center justify-center`}>
           {isPlaying ? (
             <svg width="11" height="11" viewBox="0 0 11 11" fill="currentColor"><rect x="1" y="0" width="3.5" height="11"/><rect x="6.5" y="0" width="3.5" height="11"/></svg>
           ) : (
@@ -101,20 +122,21 @@ export default function TimelineToolbar({ onSplit, toggle, seek }: Props) {
           )}
         </button>
         <div className="w-px h-4 bg-black/[0.08]" />
-        <button onClick={onSplit} className={`${btnClass} flex items-center gap-1`}>
+        <button type="button" onClick={onSplit} className={`${btnClass} flex items-center gap-1`}>
           <SplitIcon />
           Split (S)
         </button>
-        <button onClick={() => addTrack("video")} className={btnClass}>+ Video</button>
-        <button onClick={() => addTrack("audio")} className={btnClass}>+ Audio</button>
-        <button onClick={handleAddText} className={btnClass} title="Add text overlay">T</button>
+        <button type="button" onClick={() => addTrack("video")} className={btnClass}>+ Video</button>
+        <button type="button" onClick={() => addTrack("audio")} className={btnClass}>+ Audio</button>
+        <button type="button" onClick={handleAddText} className={btnClass} title="Add text overlay">T</button>
+        <button type="button" onClick={handleAddBellyBand} className={btnClass} title="Add belly band overlay">Belly Band</button>
       </div>
 
       {/* Right: zoom */}
       <div className="flex-1 flex items-center gap-1.5 justify-end">
         <span className="text-[#6b6b78] w-14 text-right text-[11px]">{Math.round(zoom)}px/s</span>
-        <button onClick={() => setZoom(zoom - 15)} className={btnClass}>−</button>
-        <button onClick={() => setZoom(zoom + 15)} className={btnClass}>+</button>
+        <button type="button" onClick={() => setZoom(zoom - 15)} className={btnClass}>−</button>
+        <button type="button" onClick={() => setZoom(zoom + 15)} className={btnClass}>+</button>
       </div>
     </div>
   );
