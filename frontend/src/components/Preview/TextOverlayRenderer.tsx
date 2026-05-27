@@ -5,7 +5,9 @@ interface Props { time: number }
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
 function pillProgress(time: number, startTime: number, endTime: number, animateDuration: number): number {
-  const dur = Math.min(animateDuration, (endTime - startTime) / 2);
+  const totalDur = endTime - startTime;
+  if (totalDur <= 0) return 1;
+  const dur = Math.min(animateDuration, totalDur / 2);
   const t = Math.min((time - startTime) / dur, (endTime - time) / dur, 1);
   return easeOutCubic(Math.max(0, t));
 }
@@ -37,6 +39,8 @@ export default function TextOverlayRenderer({ time }: Props) {
                 padding: "8px 20px",
                 borderRadius: 9999,
                 whiteSpace: "nowrap",
+                maxWidth: "90%",
+                overflow: "hidden",
               }}
             >
               {o.text}
