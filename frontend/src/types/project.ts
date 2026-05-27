@@ -106,6 +106,10 @@ export interface TextOverlay {
   color: string;
   fontWeight: "normal" | "bold";
   background: string;
+  shape?: "pill";
+  animateIn?: "slide-up";
+  animateOut?: "slide-down";
+  animateDuration?: number;
 }
 
 export type AudioEnhanceType = "normalize" | "denoise" | "clarity";
