@@ -126,6 +126,7 @@ interface ProjectStore {
   setAudioEnhanceStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   addTextOverlay: (overlay: Omit<TextOverlay, "id">) => void;
   updateTextOverlay: (id: string, patch: Partial<Omit<TextOverlay, "id">>) => void;
+  trimTextOverlayLive: (id: string, startTime: number, endTime: number) => void;
   deleteTextOverlay: (id: string) => void;
   selectOverlay: (id: string | null) => void;
   addEffectOverlay: (overlay: Omit<EffectOverlay, "id">) => void;
@@ -783,6 +784,16 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     ...p,
     textOverlays: p.textOverlays.map((o) => o.id === id ? { ...o, ...patch } : o),
   })),
+
+  trimTextOverlayLive: (id, startTime, endTime) =>
+    set((s) => ({
+      project: {
+        ...s.project,
+        textOverlays: s.project.textOverlays.map((o) =>
+          o.id === id ? { ...o, startTime, endTime } : o
+        ),
+      },
+    })),
 
   deleteTextOverlay: (id) => {
     withHistory(set, get, (p) => ({
