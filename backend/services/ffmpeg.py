@@ -677,10 +677,10 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         if ov_filters:
             parts = []
             for i, f in enumerate(ov_filters):
-                in_lbl  = "vpre2" if i == 0 else f"vov{i - 1}"
+                in_lbl  = "vpre_ov" if i == 0 else f"vov{i - 1}"
                 out_lbl = "vout"  if i == len(ov_filters) - 1 else f"vov{i}"
                 parts.append(f"[{in_lbl}]{f}[{out_lbl}]")
-            filter_complex = filter_complex.replace("[vout]", f"[vpre2];{';'.join(parts)}", 1)
+            filter_complex = filter_complex.replace("[vout]", f"[vpre_ov];{';'.join(parts)}", 1)
 
     total_duration = sum(
         (c.get("sourceEnd", c.get("duration", 0)) - c.get("sourceStart", 0)) / (c.get("speed", 1.0) or 1.0)

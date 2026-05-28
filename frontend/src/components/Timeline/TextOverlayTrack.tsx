@@ -44,7 +44,7 @@ export default function TextOverlayTrack({ zoom, totalWidth, height, onSnapChang
       .filter((e) => !ids.has(e.id))
       .forEach((e) => { snapPoints.push(e.startTime, e.endTime); });
     currentState.project.textOverlays
-      .filter((o) => o.id !== overlayId)
+      .filter((o) => !ids.has(o.id))
       .forEach((o) => { snapPoints.push(o.startTime, o.endTime); });
 
     let lastStart = origStart;
@@ -95,6 +95,7 @@ export default function TextOverlayTrack({ zoom, totalWidth, height, onSnapChang
       if (mode === "move") {
         moveSelectedItems([{ id: overlayId, newStartTime: lastStart }]);
       } else {
+        trimTextOverlayLive(overlayId, origStart, origEnd);
         updateTextOverlay(overlayId, { startTime: lastStart, endTime: lastEnd });
       }
     }
