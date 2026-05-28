@@ -627,17 +627,52 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         ov_filters = []
         for ov in text_overlays:
             escaped = _escape(ov["text"])
-            t_start, t_end = ov["startTime"], ov["endTime"]
-            enable = f"between(t,{t_start},{t_end})"
+            t0, t1 = ov["startTime"], ov["endTime"]
+            enable = f"between(t,{t0},{t1})"
             px_x = int(ov["x"] / 100 * W)
             px_y = int(ov["y"] / 100 * H)
             fs = ov.get("fontSize", 32)
             color_raw = ov.get("color", "#ffffff").lstrip("#")
             color = color_raw if re.match(r'^[0-9a-fA-F]{6}$', color_raw) else "ffffff"
-            ov_filters.append(
-                f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:"
-                f"x={px_x}-text_w/2:y={px_y}-text_h/2:enable='{enable}'"
-            )
+
+            if ov.get("shape") == "pill":
+                anim_dur = ov.get("animateDuration", 0.4)
+                char_w = fs * 0.55
+                box_w = int(len(ov["text"]) * char_w + 40)
+                box_h = fs + 20
+                box_x = px_x - box_w // 2
+                box_y_base = px_y - box_h // 2
+                slide = 30
+
+                slide_expr = (
+                    f"if(lt(t-{t0},{anim_dur}),"
+                    f"round(({anim_dur}-(t-{t0}))/{anim_dur}*{slide}),"
+                    f"if(lt({t1}-t,{anim_dur}),"
+                    f"round(({t1}-t)/{anim_dur}*{slide}),"
+                    f"0))"
+                )
+                alpha_expr = (
+                    f"if(lt(t-{t0},{anim_dur}),(t-{t0})/{anim_dur},"
+                    f"if(lt({t1}-t,{anim_dur}),({t1}-t)/{anim_dur},1))"
+                )
+                bg_color = ov.get("background", "#7c3aed").lstrip("#")
+                bg_color = bg_color if re.match(r'^[0-9a-fA-F]{6}$', bg_color) else "7c3aed"
+                text_y = f"{px_y}-text_h/2+{slide_expr}"
+
+                ov_filters.append(
+                    f"drawbox=x={box_x}:y={box_y_base}+{slide_expr}:w={box_w}:h={box_h}:"
+                    f"color=0x{bg_color}@0.95:t=fill:enable='{enable}'"
+                )
+                ov_filters.append(
+                    f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:"
+                    f"x={px_x}-text_w/2:y={text_y}:"
+                    f"alpha='{alpha_expr}':enable='{enable}'"
+                )
+            else:
+                ov_filters.append(
+                    f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:"
+                    f"x={px_x}-text_w/2:y={px_y}-text_h/2:enable='{enable}'"
+                )
         if ov_filters:
             chained = "[vpre2]" + "[vov];[vov]".join(ov_filters)
             filter_complex = filter_complex.replace("[vout]", f"[vpre2];{chained}[vout]", 1)
