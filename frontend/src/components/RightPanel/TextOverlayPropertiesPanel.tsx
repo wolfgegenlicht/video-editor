@@ -1,12 +1,12 @@
 import { useProjectStore } from "../../store/useProjectStore";
 import { Section, SliderRow } from "../properties-helpers";
 
-const PILL_PRESETS = [
-  { label: "Purple", background: "#7c3aed", color: "#ffffff", fontWeight: "bold" as const },
-  { label: "Dark",   background: "#1a1a2e", color: "#ffffff", fontWeight: "bold" as const },
-  { label: "White",  background: "#ffffff", color: "#111111", fontWeight: "bold" as const },
-  { label: "Teal",   background: "#0d9488", color: "#ffffff", fontWeight: "bold" as const },
-  { label: "Warm",   background: "#d97706", color: "#ffffff", fontWeight: "bold" as const },
+const PILL_PRESETS: Array<{ label: string; background: string; color: string; fontWeight: "normal" | "bold" }> = [
+  { label: "Purple", background: "#7c3aed", color: "#ffffff", fontWeight: "bold" },
+  { label: "Dark",   background: "#1a1a2e", color: "#ffffff", fontWeight: "bold" },
+  { label: "White",  background: "#ffffff", color: "#111111", fontWeight: "bold" },
+  { label: "Teal",   background: "#0d9488", color: "#ffffff", fontWeight: "bold" },
+  { label: "Warm",   background: "#d97706", color: "#ffffff", fontWeight: "bold" },
 ];
 
 export default function TextOverlayPropertiesPanel() {
