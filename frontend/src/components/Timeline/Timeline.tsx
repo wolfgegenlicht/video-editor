@@ -756,7 +756,7 @@ export default function Timeline({ toggle, seek }: Props) {
               <TimelineTrack key={track.id} track={track} zoom={zoom} height={trackH(track.id)} onSnapChange={setSnapIndicatorTime} />
             ))}
             {project.textOverlays.length > 0 && (
-              <TextOverlayTrack zoom={zoom} totalWidth={totalWidth} height={trackH("text")} />
+              <TextOverlayTrack zoom={zoom} totalWidth={totalWidth} height={trackH("text")} onSnapChange={setSnapIndicatorTime} />
             )}
             {project.captions.length > 0 && (
               <CaptionTimelineTrack zoom={zoom} totalWidth={totalWidth} seek={seek} height={trackH("captions")} onSnapChange={setSnapIndicatorTime} />

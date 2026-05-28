@@ -1,8 +1,9 @@
 import { useProjectStore, getItemStartTime } from "../../store/useProjectStore";
+import { SNAP_PX, findSnap } from "./snapUtils";
 
-interface Props { zoom: number; totalWidth: number; height: number }
+interface Props { zoom: number; totalWidth: number; height: number; onSnapChange?: (time: number | null) => void }
 
-export default function TextOverlayTrack({ zoom, totalWidth, height }: Props) {
+export default function TextOverlayTrack({ zoom, totalWidth, height, onSnapChange }: Props) {
   const { project, selectOverlay, selectedOverlayId, selectedItemIds, toggleItemSelection,
           moveSelectedItemsLive, moveSelectedItems, trimTextOverlayLive, updateTextOverlay } = useProjectStore();
   const overlays = project.textOverlays;
@@ -33,23 +34,41 @@ export default function TextOverlayTrack({ zoom, totalWidth, height }: Props) {
     const origEnd = ov.endTime;
     const duration = origEnd - origStart;
     const startX = e.clientX;
+
+    const snapPoints: number[] = [];
+    const currentState = useProjectStore.getState();
+    currentState.project.tracks.forEach((t) => t.clips.forEach((c) => {
+      snapPoints.push(c.startTime, c.startTime + c.duration);
+    }));
+    currentState.project.effectOverlays
+      .filter((e) => !ids.has(e.id))
+      .forEach((e) => { snapPoints.push(e.startTime, e.endTime); });
+    currentState.project.textOverlays
+      .filter((o) => o.id !== overlayId)
+      .forEach((o) => { snapPoints.push(o.startTime, o.endTime); });
+
     let lastStart = origStart;
     let lastEnd = origEnd;
 
     function onMouseMove(ev: MouseEvent) {
       const dt = (ev.clientX - startX) / zoom;
       if (isMultiDrag) {
-        const newPrimary = Math.max(0, origStart + dt);
-        const snappedDt = newPrimary - origStart;
+        const rawPrimary = Math.max(0, origStart + dt);
+        const { snappedStart, snapTime } = findSnap(rawPrimary, duration, snapPoints, SNAP_PX / zoom);
+        const delta = snappedStart - origStart;
+        onSnapChange?.(snapTime);
         lastMoves = [...ids].map((id) => ({
           id,
-          newStartTime: Math.max(0, (origPositions.get(id) ?? 0) + snappedDt),
+          newStartTime: Math.max(0, (origPositions.get(id) ?? 0) + delta),
         }));
         moveSelectedItemsLive(lastMoves);
         return;
       }
       if (mode === "move") {
-        lastStart = Math.max(0, origStart + dt);
+        const rawStart = Math.max(0, origStart + dt);
+        const { snappedStart, snapTime } = findSnap(rawStart, duration, snapPoints, SNAP_PX / zoom);
+        onSnapChange?.(snapTime);
+        lastStart = snappedStart;
         lastEnd = lastStart + duration;
         moveSelectedItemsLive([{ id: overlayId, newStartTime: lastStart }]);
       } else if (mode === "left") {
@@ -64,6 +83,7 @@ export default function TextOverlayTrack({ zoom, totalWidth, height }: Props) {
     }
 
     function onMouseUp() {
+      onSnapChange?.(null);
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp);
       if (isMultiDrag && lastMoves.length > 0) {
