@@ -17,6 +17,7 @@ export default function TransitionPropertiesPanel() {
           </div>
           <input
             type="range"
+            aria-label="Duration"
             min={0.1}
             max={3}
             step={0.05}
@@ -26,9 +27,10 @@ export default function TransitionPropertiesPanel() {
           />
         </div>
         <p className="text-[11px] text-[#6b6b78]">
-          Position: {transition.atTime.toFixed(2)}s — each side {(transition.duration / 2).toFixed(2)}s
+          Position: {transition.atTime.toFixed(2)}s ({(transition.duration / 2).toFixed(2)}s each side)
         </p>
         <button
+          type="button"
           onClick={() => removeClipTransition(transition.id)}
           className="w-full py-1.5 rounded text-xs font-semibold text-red-400 border border-red-500/20 bg-red-500/10 hover:bg-red-500/20 transition-colors cursor-pointer"
         >

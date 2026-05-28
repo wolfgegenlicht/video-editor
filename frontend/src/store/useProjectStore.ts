@@ -515,7 +515,10 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     const track = get().project.tracks.find((t) => t.id === trackId);
     if (!track) return;
     const clipIds = new Set(track.clips.map((c) => c.id));
-    const transitionIds = new Set((get().project.clipTransitions ?? []).filter((t) => t.trackId === trackId).map((t) => t.id));
+    const transitionIds = new Set<string>();
+    for (const t of get().project.clipTransitions ?? []) {
+      if (t.trackId === trackId) transitionIds.add(t.id);
+    }
     withHistory(set, get, (p) => ({
       ...p,
       tracks: p.tracks.filter((t) => t.id !== trackId),
@@ -1148,20 +1151,19 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       }),
     }));
 
-    const newCaptions = p.captions
-      .filter((c) => !(c.startTime < dEnd && c.endTime > dStart))
-      .map((c) => c.startTime >= dEnd
-        ? {
-            ...c,
-            startTime: c.startTime - gap,
-            endTime: c.endTime - gap,
-            words: c.words?.map((w) => ({ ...w, start: w.start - gap, end: w.end - gap })),
-          }
+    const newCaptions: typeof p.captions = [];
+    for (const c of p.captions) {
+      if (c.startTime < dEnd && c.endTime > dStart) continue;
+      newCaptions.push(c.startTime >= dEnd
+        ? { ...c, startTime: c.startTime - gap, endTime: c.endTime - gap, words: c.words?.map((w) => ({ ...w, start: w.start - gap, end: w.end - gap })) }
         : c);
+    }
 
-    const newTextOverlays = (p.textOverlays ?? [])
-      .filter((o) => !(o.startTime < dEnd && o.endTime > dStart))
-      .map((o) => o.startTime >= dEnd ? { ...o, startTime: o.startTime - gap, endTime: o.endTime - gap } : o);
+    const newTextOverlays: typeof p.textOverlays = [];
+    for (const o of p.textOverlays ?? []) {
+      if (o.startTime < dEnd && o.endTime > dStart) continue;
+      newTextOverlays.push(o.startTime >= dEnd ? { ...o, startTime: o.startTime - gap, endTime: o.endTime - gap } : o);
+    }
 
     return { ...p, tracks: newTracks, captions: newCaptions, textOverlays: newTextOverlays };
   }),
@@ -1212,9 +1214,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     // Word-level caption editing: remove just this word, shift subsequent timestamps
     const newCaptions = p.captions.flatMap((c, idx): Caption[] => {
       if (c.id === captionId) {
-        const remaining = words
-          .filter((_, i) => i !== wordIndex)
-          .map((w) => w.start >= cutEnd ? { ...w, start: w.start - gap, end: w.end - gap } : w);
+        const remaining: typeof words = [];
+        for (let i = 0; i < words.length; i++) {
+          if (i === wordIndex) continue;
+          const w = words[i];
+          remaining.push(w.start >= cutEnd ? { ...w, start: w.start - gap, end: w.end - gap } : w);
+        }
         if (remaining.length === 0) return [];
         return [{ ...c, words: remaining, text: remaining.map((w) => w.text).join(""), endTime: remaining[remaining.length - 1].end }];
       }
@@ -1228,9 +1233,11 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       return [c];
     });
 
-    const newTextOverlays = (p.textOverlays ?? [])
-      .filter((o) => !(o.startTime < cutEnd && o.endTime > cutStart))
-      .map((o) => o.startTime >= cutEnd ? { ...o, startTime: o.startTime - gap, endTime: o.endTime - gap } : o);
+    const newTextOverlays: typeof p.textOverlays = [];
+    for (const o of p.textOverlays ?? []) {
+      if (o.startTime < cutEnd && o.endTime > cutStart) continue;
+      newTextOverlays.push(o.startTime >= cutEnd ? { ...o, startTime: o.startTime - gap, endTime: o.endTime - gap } : o);
+    }
 
     return { ...p, tracks: newTracks, captions: newCaptions, textOverlays: newTextOverlays };
   }),

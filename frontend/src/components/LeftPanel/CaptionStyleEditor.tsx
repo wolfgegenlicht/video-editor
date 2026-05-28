@@ -25,8 +25,9 @@ export default function CaptionStyleEditor() {
 
       {/* Font family */}
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">Font</label>
+        <label htmlFor="caption-font" className="text-[11px] text-[#6b6b78] block mb-1">Font</label>
         <select
+          id="caption-font"
           value={s.fontFamily}
           onChange={(e) => set("fontFamily", e.target.value)}
           className="w-full text-xs bg-[#f2f2f6] border border-black/10 text-[#141416] rounded p-1.5 outline-none focus:ring-1 focus:ring-[#0ea5a0]"
@@ -39,10 +40,11 @@ export default function CaptionStyleEditor() {
 
       {/* Font size */}
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">
-          Size — {s.fontSize}px
+        <label htmlFor="caption-size" className="text-[11px] text-[#6b6b78] block mb-1">
+          Size: {s.fontSize}px
         </label>
         <input
+          id="caption-size"
           type="range" min={12} max={96} step={2}
           value={s.fontSize}
           onChange={(e) => set("fontSize", parseInt(e.target.value))}
@@ -52,10 +54,11 @@ export default function CaptionStyleEditor() {
 
       {/* Font weight */}
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">Weight</label>
+        <p className="text-[11px] text-[#6b6b78] block mb-1">Weight</p>
         <div className="flex gap-2">
           {(["normal", "bold"] as const).map((w) => (
             <button
+              type="button"
               key={w}
               onClick={() => set("fontWeight", w)}
               className={`flex-1 py-1 rounded text-xs border transition-colors
@@ -71,10 +74,11 @@ export default function CaptionStyleEditor() {
 
       {/* Text align */}
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">Align</label>
+        <p className="text-[11px] text-[#6b6b78] block mb-1">Align</p>
         <div className="flex gap-2">
           {(["left", "center", "right"] as const).map((a) => (
             <button
+              type="button"
               key={a}
               onClick={() => set("textAlign", a)}
               className={`flex-1 py-1 rounded text-xs border transition-colors
@@ -90,10 +94,11 @@ export default function CaptionStyleEditor() {
 
       {/* Letter spacing */}
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">
-          Letter spacing — {s.letterSpacing}px
+        <label htmlFor="caption-letter-spacing" className="text-[11px] text-[#6b6b78] block mb-1">
+          Letter spacing: {s.letterSpacing}px
         </label>
         <input
+          id="caption-letter-spacing"
           type="range" min={-2} max={20} step={0.5}
           value={s.letterSpacing}
           onChange={(e) => set("letterSpacing", parseFloat(e.target.value))}
@@ -103,8 +108,9 @@ export default function CaptionStyleEditor() {
 
       {/* Text color */}
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">Color</label>
+        <label htmlFor="caption-color" className="text-[11px] text-[#6b6b78] block mb-1">Color</label>
         <input
+          id="caption-color"
           type="color"
           value={s.color}
           onChange={(e) => set("color", e.target.value)}
@@ -114,9 +120,10 @@ export default function CaptionStyleEditor() {
 
       {/* Background */}
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">Background</label>
+        <p className="text-[11px] text-[#6b6b78] block mb-1">Background</p>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => set("backgroundColor", "transparent")}
             className={`flex-1 py-1 rounded text-xs border transition-colors
               ${s.backgroundColor === "transparent"
@@ -127,6 +134,7 @@ export default function CaptionStyleEditor() {
           </button>
           <input
             type="color"
+            aria-label="Background color"
             value={s.backgroundColor === "transparent" ? "#000000" : s.backgroundColor}
             onChange={(e) => set("backgroundColor", e.target.value)}
             className="flex-1 h-8 rounded border border-black/10 cursor-pointer"
@@ -137,22 +145,25 @@ export default function CaptionStyleEditor() {
 
       {/* Text shadow */}
       <div className="flex items-center justify-between">
-        <label className="text-[11px] text-[#6b6b78]">Text Shadow</label>
+        <span className="text-[11px] text-[#6b6b78]">Text Shadow</span>
         <button
+          type="button"
+          aria-label="Toggle text shadow"
           onClick={() => set("textShadow", !s.textShadow)}
           className={`w-10 h-5 rounded-full transition-colors relative ${s.textShadow ? "bg-[#0ea5a0]" : "bg-[#e4e4ea]"}`}
         >
-          <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${s.textShadow ? "translate-x-5" : "translate-x-0.5"}`} />
+          <div className={`absolute top-0.5 size-4 bg-white rounded-full shadow transition-transform ${s.textShadow ? "translate-x-5" : "translate-x-0.5"}`} />
         </button>
       </div>
 
       {/* Outline */}
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">
-          Outline — {s.outlineWidth}px
+        <label htmlFor="caption-outline" className="text-[11px] text-[#6b6b78] block mb-1">
+          Outline: {s.outlineWidth}px
         </label>
         <div className="flex gap-2 items-center">
           <input
+            id="caption-outline"
             type="range" min={0} max={8} step={0.5}
             value={s.outlineWidth}
             onChange={(e) => set("outlineWidth", parseFloat(e.target.value))}
@@ -163,7 +174,8 @@ export default function CaptionStyleEditor() {
               type="color"
               value={s.outlineColor}
               onChange={(e) => set("outlineColor", e.target.value)}
-              className="w-8 h-8 rounded border border-black/10 cursor-pointer flex-shrink-0"
+              className="size-8 rounded border border-black/10 cursor-pointer flex-shrink-0"
+              aria-label="Outline color"
               title="Outline color"
             />
           )}
@@ -172,8 +184,9 @@ export default function CaptionStyleEditor() {
 
       {/* Highlight color */}
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">Highlight Color</label>
+        <label htmlFor="caption-highlight" className="text-[11px] text-[#6b6b78] block mb-1">Highlight Color</label>
         <input
+          id="caption-highlight"
           type="color"
           value={s.highlightColor}
           onChange={(e) => set("highlightColor", e.target.value)}
@@ -186,8 +199,9 @@ export default function CaptionStyleEditor() {
 
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="text-[11px] text-[#6b6b78]">X — {s.x.toFixed(0)}%</label>
+          <label htmlFor="caption-x" className="text-[11px] text-[#6b6b78]">X: {s.x.toFixed(0)}%</label>
           <button
+            type="button"
             onClick={() => setCaptionTrackStyle({ x: Math.round((100 - s.boxW) / 2) })}
             className="text-[11px] text-[#0d9488] hover:text-[#0c9490] transition-colors"
           >
@@ -195,6 +209,7 @@ export default function CaptionStyleEditor() {
           </button>
         </div>
         <input
+          id="caption-x"
           type="range" min={0} max={90}
           value={s.x}
           onChange={(e) => setCaptionTrackStyle({ x: parseInt(e.target.value) })}
@@ -203,10 +218,11 @@ export default function CaptionStyleEditor() {
       </div>
 
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">
-          Y — {s.y.toFixed(0)}%
+        <label htmlFor="caption-y" className="text-[11px] text-[#6b6b78] block mb-1">
+          Y: {s.y.toFixed(0)}%
         </label>
         <input
+          id="caption-y"
           type="range" min={0} max={90}
           value={s.y}
           onChange={(e) => setCaptionTrackStyle({ y: parseInt(e.target.value) })}
@@ -215,10 +231,11 @@ export default function CaptionStyleEditor() {
       </div>
 
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">
-          Width — {s.boxW.toFixed(0)}%
+        <label htmlFor="caption-width" className="text-[11px] text-[#6b6b78] block mb-1">
+          Width: {s.boxW.toFixed(0)}%
         </label>
         <input
+          id="caption-width"
           type="range" min={10} max={100}
           value={s.boxW}
           onChange={(e) => setCaptionTrackStyle({ boxW: parseInt(e.target.value) })}
@@ -227,10 +244,11 @@ export default function CaptionStyleEditor() {
       </div>
 
       <div>
-        <label className="text-[11px] text-[#6b6b78] block mb-1">
-          Height — {s.boxH.toFixed(0)}%
+        <label htmlFor="caption-height" className="text-[11px] text-[#6b6b78] block mb-1">
+          Height: {s.boxH.toFixed(0)}%
         </label>
         <input
+          id="caption-height"
           type="range" min={3} max={80}
           value={s.boxH}
           onChange={(e) => setCaptionTrackStyle({ boxH: parseInt(e.target.value) })}
@@ -241,6 +259,7 @@ export default function CaptionStyleEditor() {
 
       {/* Reset */}
       <button
+        type="button"
         onClick={() => setCaptionTrackStyle(makeDefaultCaptionStyle())}
         className="w-full py-1.5 text-xs border border-black/10 rounded text-[#6b6b78] hover:bg-[#ebebef] transition-colors"
       >

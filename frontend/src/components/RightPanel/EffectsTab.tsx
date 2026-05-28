@@ -169,10 +169,13 @@ function EffectCard({ effectType, label, desc, color, icon, draggable = true, on
   const cls = COLOR_CLASSES[color];
   return (
     <div
+      role="button"
+      tabIndex={0}
       draggable={draggable}
       onDragStart={draggable ? (e) => onDragStart(e, effectType) : undefined}
       onDragEnd={onDragEnd}
       onDoubleClick={() => onDoubleClick(effectType)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onDoubleClick(effectType); }}
       className={`flex items-center gap-3 p-3 rounded-lg border ${cls.border} ${cls.bg} ${draggable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${cls.hover} transition-colors select-none`}
     >
       <div className="flex-shrink-0">{icon}</div>

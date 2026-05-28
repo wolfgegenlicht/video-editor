@@ -62,6 +62,7 @@ export default function EffectOverlayTrack({ effectType, zoom, totalWidth, heigh
     <div
       className={`border-b border-black/[0.06] relative ${BG_COLORS[effectType]} ${hidden ? "opacity-40" : ""}`}
       style={{ width: totalWidth, height }}
+      role="presentation"
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
       onMouseDown={() => selectEffectOverlay(null)}
@@ -281,9 +282,12 @@ function EffectBlock({
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={`absolute top-1 bottom-1 rounded flex items-center overflow-hidden select-none group cursor-grab active:cursor-grabbing ${selected ? theme.selected : theme.base} ${isMultiSelected ? "ring-2 ring-[#0ea5a0]/50" : ""}`}
       style={{ left, width }}
       onMouseDown={(e) => startDrag(e, "move")}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { onSelect(); } }}
     >
       {isFade && (
         <div
@@ -296,6 +300,7 @@ function EffectBlock({
         />
       )}
       <div
+        role="presentation"
         className={`absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 ${theme.handle}`}
         onMouseDown={(e) => { e.stopPropagation(); startDrag(e, "left"); }}
       />
@@ -307,6 +312,7 @@ function EffectBlock({
           return (
             <div
               key={i}
+              role="presentation"
               title={`Keyframe ${i + 1}`}
               className={`absolute top-1/2 z-20 pointer-events-auto cursor-ew-resize
                 ${isActive ? "outline outline-2 outline-amber-300 outline-offset-1" : ""}`}
@@ -351,6 +357,7 @@ function EffectBlock({
         {getLabel(effect)}
       </span>
       <div
+        role="presentation"
         className={`absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 ${theme.handle}`}
         onMouseDown={(e) => { e.stopPropagation(); startDrag(e, "right"); }}
       />

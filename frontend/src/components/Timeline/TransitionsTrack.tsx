@@ -47,6 +47,7 @@ export default function TransitionsTrack({ zoom, totalWidth, height }: Props) {
 
   return (
     <div
+      role="presentation"
       className="border-b border-black/[0.06] relative bg-white"
       style={{ width: totalWidth, height }}
       onDragOver={(e) => e.preventDefault()}

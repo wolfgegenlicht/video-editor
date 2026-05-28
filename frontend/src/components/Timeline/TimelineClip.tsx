@@ -233,6 +233,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
       >
         {/* Trim left handle */}
         <div
+          role="presentation"
           className={`absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-400/60 hover:bg-emerald-400" : "bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60"}`}
           onMouseDown={(e) => startDrag(e, "trim-left")}
         />
@@ -255,6 +256,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
         </span>
         {/* Trim right handle */}
         <div
+          role="presentation"
           className={`absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-400/60 hover:bg-emerald-400" : "bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60"}`}
           onMouseDown={(e) => startDrag(e, "trim-right")}
         />

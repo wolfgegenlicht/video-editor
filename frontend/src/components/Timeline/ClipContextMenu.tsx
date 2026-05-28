@@ -53,6 +53,7 @@ export default function ClipContextMenu({ x, y, items, onClose }: Props) {
           <div key={i} className="my-1 border-t border-black/[0.06]" />
         ) : (
           <button
+            type="button"
             key={i}
             disabled={item.disabled}
             className={`w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors cursor-pointer

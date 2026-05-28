@@ -149,7 +149,7 @@ export default function BlurRegionEditor({ effectId, effectStartTime, intensity,
     width:  `${width * 100}%`,
     height: `${height * 100}%`,
   };
-  const handleClass = "absolute w-3 h-3 bg-white border border-gray-500 rounded-sm shadow pointer-events-auto";
+  const handleClass = "absolute size-3 bg-white border border-gray-500 rounded-sm shadow pointer-events-auto";
 
   return (
     <>

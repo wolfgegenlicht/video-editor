@@ -48,6 +48,9 @@ export default function TransitionHandle({ transition, zoom }: Props) {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      aria-label="Transition"
       className={`absolute top-0 bottom-0 z-20 flex items-center justify-center cursor-pointer select-none
         ${selected ? "opacity-100" : "opacity-70 hover:opacity-100"}
         ${selectedItemIds.size > 1 && selectedItemIds.has(transition.id) ? "ring-2 ring-[#0ea5a0]/50" : ""}`}
@@ -57,6 +60,7 @@ export default function TransitionHandle({ transition, zoom }: Props) {
         if (e.metaKey) { toggleItemSelection(transition.id); return; }
         selectTransition(transition.id);
       }}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") selectTransition(transition.id); }}
     >
       {/* Diagonal stripe pattern */}
       <svg className="absolute inset-0 w-full h-full" preserveAspectRatio="none">
@@ -74,6 +78,7 @@ export default function TransitionHandle({ transition, zoom }: Props) {
       />
       {/* Left resize handle */}
       <div
+        role="presentation"
         className="absolute left-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 hover:bg-[rgba(14,165,160,0.4)]"
         onMouseDown={(e) => startResize(e, "left")}
       />
@@ -85,6 +90,7 @@ export default function TransitionHandle({ transition, zoom }: Props) {
       )}
       {/* Right resize handle */}
       <div
+        role="presentation"
         className="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize z-10 hover:bg-[rgba(14,165,160,0.4)]"
         onMouseDown={(e) => startResize(e, "right")}
       />

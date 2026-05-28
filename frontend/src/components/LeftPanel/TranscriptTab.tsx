@@ -42,6 +42,7 @@ function SilenceBadge({
     <span className="inline-flex items-center gap-0.5 mx-0.5 px-1 py-px bg-[#f2f2f6] text-[#6b6b78] text-[11px] rounded align-middle select-none">
       {dur}s
       <button
+        type="button"
         className="hover:text-red-500 transition-colors leading-none ml-0.5"
         onMouseDown={(e) => e.stopPropagation()}
         onClick={(e) => { e.stopPropagation(); onDismiss(); }}
@@ -77,11 +78,6 @@ export default function TranscriptTab({ seek }: Props) {
   const isDragging = useRef(false);
   const didDrag = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Auto-exit filler mode when all fillers dismissed
-  useEffect(() => {
-    if (fillerMode && fillerSet.size === 0) setFillerMode(false);
-  }, [fillerMode, fillerSet.size]);
 
   useEffect(() => {
     function onMouseUp() {
@@ -356,6 +352,7 @@ export default function TranscriptTab({ seek }: Props) {
       {/* Toolbar */}
       <div className="px-4 pt-3 pb-2 border-b border-black/[0.06] flex-shrink-0 space-y-2">
         <button
+          type="button"
           onClick={handleTranscribe}
           disabled={loading}
           className="w-full py-1.5 text-xs text-[#6b6b78] border border-black/10 rounded hover:border-black/[0.18] hover:text-[#141416] disabled:opacity-50 transition-colors bg-[#f2f2f6]"
@@ -366,6 +363,7 @@ export default function TranscriptTab({ seek }: Props) {
         {project.captions.length > 0 && (
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={detectFillers}
               className={`flex-1 py-1 text-[11px] border rounded transition-colors ${
                 fillerMode
@@ -376,6 +374,7 @@ export default function TranscriptTab({ seek }: Props) {
               ✂ Fillers
             </button>
             <button
+              type="button"
               onClick={handleDetectSilences}
               disabled={silenceLoading || !project.captionSourceFileId}
               className={`flex-1 py-1 text-[11px] border rounded transition-colors disabled:opacity-40 ${
@@ -397,12 +396,14 @@ export default function TranscriptTab({ seek }: Props) {
             ✂ {fillerSet.size} filler{fillerSet.size !== 1 ? "s" : ""} detected
           </span>
           <button
+            type="button"
             onClick={() => { setFillerSet(new Set()); setFillerMode(false); }}
             className="text-[11px] text-orange-500 hover:text-orange-300 cursor-pointer transition-colors"
           >
             Dismiss
           </button>
           <button
+            type="button"
             onClick={handleCutAllFillers}
             className="text-[11px] text-red-400 hover:text-red-300 font-semibold px-2 py-0.5 rounded bg-red-500/15 hover:bg-red-500/25 transition-colors cursor-pointer"
           >
@@ -418,12 +419,14 @@ export default function TranscriptTab({ seek }: Props) {
             ⏱ {silencePending.length} silence{silencePending.length !== 1 ? "s" : ""} detected
           </span>
           <button
+            type="button"
             onClick={() => setSilencePending([])}
             className="text-[11px] text-[#6b6b78] hover:text-[#141416] cursor-pointer transition-colors"
           >
             Dismiss
           </button>
           <button
+            type="button"
             onClick={handleCutAllSilences}
             className="text-[11px] text-red-400 hover:text-red-300 font-semibold px-2 py-0.5 rounded bg-red-500/15 hover:bg-red-500/25 transition-colors cursor-pointer"
           >
@@ -480,6 +483,7 @@ export default function TranscriptTab({ seek }: Props) {
                 return (
                   <React.Fragment key={key}>
                     <input
+                      aria-label="Edit word"
                       autoFocus
                       value={editText}
                       onChange={(e) => setEditText(e.target.value)}
@@ -516,6 +520,8 @@ export default function TranscriptTab({ seek }: Props) {
                     <span className="inline-block w-[1.5px] h-[1.1em] bg-[#141416] cursor-blink align-text-bottom mx-px" />
                   )}
                   <span
+                    role="button"
+                    tabIndex={-1}
                     className={`relative inline-block cursor-pointer rounded-sm transition-colors
                       ${isFiller && !isSelected
                         ? "bg-orange-500/15 text-orange-400 hover:bg-orange-500/25"
@@ -529,14 +535,16 @@ export default function TranscriptTab({ seek }: Props) {
                     onMouseDown={(e) => onWordMouseDown(e, w)}
                     onMouseEnter={() => onWordMouseEnter(w)}
                     onClick={() => onWordClick(cap, w, i)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onWordClick(cap, w, i); }}
                     title="Click: place cursor · Drag: select range · Delete: cut from video"
                   >
                     {w.text}
 
                     {/* Filler cut button */}
                     {isFiller && !isSelected && (
-                      <span
-                        className="absolute -top-2 -right-1 z-10 flex items-center justify-center w-4 h-4 rounded-full bg-orange-500 text-white text-[10px] leading-none hover:bg-red-500 cursor-pointer transition-colors select-none"
+                      <button
+                        type="button"
+                        className="absolute -top-2 -right-1 z-10 flex items-center justify-center size-4 rounded-full bg-orange-500 text-white text-[10px] leading-none hover:bg-red-500 cursor-pointer transition-colors select-none"
                         title="Cut this filler"
                         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
                         onClick={(e) => {
@@ -550,22 +558,25 @@ export default function TranscriptTab({ seek }: Props) {
                           const next = new Set(fillerSet);
                           next.delete(fillerKey(cap.id, w.start));
                           setFillerSet(next);
+                          if (next.size === 0) setFillerMode(false);
                         }}
                       >
                         <svg width="8" height="8" viewBox="0 0 8 8" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
                           <line x1="1.5" y1="1.5" x2="6.5" y2="6.5" />
                           <line x1="6.5" y1="1.5" x2="1.5" y2="6.5" />
                         </svg>
-                      </span>
+                      </button>
                     )}
 
                     {/* Cursor tooltip */}
                     {isCursor && !editKey && (
                       <span
+                        role="presentation"
                         className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 pointer-events-auto"
                         onMouseDown={(e) => e.stopPropagation()}
                       >
                         <button
+                          type="button"
                           className="flex items-center gap-1 bg-white border border-black/10 rounded-md shadow-lg px-2.5 py-1 text-[11px] font-medium text-[#141416] hover:bg-[#ebebef] whitespace-nowrap select-none"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -589,8 +600,11 @@ export default function TranscriptTab({ seek }: Props) {
               );
             }) : (
               <span
+                role="button"
+                tabIndex={-1}
                 className="cursor-pointer hover:bg-black/[0.04] rounded-sm px-[1px]"
                 onClick={() => seek(cap.startTime)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") seek(cap.startTime); }}
               >
                 {cap.text}
               </span>
@@ -615,6 +629,7 @@ export default function TranscriptTab({ seek }: Props) {
                 {(capIdx === 0 || pauseGap > 1.5) && (
                   <button
                     key={`ts-${cap.id}`}
+                    type="button"
                     className="text-[10px] font-mono text-[#6b6b78] hover:text-[#0d9488] transition-colors mr-1 align-baseline select-none"
                     onClick={() => seek(cap.startTime)}
                     tabIndex={-1}

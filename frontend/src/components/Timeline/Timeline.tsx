@@ -223,9 +223,10 @@ export default function Timeline({ toggle, seek }: Props) {
     const track = project.tracks.find((t) => t.id === key);
     if (track) {
       const clipIds = track.clips.map((c) => c.id);
-      const transitionIds = (project.clipTransitions ?? [])
-        .filter((t) => t.trackId === track.id)
-        .map((t) => t.id);
+      const transitionIds: string[] = [];
+      for (const t of project.clipTransitions ?? []) {
+        if (t.trackId === track.id) transitionIds.push(t.id);
+      }
       return [...clipIds, ...transitionIds];
     }
     if (key === "text") return project.textOverlays.map((o) => o.id);
@@ -233,7 +234,11 @@ export default function Timeline({ toggle, seek }: Props) {
     if (key === "transitions") return (project.clipTransitions ?? []).map((t) => t.id);
     if (key.startsWith("fx-")) {
       const type = key.slice(3) as EffectType;
-      return project.effectOverlays.filter((e) => e.type === type).map((e) => e.id);
+      const ids: string[] = [];
+      for (const e of project.effectOverlays) {
+        if (e.type === type) ids.push(e.id);
+      }
+      return ids;
     }
     return [];
   }
@@ -417,6 +422,7 @@ export default function Timeline({ toggle, seek }: Props) {
     <div className="flex flex-col bg-[#f0f0f4] border-t border-black/[0.08] flex-shrink-0" style={{ height: Math.max(minHeight, height) }}>
       {/* Scrubber bar */}
       <div
+        role="presentation"
         className="h-1 bg-[#e4e4ea] flex-shrink-0 relative cursor-pointer"
         onClick={(e) => {
           const rect = e.currentTarget.getBoundingClientRect();
@@ -427,6 +433,7 @@ export default function Timeline({ toggle, seek }: Props) {
       </div>
       {/* Height resize handle */}
       <div
+        role="presentation"
         className="h-1 cursor-ns-resize bg-transparent hover:bg-[rgba(14,165,160,0.4)] transition-colors flex-shrink-0"
         onMouseDown={onDragHandleMouseDown}
       />
@@ -485,11 +492,14 @@ export default function Timeline({ toggle, seek }: Props) {
               )}
               <div
                 draggable
+                role="button"
+                tabIndex={0}
                 className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-grab active:cursor-grabbing select-none transition-colors
                   ${trackSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
                 style={{ height: trackH(track.id), opacity: draggedTrackId === track.id ? 0.4 : 1 }}
                 onContextMenu={(e) => openContextMenu(track.id, e)}
                 onClick={(e) => onTrackLabelClick(e, track.id)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); selectMultiple(new Set(getItemsInRow(track.id))); setLastClickedRowKey(track.id); setFocusedTrackId(track.id); } }}
                 onDragStart={(e) => {
                   e.dataTransfer.setData("trackId", track.id);
                   e.dataTransfer.effectAllowed = "move";
@@ -511,7 +521,7 @@ export default function Timeline({ toggle, seek }: Props) {
                   setDragOverIndex(null);
                 }}
               >
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${TRACK_DOT_COLORS[track.type] ?? "bg-[#6b6b78]"}`} />
+                <div className={`size-2 rounded-full flex-shrink-0 ${TRACK_DOT_COLORS[track.type] ?? "bg-[#6b6b78]"}`} />
                 {renamingTrackId === track.id ? (
                   <input
                     draggable={false}
@@ -528,26 +538,29 @@ export default function Timeline({ toggle, seek }: Props) {
                   </span>
                 )}
                 <button
+                  type="button"
                   draggable={false}
                   title={track.muted ? "Unmute track" : "Mute track"}
                   onClick={(e) => { e.stopPropagation(); setTrackMuted(track.id, !track.muted); }}
-                  className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer
+                  className={`flex-shrink-0 size-5 rounded flex items-center justify-center transition-colors cursor-pointer
                     ${track.muted ? "text-amber-400 hover:text-amber-300" : "text-[#6b6b78] hover:text-[#141416]"}`}
                 >
                   {track.muted ? <VolumeXIcon /> : <Volume2Icon />}
                 </button>
                 {track.type !== "audio" && (
                   <button
+                    type="button"
                     draggable={false}
                     title={track.hidden ? "Show track" : "Hide track"}
                     onClick={(e) => { e.stopPropagation(); setTrackHidden(track.id, !track.hidden); }}
-                    className={`flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer
+                    className={`flex-shrink-0 size-5 rounded flex items-center justify-center transition-colors cursor-pointer
                       ${track.hidden ? "text-[#6b6b78] hover:text-[#141416]" : "text-[#6b6b78] hover:text-[#141416]"}`}
                   >
                     {track.hidden ? <EyeOffIcon /> : <EyeIcon />}
                   </button>
                 )}
                 <div
+                  role="presentation"
                   draggable={false}
                   className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                   onMouseDown={(e) => onTrackResizeDown(track.id, e)}
@@ -562,12 +575,16 @@ export default function Timeline({ toggle, seek }: Props) {
           {project.textOverlays.length > 0 && (() => {
             const rowSelected = project.textOverlays.some((o) => selectedItemIds.has(o.id));
             return (
-            <div className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
+            <div
+              role="button"
+              tabIndex={0}
+              className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
               ${rowSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
               style={{ height: trackH("text") }}
               onClick={(e) => onTrackLabelClick(e, "text")}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); selectMultiple(new Set(getItemsInRow("text"))); setLastClickedRowKey("text"); setFocusedTrackId(null); } }}
               onContextMenu={(e) => openContextMenu("text", e)}>
-              <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+              <div className="size-2 rounded-full bg-amber-400 flex-shrink-0" />
               {renamingTrackId === "text" ? (
                 <input
                   autoFocus
@@ -583,6 +600,7 @@ export default function Timeline({ toggle, seek }: Props) {
                 </span>
               )}
               <div
+                role="presentation"
                 className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("text", e)}
               />
@@ -592,12 +610,16 @@ export default function Timeline({ toggle, seek }: Props) {
           {project.captions.length > 0 && (() => {
             const rowSelected = project.captions.some((c) => selectedItemIds.has(c.id));
             return (
-            <div className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
+            <div
+              role="button"
+              tabIndex={0}
+              className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
               ${rowSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
               style={{ height: trackH("captions") }}
               onClick={(e) => onTrackLabelClick(e, "captions")}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); selectMultiple(new Set(getItemsInRow("captions"))); setLastClickedRowKey("captions"); setFocusedTrackId(null); } }}
               onContextMenu={(e) => openContextMenu("captions", e)}>
-              <div className="w-2 h-2 rounded-full bg-violet-500 flex-shrink-0" />
+              <div className="size-2 rounded-full bg-violet-500 flex-shrink-0" />
               {renamingTrackId === "captions" ? (
                 <input
                   autoFocus
@@ -613,6 +635,7 @@ export default function Timeline({ toggle, seek }: Props) {
                 </span>
               )}
               <div
+                role="presentation"
                 className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("captions", e)}
               />
@@ -622,12 +645,16 @@ export default function Timeline({ toggle, seek }: Props) {
           {hasTransitions && (() => {
             const rowSelected = (project.clipTransitions ?? []).some((t) => selectedItemIds.has(t.id));
             return (
-            <div className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
+            <div
+              role="button"
+              tabIndex={0}
+              className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
               ${rowSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
               style={{ height: trackH("transitions") }}
               onClick={(e) => onTrackLabelClick(e, "transitions")}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); selectMultiple(new Set(getItemsInRow("transitions"))); setLastClickedRowKey("transitions"); setFocusedTrackId(null); } }}
               onContextMenu={(e) => openContextMenu("transitions", e)}>
-              <div className="w-2 h-2 rounded-full bg-[#0ea5a0] flex-shrink-0" />
+              <div className="size-2 rounded-full bg-[#0ea5a0] flex-shrink-0" />
               {renamingTrackId === "transitions" ? (
                 <input
                   autoFocus
@@ -643,6 +670,7 @@ export default function Timeline({ toggle, seek }: Props) {
                 </span>
               )}
               <div
+                role="presentation"
                 className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                 onMouseDown={(e) => onTrackResizeDown("transitions", e)}
               />
@@ -654,12 +682,16 @@ export default function Timeline({ toggle, seek }: Props) {
             const rowKey = `fx-${effectType}`;
             const rowSelected = project.effectOverlays.filter((e) => e.type === effectType).some((e) => selectedItemIds.has(e.id));
             return (
-              <div key={effectType} className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
+              <div key={effectType}
+                role="button"
+                tabIndex={0}
+                className={`relative flex items-center gap-1.5 px-2 border-b border-black/[0.06] cursor-pointer select-none transition-colors
                 ${rowSelected ? "bg-[rgba(14,165,160,0.08)] border-l-2 border-l-[#0ea5a0] hover:bg-[rgba(14,165,160,0.12)]" : "hover:bg-[#ebebef]"}`}
                 style={{ height: trackH(rowKey) }}
                 onClick={(e) => onTrackLabelClick(e, rowKey)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.stopPropagation(); selectMultiple(new Set(getItemsInRow(rowKey))); setLastClickedRowKey(rowKey); setFocusedTrackId(null); } }}
                 onContextMenu={(e) => openContextMenu(rowKey, e)}>
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${EFFECT_LANE_COLORS[effectType]} ${isHidden ? "opacity-40" : ""}`} />
+                <div className={`size-2 rounded-full flex-shrink-0 ${EFFECT_LANE_COLORS[effectType]} ${isHidden ? "opacity-40" : ""}`} />
                 {renamingTrackId === rowKey ? (
                   <input
                     autoFocus
@@ -675,13 +707,15 @@ export default function Timeline({ toggle, seek }: Props) {
                   </span>
                 )}
                 <button
+                  type="button"
                   title={isHidden ? "Enable effects" : "Disable effects"}
                   onClick={(e) => { e.stopPropagation(); setEffectLaneHidden(effectType, !isHidden); }}
-                  className="flex-shrink-0 w-5 h-5 rounded flex items-center justify-center transition-colors cursor-pointer text-[#6b6b78] hover:text-[#141416]"
+                  className="flex-shrink-0 size-5 rounded flex items-center justify-center transition-colors cursor-pointer text-[#6b6b78] hover:text-[#141416]"
                 >
                   {isHidden ? <EyeOffIcon /> : <EyeIcon />}
                 </button>
                 <div
+                  role="presentation"
                   className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-10"
                   onMouseDown={(e) => onTrackResizeDown(rowKey, e)}
                 />
@@ -697,13 +731,14 @@ export default function Timeline({ toggle, seek }: Props) {
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleGhostDrop}
               >
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${g.dot}`} />
+                <div className={`size-2 rounded-full flex-shrink-0 ${g.dot}`} />
                 <span className={`text-[11px] font-bold ${g.text}`}>+ {g.label}</span>
               </div>
             );
           })()}
           {/* Label column right-border resize handle */}
           <div
+            role="presentation"
             className="absolute top-0 right-0 bottom-0 w-1 cursor-ew-resize hover:bg-[rgba(14,165,160,0.4)] transition-colors z-20"
             onMouseDown={onLabelResizeDown}
           />
@@ -715,7 +750,7 @@ export default function Timeline({ toggle, seek }: Props) {
           className="flex-1 overflow-x-auto overflow-y-hidden relative"
           onWheel={handleWheelZoom}
         >
-          <div style={{ width: totalWidth, position: "relative" }} onMouseDown={onContentMouseDown}>
+          <div role="presentation" style={{ width: totalWidth, position: "relative" }} onMouseDown={onContentMouseDown}>
             <TimelineRuler totalWidth={totalWidth} zoom={zoom} seek={seek} />
             {project.tracks.map((track) => (
               <TimelineTrack key={track.id} track={track} zoom={zoom} height={trackH(track.id)} onSnapChange={setSnapIndicatorTime} />
@@ -790,12 +825,14 @@ export default function Timeline({ toggle, seek }: Props) {
           onMouseDown={(e) => e.stopPropagation()}
         >
           <button
+            type="button"
             className="w-full text-left px-3 py-1.5 text-[13px] text-[#141416] hover:bg-[#f7f7fa] transition-colors"
             onClick={() => startRename(contextMenu.rowKey)}
           >
             Rename
           </button>
           <button
+            type="button"
             className="w-full text-left px-3 py-1.5 text-[13px] text-[#dc2626] hover:bg-red-50 transition-colors"
             onClick={() => {
               const { rowKey, isRealTrack } = contextMenu;

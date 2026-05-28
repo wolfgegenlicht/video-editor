@@ -123,6 +123,7 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
 
   return (
     <div
+      role="presentation"
       ref={containerRef}
       className="absolute group select-none cursor-move"
       style={{
@@ -161,6 +162,7 @@ function KaraokeOverlay({ seg, time, style, onSelect }: { seg: Caption; time: nu
 
       {/* Corner resize handle — width + height */}
       <div
+        role="presentation"
         className="absolute bottom-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity cursor-nwse-resize"
         style={{ width: 20, height: 20, padding: 4 }}
         onPointerDown={onResizeStart}

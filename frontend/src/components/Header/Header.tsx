@@ -17,6 +17,7 @@ export default function Header() {
       {/* Left group */}
       <div className="flex items-center gap-2 flex-1">
         <button
+          type="button"
           onClick={closeProject}
           className="flex items-center gap-1 text-xs text-[#6b6b78] hover:text-[#141416] cursor-pointer transition-colors"
         >
@@ -26,23 +27,26 @@ export default function Header() {
         <div className="w-px h-3.5 bg-black/[0.08]" />
         <div className="flex gap-0.5">
           <button
+            type="button"
             onClick={undo}
             disabled={!history.length}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[#ebebef] disabled:opacity-30 cursor-pointer transition-colors"
+            className="size-7 flex items-center justify-center rounded hover:bg-[#ebebef] disabled:opacity-30 cursor-pointer transition-colors"
             title="Undo (⌘Z)"
           >
             <UndoIcon />
           </button>
           <button
+            type="button"
             onClick={redo}
             disabled={!future.length}
-            className="w-7 h-7 flex items-center justify-center rounded hover:bg-[#ebebef] disabled:opacity-30 cursor-pointer transition-colors"
+            className="size-7 flex items-center justify-center rounded hover:bg-[#ebebef] disabled:opacity-30 cursor-pointer transition-colors"
             title="Redo (⌘⇧Z)"
           >
             <RedoIcon />
           </button>
         </div>
         <select
+          aria-label="Aspect ratio"
           value={project.aspectRatio}
           onChange={(e) => setAspectRatio(e.target.value as AspectRatio)}
           className="text-xs border border-black/10 rounded-md px-2 py-0.5 bg-[#f2f2f6] text-[#141416] cursor-pointer"
@@ -56,6 +60,7 @@ export default function Header() {
       {/* Center group — project name */}
       <div className="flex items-center justify-center">
         <input
+          aria-label="Project name"
           className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-1 focus:ring-[#0ea5a0] rounded px-1 w-44 text-center text-[#141416]"
           value={project.name}
           onChange={(e) => setProjectName(e.target.value)}
@@ -68,6 +73,7 @@ export default function Header() {
           {saveStatus === "saving" ? "Saving…" : "Saved"}
         </span>
         <button
+          type="button"
           onClick={() => setShowExport(true)}
           className="px-3 py-0.5 text-xs bg-[#0ea5a0] hover:bg-[#0c9490] text-white rounded font-semibold cursor-pointer transition-colors"
         >

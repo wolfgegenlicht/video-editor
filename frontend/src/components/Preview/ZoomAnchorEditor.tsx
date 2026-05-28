@@ -68,6 +68,7 @@ export default function ZoomAnchorEditor({ effectId, anchorX, anchorY, scale, ou
     <>
       {/* Full-overlay interaction — click or drag anywhere to reposition anchor */}
       <div
+        role="presentation"
         className="absolute inset-0 pointer-events-auto cursor-crosshair select-none"
         onPointerDown={onPointerDown}
       />

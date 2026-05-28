@@ -165,6 +165,8 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height, o
         return (
           <div
             key={cap.id}
+            role="button"
+            tabIndex={0}
             className={`absolute top-1 bottom-1 rounded select-none group
               flex items-center overflow-hidden px-1
               cursor-grab active:cursor-grabbing
@@ -179,10 +181,12 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height, o
               selectCaption(cap.id);
               seek(cap.startTime);
             }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { selectCaption(cap.id); seek(cap.startTime); } }}
             title="Drag to move · Drag edges to trim"
           >
             {/* Trim left handle */}
             <div
+              role="presentation"
               className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60 rounded-l"
               onMouseDown={(e) => { e.stopPropagation(); startDrag(e, cap.id, "trim-left"); }}
             />
@@ -191,6 +195,7 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height, o
             </span>
             {/* Trim right handle */}
             <div
+              role="presentation"
               className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60 rounded-r"
               onMouseDown={(e) => { e.stopPropagation(); startDrag(e, cap.id, "trim-right"); }}
             />

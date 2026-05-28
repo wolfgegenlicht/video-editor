@@ -161,8 +161,8 @@ function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalR
 
   if (missingFileIds.has(playbackFileId)) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-neutral-900 text-neutral-400 text-sm select-none" onPointerDown={(e) => { e.stopPropagation(); onSelect(); }}>
-        File not found — re-upload to restore
+      <div role="presentation" className="absolute inset-0 flex items-center justify-center bg-neutral-900 text-neutral-400 text-sm select-none" onPointerDown={(e) => { e.stopPropagation(); onSelect(); }}>
+        File not found: re-upload to restore
       </div>
     );
   }
@@ -230,6 +230,7 @@ function Minimap({ zoom, panOffset, aspectRatio, onPanChange }: MinimapProps) {
 
   return (
     <div
+      role="presentation"
       ref={ref}
       className="absolute top-2 right-2 z-30 rounded overflow-hidden cursor-crosshair border border-white/30 bg-black/70"
       style={{ width: mapW, height: mapH }}
@@ -273,11 +274,13 @@ interface PreviewControlsProps {
 function PreviewControls({ zoom, onChange, onFullscreen }: PreviewControlsProps) {
   return (
     <div
+      role="presentation"
       data-zoom-controls
       className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 bg-black/60 backdrop-blur-sm rounded-full text-white text-xs select-none pointer-events-auto"
       onPointerDown={(e) => e.stopPropagation()}
     >
       <select
+        aria-label="Preview zoom"
         value={zoom}
         onChange={(e) => onChange(Number(e.target.value))}
         className="bg-transparent text-white text-xs outline-none cursor-pointer"
@@ -290,6 +293,7 @@ function PreviewControls({ zoom, onChange, onFullscreen }: PreviewControlsProps)
       </select>
       <div className="w-px h-4 bg-white/20" />
       <button
+        type="button"
         onClick={onFullscreen}
         className="hover:text-white/70 transition-colors"
         title="Fullscreen (F)"
@@ -606,6 +610,7 @@ export default function VideoPreview({ videoRef }: Props) {
 
   const fullscreenModal = isFullscreen && createPortal(
     <div
+      role="presentation"
       className="fixed inset-0 z-[9999] bg-black flex items-center justify-center"
       onClick={() => setFullscreen(false)}
     >
@@ -620,6 +625,7 @@ export default function VideoPreview({ videoRef }: Props) {
         {renderInnerCanvas(true)}
       </div>
       <button
+        type="button"
         className="absolute top-4 right-4 text-white/60 hover:text-white text-3xl leading-none transition-colors"
         onClick={() => setFullscreen(false)}
         title="Close (Esc)"
@@ -635,6 +641,7 @@ export default function VideoPreview({ videoRef }: Props) {
   return (
     <>
       <div
+        role="presentation"
         ref={outerRef}
         className="relative overflow-hidden"
         style={{ width: previewSize.w, height: previewSize.h }}

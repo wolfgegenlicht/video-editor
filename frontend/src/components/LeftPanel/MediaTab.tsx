@@ -27,7 +27,7 @@ function AudioThumbnail() {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 pt-10 pb-4 px-4 text-center">
-      <div className="w-12 h-12 rounded-xl bg-[#f2f2f6] flex items-center justify-center">
+      <div className="size-12 rounded-xl bg-[#f2f2f6] flex items-center justify-center">
         <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#9b9baa" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="5" width="18" height="14" rx="2" />
           <path d="M9 10l5 2.5L9 15V10z" fill="#9b9baa" stroke="none" />
@@ -164,6 +164,7 @@ export default function MediaTab() {
       {/* Upload button */}
       <div className="px-3 pt-3 pb-2 flex-shrink-0">
         <button
+          type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-medium
@@ -232,8 +233,9 @@ export default function MediaTab() {
                   {/* Action buttons — revealed on hover */}
                   <div className="absolute inset-0 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
+                      type="button"
                       onClick={() => handleAddToTimeline(file.id)}
-                      className="flex items-center justify-center w-7 h-7 rounded-full bg-white/90 shadow
+                      className="flex items-center justify-center size-7 rounded-full bg-white/90 shadow
                         text-[#141416] hover:text-[#0d9488] hover:bg-white transition-colors"
                       title="Add to timeline"
                     >
@@ -242,8 +244,9 @@ export default function MediaTab() {
                       </svg>
                     </button>
                     <button
+                      type="button"
                       onClick={() => handleRemoveFile(file.id)}
-                      className={`flex items-center justify-center w-7 h-7 rounded-full shadow transition-colors
+                      className={`flex items-center justify-center size-7 rounded-full shadow transition-colors
                         ${armed
                           ? "bg-red-500 text-white hover:bg-red-600"
                           : "bg-white/90 text-[#6b6b78] hover:text-red-500 hover:bg-white"}`}
@@ -272,7 +275,7 @@ export default function MediaTab() {
                   {/* In-timeline dot */}
                   {inUse && (
                     <div
-                      className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-teal-400 ring-1 ring-white/80 pointer-events-none"
+                      className="absolute top-1 right-1 size-1.5 rounded-full bg-teal-400 ring-1 ring-white/80 pointer-events-none"
                       title="Used in timeline"
                     />
                   )}

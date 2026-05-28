@@ -83,12 +83,14 @@ export default function ProjectPicker() {
 
   return (
     <div
+      role="presentation"
       className="min-h-screen bg-[#f0f0f4] text-[#141416] flex flex-col"
       onClick={() => setOpenMenu(null)}
+      onKeyDown={(e) => { if (e.key === "Escape") setOpenMenu(null); }}
     >
       {/* Top bar */}
       <div className="h-[52px] bg-white border-b border-black/[0.08] flex items-center px-7 gap-3 flex-shrink-0">
-        <div className="w-7 h-7 bg-[#0ea5a0] rounded-lg flex items-center justify-center flex-shrink-0">
+        <div className="size-7 bg-[#0ea5a0] rounded-lg flex items-center justify-center flex-shrink-0">
           <svg width="15" height="15" viewBox="0 0 15 15" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
             <rect x="1.5" y="3" width="12" height="10" rx="2" />
             <path d="M5.5 6.5l4 2-4 2V6.5z" fill="white" stroke="none" />
@@ -102,6 +104,7 @@ export default function ProjectPicker() {
         <div className="flex items-center justify-between mb-7">
           <h1 className="text-xl font-semibold text-[#141416] tracking-tight">Projects</h1>
           <button
+            type="button"
             className="flex items-center gap-1.5 bg-[#0ea5a0] hover:bg-[#0c9490] text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors cursor-pointer"
             onClick={() => setCreating(true)}
           >
@@ -119,11 +122,14 @@ export default function ProjectPicker() {
               return (
                 <div
                   key={project.id}
+                  role="button"
+                  tabIndex={0}
                   className="relative group bg-white rounded-xl overflow-hidden cursor-pointer border border-black/[0.07] shadow-sm hover:shadow-md hover:border-[#0ea5a0]/40 hover:-translate-y-px transition-all duration-200"
                   onClick={() => handleOpen(project.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleOpen(project.id); }}
                 >
                   <div className={`bg-gradient-to-br ${gradient} aspect-video flex items-center justify-center`}>
-                    <div className="w-8 h-8 rounded-full bg-white/80 border border-white/50 flex items-center justify-center">
+                    <div className="size-8 rounded-full bg-white/80 border border-white/50 flex items-center justify-center">
                       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="text-slate-700 translate-x-px">
                         <polygon points="2,1 11,6 2,11" fill="currentColor" stroke="none" />
                       </svg>
@@ -133,6 +139,7 @@ export default function ProjectPicker() {
                     {renamingId === project.id ? (
                       <input
                         autoFocus
+                        aria-label="Project name"
                         className="text-sm font-medium bg-[#f2f2f6] text-[#141416] rounded px-1 w-full outline-none ring-1 ring-[#0ea5a0] border-none"
                         value={renameValue}
                         onChange={(e) => setRenameValue(e.target.value)}
@@ -150,7 +157,9 @@ export default function ProjectPicker() {
                   </div>
 
                   <button
-                    className="absolute top-2 right-2 w-6 h-6 rounded-md bg-white/90 border border-black/10 text-[#6b6b78] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs hover:text-[#141416] hover:bg-[#f0f0f4] cursor-pointer"
+                    type="button"
+                    aria-label="Project options"
+                    className="absolute top-2 right-2 size-6 rounded-md bg-white/90 border border-black/10 text-[#6b6b78] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-xs hover:text-[#141416] hover:bg-[#f0f0f4] cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
                       setOpenMenu(openMenu === project.id ? null : project.id);
@@ -161,16 +170,21 @@ export default function ProjectPicker() {
 
                   {openMenu === project.id && (
                     <div
+                      role="menu"
                       className="absolute top-8 right-2 bg-white border border-black/10 rounded-xl shadow-xl shadow-black/15 z-10 min-w-28 overflow-hidden py-1"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <button
+                        type="button"
+                        role="menuitem"
                         className="block w-full text-left px-3 py-2 text-xs text-[#141416] hover:bg-[#f7f7fa] cursor-pointer"
                         onClick={() => startRename(project.id, project.name)}
                       >
                         Rename
                       </button>
                       <button
+                        type="button"
+                        role="menuitem"
                         className="block w-full text-left px-3 py-2 text-xs text-[#dc2626] hover:bg-red-50 cursor-pointer"
                         onClick={() => handleDelete(project.id)}
                       >
@@ -186,6 +200,7 @@ export default function ProjectPicker() {
               <div className="bg-white rounded-xl border border-black/10 p-4 flex flex-col gap-2 justify-center min-h-32">
                 <input
                   autoFocus
+                  aria-label="Project name"
                   className="text-sm bg-[#f2f2f6] text-[#141416] rounded-lg px-2 py-1.5 outline-none ring-1 ring-[#0ea5a0] focus:border-[#0ea5a0] border border-black/10 w-full"
                   placeholder="Project name"
                   value={newName}
@@ -197,12 +212,14 @@ export default function ProjectPicker() {
                 />
                 <div className="flex gap-2">
                   <button
+                    type="button"
                     className="flex-1 text-xs py-1.5 bg-[#0ea5a0] hover:bg-[#0c9490] rounded-lg text-white font-semibold transition-colors cursor-pointer"
                     onClick={handleCreate}
                   >
                     Create
                   </button>
                   <button
+                    type="button"
                     className="flex-1 text-xs py-1.5 bg-[#f2f2f6] hover:bg-[#ebebef] rounded-lg text-[#6b6b78] transition-colors cursor-pointer"
                     onClick={() => { setCreating(false); setNewName(""); }}
                   >
@@ -212,10 +229,13 @@ export default function ProjectPicker() {
               </div>
             ) : (
               <div
+                role="button"
+                tabIndex={0}
                 className="bg-transparent rounded-xl border-2 border-dashed border-black/[0.15] hover:border-[#0ea5a0]/60 hover:bg-[rgba(14,165,160,0.04)] flex flex-col items-center justify-center gap-2 cursor-pointer min-h-32 transition-all group"
                 onClick={() => setCreating(true)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setCreating(true); }}
               >
-                <div className="w-8 h-8 rounded-full border border-black/20 group-hover:border-[#0ea5a0]/60 flex items-center justify-center transition-colors">
+                <div className="size-8 rounded-full border border-black/20 group-hover:border-[#0ea5a0]/60 flex items-center justify-center transition-colors">
                   <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" className="text-[#6b6b78] group-hover:text-[#0ea5a0] transition-colors">
                     <path d="M7 1v12M1 7h12"/>
                   </svg>

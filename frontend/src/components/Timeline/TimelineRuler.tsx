@@ -34,6 +34,7 @@ export default function TimelineRuler({ totalWidth, zoom, seek }: Props) {
 
   return (
     <div
+      role="presentation"
       ref={rulerRef}
       className="relative h-6 bg-[#f2f2f6] border-b border-black/[0.07] cursor-pointer flex-shrink-0"
       style={{ width: totalWidth }}

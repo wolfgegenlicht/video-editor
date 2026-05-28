@@ -21,6 +21,7 @@ function SliderRow({ label, value, min, max, step, onChange, format, accentClass
       </div>
       <input
         type="range"
+        aria-label={label}
         min={min}
         max={max}
         step={step}
@@ -82,6 +83,7 @@ export default function EffectPropertiesPanel() {
           <div className="flex gap-2">
             {(["in", "out"] as const).map((dir) => (
               <button
+                type="button"
                 key={dir}
                 onClick={() => updateEffectOverlayParams(effect.id, { direction: dir })}
                 className={`flex-1 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer
@@ -156,6 +158,7 @@ export default function EffectPropertiesPanel() {
                 KEYFRAMES{keyframes.length > 0 ? ` (${keyframes.length})` : ""}
               </p>
               <button
+                type="button"
                 onClick={addKeyframe}
                 className="text-[11px] font-semibold px-2 py-0.5 rounded bg-sky-500 text-white hover:bg-sky-600 transition-colors cursor-pointer"
               >
@@ -171,17 +174,21 @@ export default function EffectPropertiesPanel() {
                     return (
                       <div
                         key={i}
+                        role="button"
+                        tabIndex={0}
                         className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] cursor-pointer
                           ${isActive
                             ? "bg-sky-500/10 border border-sky-500/20"
                             : "hover:bg-[#f7f7fa]"}`}
                         onClick={() => setPlayhead(effect!.startTime + kf.time)}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setPlayhead(effect!.startTime + kf.time); }}
                       >
                         <span className={`w-8 tabular-nums ${isActive ? "text-sky-500 font-semibold" : "text-[#6b6b78]"}`}>
                           {fmtTime(effect!.startTime + kf.time)}{isActive ? " ◆" : ""}
                         </span>
                         <span className="flex-1 text-[#6b6b78] truncate">{kfSummary(kf)}</span>
                         <button
+                          type="button"
                           onClick={(e) => { e.stopPropagation(); deleteBlurKeyframe(effect!.id, i); }}
                           className="text-[#6b6b78] hover:text-red-500 transition-colors leading-none px-0.5 cursor-pointer"
                         >
@@ -195,6 +202,7 @@ export default function EffectPropertiesPanel() {
                 {/* Prev / Next navigation */}
                 <div className="flex items-center justify-center gap-2">
                   <button
+                    type="button"
                     onClick={() => {
                       const prev = [...keyframes].reverse().find((k) => k.time < relTime - 0.05);
                       if (prev) setPlayhead(effect!.startTime + prev.time);
@@ -202,9 +210,10 @@ export default function EffectPropertiesPanel() {
                     className="text-[11px] px-2.5 py-0.5 rounded border border-black/10 bg-[#f2f2f6] text-[#6b6b78] hover:bg-[#ebebef] transition-colors cursor-pointer"
                   >◀</button>
                   <span className="text-[11px] text-[#6b6b78]">
-                    {activeKfIdx >= 0 ? `${activeKfIdx + 1} / ${keyframes.length}` : `— / ${keyframes.length}`}
+                    {activeKfIdx >= 0 ? `${activeKfIdx + 1} / ${keyframes.length}` : `- / ${keyframes.length}`}
                   </span>
                   <button
+                    type="button"
                     onClick={() => {
                       const next = keyframes.find((k) => k.time > relTime + 0.05);
                       if (next) setPlayhead(effect!.startTime + next.time);
@@ -293,6 +302,7 @@ export default function EffectPropertiesPanel() {
           <div className="grid grid-cols-2 gap-1.5">
             {presets.map(({ id, label }) => (
               <button
+                type="button"
                 key={id}
                 onClick={() => updateEffectOverlayParams(effect.id, { preset: id })}
                 className={`py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer
@@ -345,6 +355,7 @@ export default function EffectPropertiesPanel() {
           <div className="flex gap-2">
             {(["linear", "ease"] as const).map((easing) => (
               <button
+                type="button"
                 key={easing}
                 onClick={() => updateEffectOverlayParams(effect.id, { easing })}
                 className={`flex-1 py-1.5 rounded text-xs font-semibold transition-colors cursor-pointer
@@ -358,7 +369,7 @@ export default function EffectPropertiesPanel() {
           </div>
           {durationSlider("accent-orange-400")}
           <p className="text-[11px] text-[#6b6b78]">{params.startSpeed.toFixed(2)}× → {params.endSpeed.toFixed(2)}× ({direction})</p>
-          <p className="text-[11px] text-amber-500">Preview only — export uses base clip speed.</p>
+          <p className="text-[11px] text-amber-500">Preview only (export uses base clip speed).</p>
         </div>
       </div>
     );

@@ -52,6 +52,7 @@ export default function LeftPanel({ seek }: Props) {
       {/* Vertical icon strip */}
       <div className="w-[80px] flex flex-col items-center pt-3 p-8 gap-0.5 bg-[#f7f7fa] border-r border-black/[0.06]">
         <button
+          type="button"
           onClick={() => setOpen((v) => !v)}
           className={`w-[52px] flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg transition-colors cursor-pointer
             ${open
@@ -80,12 +81,14 @@ export default function LeftPanel({ seek }: Props) {
                 {(transcriptSelection.endTime - transcriptSelection.startTime).toFixed(1)}s selected
               </span>
               <button
+                type="button"
                 onClick={() => setTranscriptSelection(null)}
                 className="text-[11px] text-amber-500 hover:text-amber-300 cursor-pointer transition-colors"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleDeleteSelection}
                 className="flex items-center gap-1 text-[11px] text-red-400 hover:text-red-300 font-semibold px-2 py-0.5 rounded bg-red-500/15 hover:bg-red-500/25 transition-colors cursor-pointer"
               >
@@ -99,6 +102,7 @@ export default function LeftPanel({ seek }: Props) {
           </div>
           {/* Resize handle on right edge */}
           <div
+            role="presentation"
             className="absolute top-0 right-0 bottom-0 w-1 cursor-ew-resize hover:bg-[#0ea5a0] transition-colors"
             onMouseDown={onResizeMouseDown}
           />

@@ -19,6 +19,7 @@ export default function CaptionPresetPicker() {
 
           return (
             <button
+              type="button"
               key={preset.name}
               onClick={() => setCaptionTrackStyle(preset.style)}
               className={`flex-shrink-0 flex flex-col items-center gap-1 rounded-lg p-0.5 border-2 transition-all ${

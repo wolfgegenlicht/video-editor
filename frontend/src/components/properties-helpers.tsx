@@ -26,6 +26,7 @@ export function SliderRow({ label, value, min, max, step, onChange, format }: {
       </div>
       <input
         type="range"
+        aria-label={label}
         min={min}
         max={max}
         step={step}

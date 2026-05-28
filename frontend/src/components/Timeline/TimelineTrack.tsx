@@ -86,6 +86,7 @@ export default function TimelineTrack({ track, zoom, height, onSnapChange }: Pro
 
   return (
     <div
+      role="presentation"
       className="border-b border-black/[0.06] relative bg-white hover:bg-[#f7f7fa]"
       style={{ height }}
       onDragOver={onDragOver}

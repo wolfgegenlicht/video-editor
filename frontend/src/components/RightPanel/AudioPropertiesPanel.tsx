@@ -171,6 +171,7 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
       <div className="space-y-2">
         {(["normalize", "denoise", "clarity"] as AudioEnhanceType[]).map((type) => (
           <button
+            type="button"
             key={type}
             onClick={() => startJob(type)}
             className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#f7f7fa] transition-colors text-left"
@@ -207,6 +208,7 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
           <div className="flex items-center justify-between">
             <span className="text-[11px] text-[#6b6b78]">Processing…</span>
             <button
+              type="button"
               onClick={handleCancel}
               className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors"
             >
@@ -216,6 +218,7 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
         </div>
         {otherProcessingTypes.map((type) => (
           <button
+            type="button"
             key={type}
             onClick={async () => { await handleCancel(); startJob(type); }}
             className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#f7f7fa] transition-colors text-left"
@@ -242,6 +245,7 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
           <p className="text-[11px] text-amber-500 leading-snug">{errorMsg}</p>
         )}
         <button
+          type="button"
           onClick={() => {
             setAudioEnhanceStatus(clip.id, undefined);
             setClipAudioEnhance(clip.id, activeType, false);
@@ -266,6 +270,7 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-[#141416]">{ENHANCE_LABELS[activeType]}</span>
           <button
+            type="button"
             onClick={isEnabled ? handleToggleOff : handleToggleOn}
             aria-label={`Toggle ${ENHANCE_LABELS[activeType]}`}
             className={[
@@ -284,6 +289,7 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
         <div className="flex items-center justify-between">
           <span className="text-[11px] text-[#6b6b78]">{ENHANCE_DESCRIPTIONS[activeType]}</span>
           <button
+            type="button"
             onClick={handleReprocess}
             title="Re-process"
             className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors flex items-center gap-0.5"
@@ -298,6 +304,7 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
       </div>
       {otherTypes.map((type) => (
         <button
+          type="button"
           key={type}
           onClick={() => startJob(type)}
           className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#f7f7fa] transition-colors text-left"
@@ -376,6 +383,7 @@ export default function AudioPropertiesPanel() {
           <div className="flex flex-wrap gap-1">
             {SPEEDS.map((s) => (
               <button
+                type="button"
                 key={s}
                 onClick={() => setClipSpeed(clip.id, s)}
                 className={`px-2.5 py-1 rounded text-[11px] border transition-colors
