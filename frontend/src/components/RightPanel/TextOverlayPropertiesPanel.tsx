@@ -1,6 +1,14 @@
 import { useProjectStore } from "../../store/useProjectStore";
 import { Section, SliderRow } from "../properties-helpers";
 
+const PILL_PRESETS = [
+  { label: "Purple", background: "#7c3aed", color: "#ffffff", fontWeight: "bold" as const },
+  { label: "Dark",   background: "#1a1a2e", color: "#ffffff", fontWeight: "bold" as const },
+  { label: "White",  background: "#ffffff", color: "#111111", fontWeight: "bold" as const },
+  { label: "Teal",   background: "#0d9488", color: "#ffffff", fontWeight: "bold" as const },
+  { label: "Warm",   background: "#d97706", color: "#ffffff", fontWeight: "bold" as const },
+];
+
 export default function TextOverlayPropertiesPanel() {
   const { project, selectedOverlayId, updateTextOverlay } = useProjectStore();
   const overlay = project.textOverlays.find((o) => o.id === selectedOverlayId);
@@ -21,8 +29,41 @@ export default function TextOverlayPropertiesPanel() {
           className="w-full text-[12px] border border-black/[0.1] rounded-md px-2 py-1.5 resize-none outline-none focus:border-[#0ea5a0] bg-white text-[#141416]"
         />
       </Section>
+      {overlay.shape === "pill" && (
+        <>
+          <div className="border-t border-black/[0.06]" />
+          <Section title="Templates">
+            <div className="flex gap-2 flex-wrap">
+              {PILL_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  title={p.label}
+                  onClick={() => update({ background: p.background, color: p.color, fontWeight: p.fontWeight })}
+                  className="w-6 h-6 rounded-full border-2 cursor-pointer transition-all"
+                  style={{
+                    background: p.background,
+                    borderColor: overlay.background === p.background ? "#fff" : "transparent",
+                    boxShadow: overlay.background === p.background
+                      ? "0 0 0 1px #0d9488"
+                      : "0 0 0 1px rgba(0,0,0,0.15)",
+                  }}
+                />
+              ))}
+            </div>
+          </Section>
+        </>
+      )}
       <div className="border-t border-black/[0.06]" />
       <Section title="Style">
+        <SliderRow
+          label="Font size"
+          value={overlay.fontSize}
+          min={10}
+          max={72}
+          step={1}
+          onChange={(v) => update({ fontSize: v })}
+          format={(v) => `${v}px`}
+        />
         <div>
           <p className="text-xs text-[#6b6b78] mb-1">Background color</p>
           <input
