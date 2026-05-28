@@ -637,6 +637,7 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
 
             if ov.get("shape") == "pill":
                 anim_dur = ov.get("animateDuration", 0.4)
+                anim_dur = min(anim_dur, (t1 - t0) / 2)
                 char_w = fs * 0.55
                 box_w = int(len(ov["text"]) * char_w + 40)
                 box_h = fs + 20
@@ -648,7 +649,7 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                     f"if(lt(t-{t0},{anim_dur}),"
                     f"round(({anim_dur}-(t-{t0}))/{anim_dur}*{slide}),"
                     f"if(lt({t1}-t,{anim_dur}),"
-                    f"round(({t1}-t)/{anim_dur}*{slide}),"
+                    f"round(({anim_dur}-({t1}-t))/{anim_dur}*{slide}),"
                     f"0))"
                 )
                 alpha_expr = (
@@ -674,8 +675,12 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                     f"x={px_x}-text_w/2:y={px_y}-text_h/2:enable='{enable}'"
                 )
         if ov_filters:
-            chained = "[vpre2]" + "[vov];[vov]".join(ov_filters)
-            filter_complex = filter_complex.replace("[vout]", f"[vpre2];{chained}[vout]", 1)
+            parts = []
+            for i, f in enumerate(ov_filters):
+                in_lbl  = "vpre2" if i == 0 else f"vov{i - 1}"
+                out_lbl = "vout"  if i == len(ov_filters) - 1 else f"vov{i}"
+                parts.append(f"[{in_lbl}]{f}[{out_lbl}]")
+            filter_complex = filter_complex.replace("[vout]", f"[vpre2];{';'.join(parts)}", 1)
 
     total_duration = sum(
         (c.get("sourceEnd", c.get("duration", 0)) - c.get("sourceStart", 0)) / (c.get("speed", 1.0) or 1.0)
