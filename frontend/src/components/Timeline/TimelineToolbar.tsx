@@ -71,7 +71,7 @@ export default function TimelineToolbar({ onSplit, toggle, seek }: Props) {
       endTime: playheadTime + 5,
       x: 50,
       y: 85,
-      fontSize: 20,
+      fontSize: 32,
       color: "#ffffff",
       fontWeight: "bold",
       background: "#7c3aed",

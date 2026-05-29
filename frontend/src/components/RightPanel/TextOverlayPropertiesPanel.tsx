@@ -2,11 +2,16 @@ import { useProjectStore } from "../../store/useProjectStore";
 import { Section, SliderRow } from "../properties-helpers";
 
 const PILL_PRESETS: Array<{ label: string; background: string; color: string; fontWeight: "normal" | "bold" }> = [
-  { label: "Purple", background: "#7c3aed", color: "#ffffff", fontWeight: "bold" },
-  { label: "Dark",   background: "#1a1a2e", color: "#ffffff", fontWeight: "bold" },
-  { label: "White",  background: "#ffffff", color: "#111111", fontWeight: "bold" },
-  { label: "Teal",   background: "#0d9488", color: "#ffffff", fontWeight: "bold" },
-  { label: "Warm",   background: "#d97706", color: "#ffffff", fontWeight: "bold" },
+  { label: "Purple",   background: "#7c3aed", color: "#ffffff", fontWeight: "bold" },
+  { label: "Navy",     background: "#1a1a2e", color: "#ffffff", fontWeight: "bold" },
+  { label: "White",    background: "#ffffff", color: "#111111", fontWeight: "bold" },
+  { label: "Teal",     background: "#0d9488", color: "#ffffff", fontWeight: "bold" },
+  { label: "Amber",    background: "#d97706", color: "#ffffff", fontWeight: "bold" },
+  { label: "Crimson",  background: "#dc2626", color: "#ffffff", fontWeight: "bold" },
+  { label: "Sky",      background: "#0284c7", color: "#ffffff", fontWeight: "bold" },
+  { label: "Emerald",  background: "#059669", color: "#ffffff", fontWeight: "bold" },
+  { label: "Rose",     background: "#db2777", color: "#ffffff", fontWeight: "bold" },
+  { label: "Charcoal", background: "#374151", color: "#ffffff", fontWeight: "bold" },
 ];
 
 export default function TextOverlayPropertiesPanel() {
@@ -59,7 +64,7 @@ export default function TextOverlayPropertiesPanel() {
           label="Font size"
           value={overlay.fontSize}
           min={10}
-          max={72}
+          max={120}
           step={1}
           onChange={(v) => update({ fontSize: v })}
           format={(v) => `${v}px`}
@@ -85,6 +90,31 @@ export default function TextOverlayPropertiesPanel() {
           />
         </div>
       </Section>
+      {overlay.shape === "pill" && (
+        <>
+          <div className="border-t border-black/[0.06]" />
+          <Section title="Padding">
+            <SliderRow
+              label="Horizontal"
+              value={overlay.paddingH ?? 20}
+              min={4}
+              max={80}
+              step={2}
+              onChange={(v) => update({ paddingH: v })}
+              format={(v) => `${v}px`}
+            />
+            <SliderRow
+              label="Vertical"
+              value={overlay.paddingV ?? 8}
+              min={2}
+              max={40}
+              step={1}
+              onChange={(v) => update({ paddingV: v })}
+              format={(v) => `${v}px`}
+            />
+          </Section>
+        </>
+      )}
       <div className="border-t border-black/[0.06]" />
       <Section title="Position">
         <SliderRow

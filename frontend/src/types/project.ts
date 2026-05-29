@@ -110,6 +110,8 @@ export interface TextOverlay {
   animateIn?: "slide-up";
   animateOut?: "slide-down";
   animateDuration?: number;
+  paddingH?: number;
+  paddingV?: number;
 }
 
 export type AudioEnhanceType = "normalize" | "denoise" | "clarity";

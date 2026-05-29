@@ -621,7 +621,8 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             parts.append(f"[{in_lbl}]{f}[{out_lbl}]")
         filter_complex = filter_complex.replace("[vout]", f"[vpre_dis];{';'.join(parts)}", 1)
 
-    # Text overlays
+    # Text overlays — sizes stored at REFERENCE_WIDTH=1280; scale to output resolution
+    _REFERENCE_WIDTH = 1280
     text_overlays = project.get("textOverlays", [])
     if text_overlays:
         ov_filters = []
@@ -631,19 +632,22 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             enable = f"between(t,{t0},{t1})"
             px_x = int(ov["x"] / 100 * W)
             px_y = int(ov["y"] / 100 * H)
-            fs = ov.get("fontSize", 32)
+            ov_scale = W / _REFERENCE_WIDTH
+            fs = int(ov.get("fontSize", 32) * ov_scale)
             color_raw = ov.get("color", "#ffffff").lstrip("#")
             color = color_raw if re.match(r'^[0-9a-fA-F]{6}$', color_raw) else "ffffff"
 
             if ov.get("shape") == "pill":
                 anim_dur = ov.get("animateDuration", 0.4)
                 anim_dur = min(anim_dur, (t1 - t0) / 2)
+                pad_h = int(ov.get("paddingH", 20) * ov_scale)
+                pad_v = int(ov.get("paddingV", 8) * ov_scale)
                 char_w = fs * 0.55
-                box_w = int(len(ov["text"]) * char_w + 40)
-                box_h = fs + 20
+                box_w = int(len(ov["text"]) * char_w + pad_h * 2)
+                box_h = fs + pad_v * 2
                 box_x = px_x - box_w // 2
                 box_y_base = px_y - box_h // 2
-                slide = 30
+                slide = int(30 * ov_scale)
 
                 slide_expr = (
                     f"if(lt(t-{t0},{anim_dur}),"
