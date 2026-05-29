@@ -642,13 +642,10 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                 anim_dur = min(anim_dur, (t1 - t0) / 2)
                 pad_h = int(ov.get("paddingH", 20) * ov_scale)
                 pad_v = int(ov.get("paddingV", 8) * ov_scale)
-                char_w = fs * 0.55
-                box_w = int(len(ov["text"]) * char_w + pad_h * 2)
-                box_h = fs + pad_v * 2
-                box_x = px_x - box_w // 2
-                box_y_base = px_y - box_h // 2
                 slide = int(30 * ov_scale)
 
+                # drawbox evaluates y only once at init (FFmpeg limitation), so we use
+                # a single drawtext with box=1 — drawtext evaluates all params per-frame.
                 slide_expr = (
                     f"if(lt(t-{t0},{anim_dur}),"
                     f"round(({anim_dur}-(t-{t0}))/{anim_dur}*{slide}),"
@@ -665,12 +662,9 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                 text_y = f"{px_y}-text_h/2+{slide_expr}"
 
                 ov_filters.append(
-                    f"drawbox=x={box_x}:y={box_y_base}+{slide_expr}:w={box_w}:h={box_h}:"
-                    f"color=0x{bg_color}@0.95:t=fill:enable='{enable}'"
-                )
-                ov_filters.append(
                     f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:"
-                    f"x={px_x}-text_w/2:y={text_y}:"
+                    f"x={px_x}-text_w/2:y='{text_y}':"
+                    f"box=1:boxcolor=0x{bg_color}@0.95:boxborderw={pad_v}|{pad_h}|{pad_v}|{pad_h}:"
                     f"alpha='{alpha_expr}':enable='{enable}'"
                 )
             else:
