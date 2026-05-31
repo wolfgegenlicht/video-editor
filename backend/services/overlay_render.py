@@ -1,12 +1,13 @@
-"""Render text-overlay assets (the belly-band "pill") as PNGs so the FFmpeg
+"""Render text-overlay assets (the belly-band shapes) as PNGs so the FFmpeg
 export matches the browser preview pixel-for-pixel.
 
-The preview (TextOverlayRenderer.tsx) draws the pill as a fully-rounded
-(`borderRadius: 9999`) box whose width hugs the text plus horizontal padding.
-FFmpeg's `drawbox` can only draw sharp rectangles and estimates text width with
-a crude character-count heuristic, so the exported pill looked nothing like the
-preview. Instead we bake the whole pill (rounded background + text) into an RGBA
-PNG with PIL — using the same bundled font the preview uses — then overlay it.
+The preview (TextOverlayRenderer.tsx) draws each shape with CSS — box-family
+(pill / rounded / rectangle) via border-radius, "tab" via a clip-path cutting
+the top-right corner, and "accent" as a colored box with a contrasting stripe
+on the left edge. FFmpeg's drawbox can only draw sharp rectangles and estimates
+text width with a crude heuristic, so instead we bake the whole shape (rounded
+background + text) into an RGBA PNG with PIL — using the same bundled font the
+preview uses — then overlay it.
 """
 
 from pathlib import Path
