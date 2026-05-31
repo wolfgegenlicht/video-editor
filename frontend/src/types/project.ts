@@ -7,6 +7,7 @@ export interface CaptionTrackStyle {
   fontWeight: "normal" | "bold";
   color: string;
   letterSpacing: number;         // px
+  lineHeight?: number;           // multiplier of fontSize (default 1.35)
   textAlign: "left" | "center" | "right";
   textShadow: boolean;
   outlineWidth: number;          // px (0 = off)
@@ -103,10 +104,13 @@ export interface TextOverlay {
   x: number;
   y: number;
   fontSize: number;
+  fontFamily?: string;          // "sans-serif" | "serif" | "monospace" (bundled fonts)
   color: string;
   fontWeight: "normal" | "bold";
   background: string;
-  shape?: "pill";
+  shape?: "pill" | "rounded" | "rectangle" | "tab" | "accent";
+  cornerRadius?: number;   // 0–50, percent of box height; overrides shape default
+  accentColor?: string;    // left-stripe color, only used when shape === "accent"
   animateIn?: "slide-up";
   animateOut?: "slide-down";
   animateDuration?: number;
