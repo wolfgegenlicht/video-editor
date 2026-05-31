@@ -58,6 +58,7 @@ export default function TextOverlayPropertiesPanel() {
               {SHAPES.map((s) => (
                 <button
                   key={s.value}
+                  aria-pressed={overlay.shape === s.value}
                   onClick={() => update({ shape: s.value, cornerRadius: DEFAULT_RADIUS_PCT[s.value] })}
                   className={`px-2 py-1 rounded-md border text-[11px] font-medium cursor-pointer transition-colors ${
                     overlay.shape === s.value
