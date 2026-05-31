@@ -1,5 +1,5 @@
-// Shape model for belly-band text overlays. Kept in sync with the Python
-// duplicate in backend/services/overlay_render.py (separate process/language).
+// Shape model for belly-band text overlays. These defaults are mirrored in
+// backend/services/overlay_render.py (separate process/language) — keep in sync.
 
 export type OverlayShape = "pill" | "rounded" | "rectangle" | "tab" | "accent";
 
@@ -16,9 +16,11 @@ export const DEFAULT_RADIUS_PCT: Record<OverlayShape, number> = {
 
 // Width of the left accent stripe, in px at REFERENCE_WIDTH (1280). Callers
 // scale by previewWidth/1280 (preview) or outputWidth/1280 (export).
-export const ACCENT_STRIPE_REF_WIDTH = 8;
+export const ACCENT_STRIPE_REF_WIDTH: number = 8;
 
-// Effective radius percent: an explicit cornerRadius overrides the shape default.
+// Effective radius percent (clamped to 0–50): an explicit cornerRadius
+// overrides the shape default.
 export function effectiveRadiusPct(shape: OverlayShape, cornerRadius?: number): number {
-  return cornerRadius ?? DEFAULT_RADIUS_PCT[shape];
+  const pct = cornerRadius ?? DEFAULT_RADIUS_PCT[shape];
+  return Math.min(50, Math.max(0, pct));
 }
