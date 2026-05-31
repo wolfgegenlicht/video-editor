@@ -117,8 +117,11 @@ def _process_video(input_path: str, output_path: str, state: _JobState, job_id: 
     if not cap.isOpened():
         raise RuntimeError(f"OpenCV could not open video: {input_path}")
 
-    temp_path = str(UPLOADS / f"tmp_{uuid.uuid4().hex}.mp4")
-    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    # Use AVI + XVID for the intermediate: mp4v in a .mp4 container is unreliable
+    # with Homebrew OpenCV on macOS (writer opens but writes nothing). FFmpeg then
+    # re-encodes this to the final H.264 .mp4 anyway, so the container doesn't matter.
+    temp_path = str(UPLOADS / f"tmp_{uuid.uuid4().hex}.avi")
+    fourcc = cv2.VideoWriter_fourcc(*"XVID")
     writer = cv2.VideoWriter(temp_path, fourcc, fps, (w, h))
     if not writer.isOpened():
         cap.release()
