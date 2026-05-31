@@ -2,6 +2,7 @@ import os, subprocess, tempfile, uuid, re, math
 from pathlib import Path
 from services.ass_generator import generate_ass
 from services.background_blur import blur_background_clip
+from services.overlay_render import font_path, render_shape_png
 
 OUT = Path(__file__).parent.parent / "out"
 OUT.mkdir(exist_ok=True)
@@ -621,64 +622,97 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             parts.append(f"[{in_lbl}]{f}[{out_lbl}]")
         filter_complex = filter_complex.replace("[vout]", f"[vpre_dis];{';'.join(parts)}", 1)
 
-    # Text overlays — sizes stored at REFERENCE_WIDTH=1280; scale to output resolution
+    # Text overlays — sizes stored at REFERENCE_WIDTH=1280; scale to output resolution.
+    # The "pill" (belly-band) is baked into a rounded RGBA PNG via PIL so it matches
+    # the preview's fully-rounded box, real font metrics, and chosen font exactly;
+    # plain text uses drawtext with a matching shadow, optional box, and the same font.
     _REFERENCE_WIDTH = 1280
     text_overlays = project.get("textOverlays", [])
+    pill_png_files: list[str] = []
     if text_overlays:
-        ov_filters = []
+        ov_scale = W / _REFERENCE_WIDTH
+        next_input_idx = inputs.count("-i")  # first free FFmpeg input slot
+        pill_srcs: list[str] = []   # faded pill image-source statements ([idx:v]…[pfN])
+        ops: list[tuple] = []       # ordered video ops threading the chain
         for ov in text_overlays:
-            escaped = _escape(ov["text"])
             t0, t1 = ov["startTime"], ov["endTime"]
             enable = f"between(t,{t0},{t1})"
             px_x = int(ov["x"] / 100 * W)
             px_y = int(ov["y"] / 100 * H)
-            ov_scale = W / _REFERENCE_WIDTH
             fs = int(ov.get("fontSize", 32) * ov_scale)
+            bold = ov.get("fontWeight") == "bold"
+            family = ov.get("fontFamily", "sans-serif")
             color_raw = ov.get("color", "#ffffff").lstrip("#")
             color = color_raw if re.match(r'^[0-9a-fA-F]{6}$', color_raw) else "ffffff"
 
-            if ov.get("shape") == "pill":
-                anim_dur = ov.get("animateDuration", 0.4)
-                anim_dur = min(anim_dur, (t1 - t0) / 2)
+            if ov.get("shape"):
+                anim_dur = max(0.001, min(ov.get("animateDuration", 0.4), (t1 - t0) / 2))
                 pad_h = int(ov.get("paddingH", 20) * ov_scale)
                 pad_v = int(ov.get("paddingV", 8) * ov_scale)
+                # 8 = ACCENT_STRIPE_REF_WIDTH from frontend/src/lib/overlayShapes.ts
+                stripe_w = max(1, int(8 * ov_scale))
+                fd, pill_path = tempfile.mkstemp(suffix="_pill.png")
+                os.close(fd)
+                box_w, box_h = render_shape_png(
+                    ov["text"], pill_path,
+                    shape=ov["shape"],
+                    font_family=family, bold=bold, fontsize=fs,
+                    pad_h=pad_h, pad_v=pad_v,
+                    bg_hex=ov.get("background", "#7c3aed"), fg_hex=ov.get("color", "#ffffff"),
+                    radius_pct=ov.get("cornerRadius"),
+                    accent_hex=ov.get("accentColor", "#ffffff"),
+                    stripe_w=stripe_w,
+                )
+                pill_png_files.append(pill_path)
+                idx = next_input_idx
+                next_input_idx += 1
+                inputs += ["-loop", "1", "-t", f"{t1}", "-i", pill_path]
+                box_x = px_x - box_w // 2
+                box_y = px_y - box_h // 2
                 slide = int(30 * ov_scale)
-
-                # drawbox evaluates y only once at init (FFmpeg limitation), so we use
-                # a single drawtext with box=1 — drawtext evaluates all params per-frame.
+                # easeOutCubic slide: offset = (1-p)^3 * slide on entry and exit
                 slide_expr = (
-                    f"if(lt(t-{t0},{anim_dur}),"
-                    f"round(({anim_dur}-(t-{t0}))/{anim_dur}*{slide}),"
-                    f"if(lt({t1}-t,{anim_dur}),"
-                    f"round(({anim_dur}-({t1}-t))/{anim_dur}*{slide}),"
-                    f"0))"
+                    f"if(lt(t-{t0},{anim_dur}),pow(1-(t-{t0})/{anim_dur}\\,3)*{slide},"
+                    f"if(lt({t1}-t,{anim_dur}),pow(1-({t1}-t)/{anim_dur}\\,3)*{slide},0))"
                 )
-                alpha_expr = (
-                    f"if(lt(t-{t0},{anim_dur}),(t-{t0})/{anim_dur},"
-                    f"if(lt({t1}-t,{anim_dur}),({t1}-t)/{anim_dur},1))"
+                pf = f"pf{idx}"
+                pill_srcs.append(
+                    f"[{idx}:v]format=rgba,"
+                    f"fade=t=in:st={t0}:d={anim_dur:.4f}:alpha=1,"
+                    f"fade=t=out:st={t1 - anim_dur:.4f}:d={anim_dur:.4f}:alpha=1[{pf}]"
                 )
-                bg_color = ov.get("background", "#7c3aed").lstrip("#")
-                bg_color = bg_color if re.match(r'^[0-9a-fA-F]{6}$', bg_color) else "7c3aed"
-                text_y = f"{px_y}-text_h/2+{slide_expr}"
-
-                ov_filters.append(
-                    f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:"
-                    f"x={px_x}-text_w/2:y='{text_y}':"
-                    f"box=1:boxcolor=0x{bg_color}@0.95:boxborderw={pad_v}|{pad_h}|{pad_v}|{pad_h}:"
-                    f"alpha='{alpha_expr}':enable='{enable}'"
-                )
+                ops.append(("overlay", pf, box_x, box_y, slide_expr, enable))
             else:
-                ov_filters.append(
-                    f"drawtext=text='{escaped}':fontsize={fs}:fontcolor=0x{color}:"
-                    f"x={px_x}-text_w/2:y={px_y}-text_h/2:enable='{enable}'"
+                escaped = _escape(ov["text"])
+                ffont_esc = font_path(family, bold).replace("\\", "\\\\").replace(":", "\\:")
+                shadow_y = max(1, round(1 * ov_scale))
+                draw = (
+                    f"drawtext=fontfile='{ffont_esc}':text='{escaped}':fontsize={fs}:"
+                    f"fontcolor=0x{color}:x={px_x}-text_w/2:y={px_y}-text_h/2:"
+                    f"shadowx=0:shadowy={shadow_y}:shadowcolor=black@0.6:"
                 )
-        if ov_filters:
-            parts = []
-            for i, f in enumerate(ov_filters):
-                in_lbl  = "vpre_ov" if i == 0 else f"vov{i - 1}"
-                out_lbl = "vout"  if i == len(ov_filters) - 1 else f"vov{i}"
-                parts.append(f"[{in_lbl}]{f}[{out_lbl}]")
-            filter_complex = filter_complex.replace("[vout]", f"[vpre_ov];{';'.join(parts)}", 1)
+                bg = ov.get("background", "transparent")
+                bg_raw = bg.lstrip("#")
+                if bg != "transparent" and re.match(r'^[0-9a-fA-F]{6}$', bg_raw):
+                    draw += f"box=1:boxcolor=0x{bg_raw}:boxborderw={max(1, round(8 * ov_scale))}:"
+                draw += f"enable='{enable}'"
+                ops.append(("drawtext", draw))
+
+        if ops:
+            stmts = list(pill_srcs)
+            running = "vpre_ov"
+            for k, op in enumerate(ops):
+                out_lbl = "vout" if k == len(ops) - 1 else f"vov{k}"
+                if op[0] == "drawtext":
+                    stmts.append(f"[{running}]{op[1]}[{out_lbl}]")
+                else:
+                    _, pf, box_x, box_y, slide_expr, enable = op
+                    stmts.append(
+                        f"[{running}][{pf}]overlay=x={box_x}:"
+                        f"y='{box_y}+({slide_expr})':enable='{enable}'[{out_lbl}]"
+                    )
+                running = out_lbl
+            filter_complex = filter_complex.replace("[vout]", f"[vpre_ov];{';'.join(stmts)}", 1)
 
     total_duration = sum(
         (c.get("sourceEnd", c.get("duration", 0)) - c.get("sourceStart", 0)) / (c.get("speed", 1.0) or 1.0)
@@ -716,6 +750,8 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
     finally:
         if ass_path:
             Path(ass_path).unlink(missing_ok=True)
+        for _pill in pill_png_files:
+            Path(_pill).unlink(missing_ok=True)
         for tmp in blur_temp_files:
             if os.path.exists(tmp):
                 os.unlink(tmp)
