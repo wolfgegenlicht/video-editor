@@ -1,4 +1,7 @@
+import type { CSSProperties } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
+import { FONT_FAMILY_CSS } from "../../lib/fonts";
+import { effectiveRadiusPct, ACCENT_STRIPE_REF_WIDTH } from "../../lib/overlayShapes";
 
 interface Props { time: number }
 
@@ -24,31 +27,55 @@ export default function TextOverlayRenderer({ time }: Props) {
   return (
     <>
       {active.map((o) => {
-        if (o.shape === "pill") {
+        if (o.shape) {
           const progress = pillProgress(time, o.startTime, o.endTime, o.animateDuration ?? 0.4);
           const pH = (o.paddingH ?? 20) * scale;
           const pV = (o.paddingV ?? 8) * scale;
+          const fontPx = o.fontSize * scale;
+          // Approximate box height (matches PIL ascent+descent ≈ 1.2× font size).
+          const boxH = fontPx * 1.2 + 2 * pV;
+          const radiusPct = effectiveRadiusPct(o.shape, o.cornerRadius);
+          const radiusPx = Math.min((radiusPct / 100) * boxH, boxH / 2);
+          const chamfer = Math.min((radiusPct / 100) * boxH, boxH);
+          const stripeW = ACCENT_STRIPE_REF_WIDTH * scale;
+          const isAccent = o.shape === "accent";
+          const style: CSSProperties = {
+            left: `${o.x}%`,
+            top: `${o.y}%`,
+            transform: `translate(-50%, -50%) translateY(${(1 - progress) * 30 * scale}px)`,
+            opacity: progress,
+            fontSize: fontPx,
+            lineHeight: 1.2,
+            fontFamily: FONT_FAMILY_CSS[o.fontFamily ?? "sans-serif"] ?? FONT_FAMILY_CSS["sans-serif"],
+            color: o.color,
+            fontWeight: o.fontWeight,
+            background: isAccent ? (o.accentColor ?? "#ffffff") : o.background,
+            padding: `${pV}px ${pH}px`,
+            whiteSpace: "nowrap",
+            maxWidth: "90%",
+            overflow: "hidden",
+            borderRadius: o.shape === "tab" ? 0 : radiusPx,
+          };
+          if (o.shape === "tab") {
+            style.clipPath = `polygon(0 0, calc(100% - ${chamfer}px) 0, 100% ${chamfer}px, 100% 100%, 0 100%)`;
+          }
           return (
-            <div
-              key={o.id}
-              className="absolute pointer-events-none"
-              style={{
-                left: `${o.x}%`,
-                top: `${o.y}%`,
-                transform: `translate(-50%, -50%) translateY(${(1 - progress) * 30 * scale}px)`,
-                opacity: progress,
-                fontSize: o.fontSize * scale,
-                color: o.color,
-                fontWeight: o.fontWeight,
-                background: o.background,
-                padding: `${pV}px ${pH}px`,
-                borderRadius: 9999,
-                whiteSpace: "nowrap",
-                maxWidth: "90%",
-                overflow: "hidden",
-              }}
-            >
-              {o.text}
+            <div key={o.id} className="absolute pointer-events-none" style={style}>
+              {isAccent && (
+                <div
+                  aria-hidden
+                  style={{
+                    position: "absolute",
+                    left: stripeW,
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: o.background,
+                    borderRadius: radiusPx,
+                  }}
+                />
+              )}
+              <span style={{ position: "relative" }}>{o.text}</span>
             </div>
           );
         }
@@ -60,6 +87,7 @@ export default function TextOverlayRenderer({ time }: Props) {
               left: `${o.x}%`,
               top: `${o.y}%`,
               fontSize: o.fontSize * scale,
+              fontFamily: FONT_FAMILY_CSS[o.fontFamily ?? "sans-serif"] ?? FONT_FAMILY_CSS["sans-serif"],
               color: o.color,
               fontWeight: o.fontWeight,
               background: o.background === "transparent" ? undefined : o.background,
