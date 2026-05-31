@@ -1,5 +1,21 @@
+import { DEFAULT_RADIUS_PCT, type OverlayShape } from "../../lib/overlayShapes";
 import { useProjectStore } from "../../store/useProjectStore";
 import { Section, SliderRow } from "../properties-helpers";
+
+// Only the families bundled with the backend (so preview and export match exactly)
+const OVERLAY_FONTS = [
+  { value: "sans-serif", label: "Sans-serif" },
+  { value: "serif", label: "Serif" },
+  { value: "monospace", label: "Monospace" },
+];
+
+const SHAPES: Array<{ value: OverlayShape; label: string }> = [
+  { value: "pill", label: "Pill" },
+  { value: "rounded", label: "Rounded" },
+  { value: "rectangle", label: "Rectangle" },
+  { value: "tab", label: "Tab" },
+  { value: "accent", label: "Accent" },
+];
 
 const PILL_PRESETS: Array<{ label: string; background: string; color: string; fontWeight: "normal" | "bold" }> = [
   { label: "Purple",   background: "#7c3aed", color: "#ffffff", fontWeight: "bold" },
@@ -34,8 +50,47 @@ export default function TextOverlayPropertiesPanel() {
           className="w-full text-[12px] border border-black/[0.1] rounded-md px-2 py-1.5 resize-none outline-none focus:border-[#0ea5a0] bg-white text-[#141416]"
         />
       </Section>
-      {overlay.shape === "pill" && (
+      {overlay.shape && (
         <>
+          <div className="border-t border-black/[0.06]" />
+          <Section title="Shape">
+            <div className="flex gap-1.5 flex-wrap mb-2">
+              {SHAPES.map((s) => (
+                <button
+                  key={s.value}
+                  onClick={() => update({ shape: s.value, cornerRadius: DEFAULT_RADIUS_PCT[s.value] })}
+                  className={`px-2 py-1 rounded-md border text-[11px] font-medium cursor-pointer transition-colors ${
+                    overlay.shape === s.value
+                      ? "border-[#0d9488] bg-[#0d9488]/10 text-[#0d9488]"
+                      : "border-black/[0.1] bg-white text-[#6b6b78] hover:text-[#141416]"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <SliderRow
+              label={overlay.shape === "tab" ? "Cut corner" : "Corner radius"}
+              value={overlay.cornerRadius ?? DEFAULT_RADIUS_PCT[overlay.shape]}
+              min={0}
+              max={50}
+              step={1}
+              onChange={(v) => update({ cornerRadius: v })}
+              format={(v) => `${v}%`}
+            />
+            {overlay.shape === "accent" && (
+              <div className="mt-2">
+                <p className="text-xs text-[#6b6b78] mb-1">Accent color</p>
+                <input
+                  type="color"
+                  aria-label="Accent color"
+                  value={overlay.accentColor ?? "#ffffff"}
+                  onChange={(e) => update({ accentColor: e.target.value })}
+                  className="w-full h-8 rounded cursor-pointer border border-black/[0.1]"
+                />
+              </div>
+            )}
+          </Section>
           <div className="border-t border-black/[0.06]" />
           <Section title="Templates">
             <div className="flex gap-2 flex-wrap">
@@ -60,6 +115,19 @@ export default function TextOverlayPropertiesPanel() {
       )}
       <div className="border-t border-black/[0.06]" />
       <Section title="Style">
+        <div>
+          <label htmlFor="overlay-font" className="text-[11px] text-[#6b6b78] block mb-1">Font</label>
+          <select
+            id="overlay-font"
+            value={overlay.fontFamily ?? "sans-serif"}
+            onChange={(e) => update({ fontFamily: e.target.value })}
+            className="w-full text-xs bg-[#f2f2f6] border border-black/10 text-[#141416] rounded p-1.5 outline-none focus:ring-1 focus:ring-[#0ea5a0]"
+          >
+            {OVERLAY_FONTS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+        </div>
         <SliderRow
           label="Font size"
           value={overlay.fontSize}
@@ -90,7 +158,7 @@ export default function TextOverlayPropertiesPanel() {
           />
         </div>
       </Section>
-      {overlay.shape === "pill" && (
+      {overlay.shape && (
         <>
           <div className="border-t border-black/[0.06]" />
           <Section title="Padding">
@@ -136,7 +204,7 @@ export default function TextOverlayPropertiesPanel() {
           format={(v) => `${v}%`}
         />
       </Section>
-      {overlay.shape === "pill" && (
+      {overlay.shape && (
         <>
           <div className="border-t border-black/[0.06]" />
           <Section title="Animation">
