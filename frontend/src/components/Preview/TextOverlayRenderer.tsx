@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
-import { FONT_FAMILY_CSS } from "../../lib/fonts";
+import { FONT_FAMILY_CSS, FONT_LINE_HEIGHT } from "../../lib/fonts";
 import { effectiveRadiusPct, ACCENT_STRIPE_REF_WIDTH } from "../../lib/overlayShapes";
 
 interface Props { time: number }
@@ -32,8 +32,10 @@ export default function TextOverlayRenderer({ time }: Props) {
           const pH = (o.paddingH ?? 20) * scale;
           const pV = (o.paddingV ?? 8) * scale;
           const fontPx = o.fontSize * scale;
-          // Approximate box height (matches PIL ascent+descent ≈ 1.2× font size).
-          const boxH = fontPx * 1.2 + 2 * pV;
+          const lh = FONT_LINE_HEIGHT[o.fontFamily ?? "sans-serif"] ?? FONT_LINE_HEIGHT["sans-serif"];
+          // Box height tracks PIL's ascent+descent (per-font ratio) so the preview's
+          // corner radius and tab chamfer match the baked PNG export.
+          const boxH = fontPx * lh + 2 * pV;
           const radiusPct = effectiveRadiusPct(o.shape, o.cornerRadius);
           const radiusPx = Math.min((radiusPct / 100) * boxH, boxH / 2);
           const chamfer = Math.min((radiusPct / 100) * boxH, boxH);
@@ -45,7 +47,7 @@ export default function TextOverlayRenderer({ time }: Props) {
             transform: `translate(-50%, -50%) translateY(${(1 - progress) * 30 * scale}px)`,
             opacity: progress,
             fontSize: fontPx,
-            lineHeight: 1.2,
+            lineHeight: lh,
             fontFamily: FONT_FAMILY_CSS[o.fontFamily ?? "sans-serif"] ?? FONT_FAMILY_CSS["sans-serif"],
             color: o.color,
             fontWeight: o.fontWeight,
