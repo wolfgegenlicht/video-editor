@@ -1,9 +1,22 @@
 import re
 
+# The frontend preview renders captions inside a fixed REFERENCE_WIDTH canvas
+# (see CaptionOverlay.tsx: a 1280-wide box that is then CSS-scaled to fit the
+# preview area). All caption metrics — fontSize, padding, outline, shadow,
+# letterSpacing — are therefore expressed in this 1280-px reference space, NOT
+# in the live preview pixel width. To match the preview exactly we must scale
+# those metrics by (output width / REFERENCE_WIDTH), never by the preview width.
+REFERENCE_WIDTH = 1280
+
 _FONT_MAP = {
     "sans-serif": "Inter",
     "serif": "Merriweather",
     "monospace": "JetBrains Mono",
+    # "Impact" / "Georgia" are legacy CSS-stack values from the dropdown; map them to
+    # the bundled faces (Anton is the free Impact substitute) so they actually render
+    # instead of silently falling back to Inter.
+    "Impact, sans-serif": "Anton",
+    "Georgia, serif": "Merriweather",
 }
 
 # Average character width as fraction of fontsize, per font.
@@ -12,6 +25,7 @@ _CHAR_WIDTH = {
     "Inter": 0.50,
     "Merriweather": 0.53,
     "JetBrains Mono": 0.61,
+    "Anton": 0.40,  # very condensed — fits more characters per line
 }
 
 _TRANS_S = 0.300  # 300 ms scroll duration (matches 9 frames at 30fps)
@@ -45,25 +59,28 @@ def _ts(t: float) -> str:
 def generate_ass(captions: list, style: dict, W: int, H: int,
                  preview_w: int = 720,
                  caption_line_breaks: dict | None = None) -> str:
+    # preview_w is accepted for backward compatibility with the API payload but
+    # is intentionally unused: caption metrics live in REFERENCE_WIDTH space.
+    scale = W / REFERENCE_WIDTH
     font_family = style.get("fontFamily", "sans-serif")
     fontname = _FONT_MAP.get(font_family, font_family)
-    fontsize = int(style.get("fontSize", 32) * W / preview_w)
+    fontsize = int(style.get("fontSize", 32) * scale)
     bold = -1 if style.get("fontWeight") == "bold" else 0
-    spacing = round(style.get("letterSpacing", 0) * W / preview_w)
+    spacing = round(style.get("letterSpacing", 0) * scale)
 
     color = style.get("color", "#ffffff")
     highlight_color = style.get("highlightColor", "#fde047")
 
-    outline_w = round(style.get("outlineWidth", 0) * W / preview_w)
+    outline_w = round(style.get("outlineWidth", 0) * scale)
     outline_c = _hex_to_ass(style.get("outlineColor", "#000000"))
-    # CSS text-shadow is "0 2px 8px rgba(0,0,0,0.8)": no x-offset, 2px y-offset, 8px blur.
-    # ASS has no per-direction blur in the style header, so we use inline override tags
-    # (\xshad0 \yshad{n} \blur{n}) which libass honours and which only blur borders/shadows,
-    # not the main text fill — matching the CSS behaviour exactly.
+    # CSS text-shadow is "0 2px 8px rgba(0,0,0,0.8)": a soft shadow BEHIND sharp text.
+    # ASS/libass has no separate shadow layer — `\blur` blurs the glyph FILL too, which
+    # smears the caption illegibly. So we render a crisp offset drop shadow (\xshad0
+    # \yshad{n}, colour = BackColour) with only a hint of edge-softening (\be1), keeping
+    # the text itself sharp. Shadow depth comes from the Style `Shadow` field below.
     if style.get("textShadow"):
-        _shadow_y = max(1, round(2 * W / preview_w))
-        _shadow_blur = max(1, round(8 * W / preview_w))
-        shadow_override = f"{{\\xshad0\\yshad{_shadow_y}\\blur{_shadow_blur}}}"
+        _shadow_y = max(1, round(2 * scale))
+        shadow_override = f"{{\\xshad0\\yshad{_shadow_y}\\be1}}"
         shadow_style_val = _shadow_y
     else:
         shadow_override = ""
@@ -94,8 +111,8 @@ def generate_ass(captions: list, style: dict, W: int, H: int,
     clip_x2 = int((x_pct + box_w_pct) * W)
 
     # Scale the hardcoded CSS padding("4px 8px") on the preview <p> to ASS pixels
-    padding_h_ass = round(8 * W / preview_w)
-    padding_v_ass = round(4 * W / preview_w)
+    padding_h_ass = round(8 * scale)
+    padding_v_ass = round(4 * scale)
 
     # Anchor sits inside the horizontal padding (matches preview text area)
     _text_x1 = clip_x1 + padding_h_ass
@@ -108,8 +125,12 @@ def generate_ass(captions: list, style: dict, W: int, H: int,
     box_h_px = int(box_h_pct * H)
     char_w = _CHAR_WIDTH.get(fontname, 0.50) * (1.08 if bold == -1 else 1.0)
     chars_per_line = max(10, int((box_w_px - 2 * padding_h_ass) / (fontsize * char_w)))
-    lh = int(fontsize * 1.35)                    # line height — only used for max_visible
-    max_visible = max(1, int((box_h_px - padding_v_ass) / lh))
+    line_height = style.get("lineHeight") or 1.35  # multiplier of fontsize
+    lh = int(fontsize * line_height)             # line spacing (slot height) + max_visible
+    # Count a line as visible when most of it (~60%) fits the box, matching how the
+    # old CSS overlay showed a partially-fitting line. Plain int() floored e.g. 1.64→1,
+    # collapsing large-font captions to a single scrolling line (regression).
+    max_visible = max(1, int((box_h_px - padding_v_ass) / lh + 0.4))
 
     # slot_h: line spacing matches CSS lineHeight:1.35 — lines packed from top,
     # not spread to fill the box.  Clip covers exactly max_visible slots.

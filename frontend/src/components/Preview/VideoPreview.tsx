@@ -4,6 +4,7 @@ import { useProjectStore } from "../../store/useProjectStore";
 import { fileUrl, uploadFile } from "../../lib/api";
 import type { Clip, Track, EffectOverlay, ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams, ReframeTrackPoint } from "../../types/project";
 import CaptionOverlay from "./CaptionOverlay";
+import LibassCaptions from "./LibassCaptions";
 import TextOverlayRenderer from "./TextOverlayRenderer";
 import VideoTransformOverlay from "./VideoTransformOverlay";
 import BlurRegionEditor, { featherMaskStyle } from "./BlurRegionEditor";
@@ -581,6 +582,7 @@ export default function VideoPreview({ videoRef }: Props) {
           </div>
         ) : null}
         <TextOverlayRenderer time={playheadTime} />
+        <LibassCaptions time={playheadTime} />
         <CaptionOverlay time={playheadTime} />
         {activeBlurRegion && activeBlurEffect?.id !== selectedEffectOverlayId && (
           <div

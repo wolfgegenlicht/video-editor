@@ -48,7 +48,7 @@ interface Props {
 
 export default function Timeline({ toggle, seek }: Props) {
   const { project, zoom, playheadTime, splitClip, setTrackMuted, setTrackHidden, setTrackLabel, setRowLabel, setEffectLaneHidden, selectMultiple, deselectAll, deleteTrack, reorderTrack, setFocusedTrackId, selectedItemIds, draggingEffectType, setDraggingEffectType, clearAllTextOverlays, clearAllCaptions, clearAllTransitions, clearEffectLane } = useProjectStore();
-  const [height, setHeight] = useState(260);
+  const [height, setHeight] = useState(220);
   const [labelWidth, setLabelWidth] = useState(LABEL_WIDTH);
   const [snapIndicatorTime, setSnapIndicatorTime] = useState<number | null>(null);
   const [contextMenu, setContextMenu] = useState<{ rowKey: string; isRealTrack: boolean; x: number; y: number } | null>(null);
@@ -61,6 +61,8 @@ export default function Timeline({ toggle, seek }: Props) {
   const dragState = useRef<{ startY: number; startHeight: number } | null>(null);
   const dragTrackRef = useRef<{ key: string; startY: number; startH: number } | null>(null);
   const dragLabelRef = useRef<{ startX: number; startW: number } | null>(null);
+  const labelsScrollRef = useRef<HTMLDivElement>(null);
+  const isSyncingScroll = useRef(false);
   const [rubberBand, setRubberBand] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
 
@@ -91,7 +93,7 @@ export default function Timeline({ toggle, seek }: Props) {
     function onMouseMove(ev: MouseEvent) {
       if (!dragState.current) return;
       const delta = dragState.current.startY - ev.clientY;
-      setHeight(Math.min(MAX_HEIGHT, Math.max(minHeight, dragState.current.startHeight + delta)));
+      setHeight(Math.min(MAX_HEIGHT, Math.max(CHROME_H + MIN_TRACK_H, dragState.current.startHeight + delta)));
     }
 
     function onMouseUp() {
@@ -102,6 +104,15 @@ export default function Timeline({ toggle, seek }: Props) {
 
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp);
+  }
+
+  function onTrackAreaScroll() {
+    if (isSyncingScroll.current) return;
+    isSyncingScroll.current = true;
+    if (labelsScrollRef.current && scrollAreaRef.current) {
+      labelsScrollRef.current.scrollTop = scrollAreaRef.current.scrollTop;
+    }
+    requestAnimationFrame(() => { isSyncingScroll.current = false; });
   }
 
   useEffect(() => {
@@ -281,8 +292,9 @@ export default function Timeline({ toggle, seek }: Props) {
     if (!scrollEl) return;
     const rect = scrollEl.getBoundingClientRect();
     const scrollLeft = scrollEl.scrollLeft;
+    const scrollTop = scrollEl.scrollTop;
     const x1 = e.clientX - rect.left + scrollLeft;
-    const y1 = e.clientY - rect.top;
+    const y1 = e.clientY - rect.top + scrollTop;
 
     let moved = false;
     let x2 = x1;
@@ -290,8 +302,9 @@ export default function Timeline({ toggle, seek }: Props) {
 
     function onMouseMove(ev: MouseEvent) {
       const currentScroll = scrollAreaRef.current?.scrollLeft ?? scrollLeft;
+      const currentScrollTop = scrollAreaRef.current?.scrollTop ?? 0;
       x2 = ev.clientX - rect.left + currentScroll;
-      y2 = ev.clientY - rect.top;
+      y2 = ev.clientY - rect.top + currentScrollTop;
       if (!moved && (Math.abs(x2 - x1) > 3 || Math.abs(y2 - y1) > 3)) moved = true;
       if (moved) setRubberBand({ x1, y1, x2, y2 });
     }
@@ -384,13 +397,6 @@ export default function Timeline({ toggle, seek }: Props) {
     }
   }
 
-  const minHeight = CHROME_H
-    + project.tracks.reduce((sum, t) => sum + trackH(t.id), 0)
-    + (project.textOverlays.length > 0 ? trackH("text") : 0)
-    + (project.captions.length > 0 ? trackH("captions") : 0)
-    + (hasTransitions ? trackH("transitions") : 0)
-    + activeLanes.reduce((sum, t) => sum + trackH(`fx-${t}`), 0);
-
   const totalDuration = Math.max(
     30,
     ...project.tracks.flatMap((t) => t.clips.map((c) => c.startTime + c.duration))
@@ -419,7 +425,7 @@ export default function Timeline({ toggle, seek }: Props) {
   const scrubberPct = totalDuration > 0 ? Math.min(1, playheadTime / totalDuration) * 100 : 0;
 
   return (
-    <div className="flex flex-col bg-[#f0f0f4] border-t border-black/[0.08] flex-shrink-0" style={{ height: Math.max(minHeight, height) }}>
+    <div className="flex flex-col bg-[#f0f0f4] border-t border-black/[0.08] flex-shrink-0" style={{ height }}>
       {/* Scrubber bar */}
       <div
         role="presentation"
@@ -441,8 +447,9 @@ export default function Timeline({ toggle, seek }: Props) {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Track labels */}
         <div
+          ref={labelsScrollRef}
           className="flex-shrink-0 bg-[#f2f2f6] border-r border-black/[0.07] relative"
-          style={{ width: labelWidth }}
+          style={{ width: labelWidth, overflowY: 'hidden' }}
           onDragOver={(e) => { if (e.dataTransfer.types.includes("effecttype")) e.preventDefault(); }}
           onDrop={(e) => {
             const effectType = e.dataTransfer.getData("effectType");
@@ -747,8 +754,9 @@ export default function Timeline({ toggle, seek }: Props) {
         {/* Scrollable timeline */}
         <div
           ref={scrollAreaRef}
-          className="flex-1 overflow-x-auto overflow-y-hidden relative"
+          className="flex-1 overflow-x-auto overflow-y-auto relative"
           onWheel={handleWheelZoom}
+          onScroll={onTrackAreaScroll}
         >
           <div role="presentation" style={{ width: totalWidth, position: "relative" }} onMouseDown={onContentMouseDown}>
             <TimelineRuler totalWidth={totalWidth} zoom={zoom} seek={seek} />

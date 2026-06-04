@@ -1,4 +1,4 @@
-import os, subprocess, tempfile, uuid, re, math
+import os, subprocess, tempfile, uuid, re, math, threading
 from pathlib import Path
 from services.ass_generator import generate_ass
 from services.background_blur import blur_background_clip
@@ -7,6 +7,44 @@ from services.overlay_render import font_path, render_shape_png
 OUT = Path(__file__).parent.parent / "out"
 OUT.mkdir(exist_ok=True)
 _FONTS_DIR = str(Path(__file__).parent.parent / "fonts")
+
+# Hardware encoder detection — probed once on first export, then cached.
+_HW_CANDIDATES = [
+    ("h264_videotoolbox", ["-q:v", "65"]),
+    ("h264_nvenc",        ["-preset", "p4", "-cq", "23"]),
+    ("h264_amf",          ["-quality", "balanced", "-qp_i", "23"]),
+    ("h264_qsv",          ["-preset", "faster", "-global_quality", "23"]),
+]
+_SW_FALLBACK = ("libx264", ["-preset", "fast"])
+_hw_encoder_cache: tuple[str, list[str]] | None = None
+_hw_encoder_lock = threading.Lock()
+
+
+def detect_hw_encoder() -> tuple[str, list[str]]:
+    global _hw_encoder_cache
+    if _hw_encoder_cache is not None:
+        return _hw_encoder_cache
+    with _hw_encoder_lock:
+        if _hw_encoder_cache is not None:
+            return _hw_encoder_cache
+        _hw_encoder_cache = _probe_hw_encoder()
+        print(f"[ffmpeg] encoder: {_hw_encoder_cache[0]}", flush=True)
+        return _hw_encoder_cache
+
+
+def _probe_hw_encoder() -> tuple[str, list[str]]:
+    for encoder, flags in _HW_CANDIDATES:
+        try:
+            r = subprocess.run(
+                ["ffmpeg", "-y", "-f", "lavfi", "-i", "nullsrc=s=128x72:d=0.04",
+                 "-frames:v", "1", "-c:v", encoder, *flags, "-f", "null", "-"],
+                capture_output=True, timeout=10,
+            )
+            if r.returncode == 0:
+                return (encoder, flags)
+        except Exception:
+            continue
+    return _SW_FALLBACK
 
 # Canvas dimensions per aspect ratio and resolution
 CANVAS_SIZES: dict[str, dict[int, tuple[int, int]]] = {
@@ -116,16 +154,17 @@ def _build_pan_filter(pan: float) -> str:
     right_gain = max(0.0, min(1.0, 1.0 + pan))
     return f"pan=stereo|c0={left_gain:.4f}*c0|c1={right_gain:.4f}*c1"
 
-def _kf_lerp_expr(t_offset: float, kf_times: list, kf_values: list) -> str:
+def _kf_lerp_expr(t_offset: float, kf_times: list, kf_values: list, time_var: str = "t") -> str:
     """Build a flat FFmpeg expression for linear keyframe interpolation.
 
     Uses a sum of gte()*lt() multiplications instead of nested if() calls so the
     expression depth stays O(1) regardless of keyframe count — nested if() hits
     FFmpeg's parser stack limit with ~10+ keyframes.
 
-    t_offset  — absolute effect startTime (seconds); (t - t_offset) is the relative clock.
+    t_offset  — absolute effect startTime (seconds); (time_var - t_offset) is the relative clock.
     kf_times  — list of floats, keyframe times relative to effect startTime, ascending.
     kf_values — list of floats, one value per keyframe.
+    time_var  — FFmpeg time variable name: "t" for most filters, "T" for blend filter.
     """
     n = len(kf_times)
     if n == 0:
@@ -133,7 +172,7 @@ def _kf_lerp_expr(t_offset: float, kf_times: list, kf_values: list) -> str:
     if n == 1:
         return f"{kf_values[0]:.4f}"
 
-    T = f"(t-{t_offset:.4f})"
+    T = f"({time_var}-{t_offset:.4f})"
     terms = []
 
     # Before first keyframe: clamp to first value
@@ -171,8 +210,8 @@ def _seg_lerp_expr(v0: float, v1: float, t0: float, t1: float) -> str:
 def _zoom_factor_expr(scale: float, st: float, et: float, ramp_in: float, ramp_out: float) -> str:
     """FFmpeg expression for the time-varying zoom factor at absolute time t.
 
-    Returns a flat (no nesting) expression that evaluates to 1 outside [st, et]
-    and ramps from 1 → scale → 1 inside the range. Always >= 1.
+    Returns a flat expression that evaluates to 1 outside [st, et]
+    and ramps from 1 → scale → 1 inside the range using easeInOut. Always >= 1.
     """
     if abs(scale - 1.0) < 1e-6:
         return "1"
@@ -180,17 +219,128 @@ def _zoom_factor_expr(scale: float, st: float, et: float, ramp_in: float, ramp_o
     parts: list[str] = []
     if ramp_in > 1e-6:
         t0, t1 = st, st + ramp_in
-        parts.append(f"gte(t,{t0:.4f})*lt(t,{t1:.4f})*max(0,(t-{t0:.4f})/{ramp_in:.4f})")
+        p = f"max(0,min(1,(t-{t0:.4f})/{ramp_in:.4f}))"
+        ease = f"if(lt({p},0.5),2*({p})*({p}),-1+4*({p})-2*({p})*({p}))"
+        parts.append(f"gte(t,{t0:.4f})*lt(t,{t1:.4f})*{ease}")
     hold_s = st + ramp_in
     hold_e = et - ramp_out
     if hold_e > hold_s:
         parts.append(f"gte(t,{hold_s:.4f})*lt(t,{hold_e:.4f})")
     if ramp_out > 1e-6:
         t0, t1 = et - ramp_out, et
-        parts.append(f"gte(t,{t0:.4f})*lt(t,{t1:.4f})*max(0,({t1:.4f}-t)/{ramp_out:.4f})")
+        p = f"max(0,min(1,({t1:.4f}-t)/{ramp_out:.4f}))"
+        ease = f"if(lt({p},0.5),2*({p})*({p}),-1+4*({p})-2*({p})*({p}))"
+        parts.append(f"gte(t,{t0:.4f})*lt(t,{t1:.4f})*{ease}")
     if not parts:
         return "1"
     return f"(1+{dS:.4f}*({'+'.join(parts)}))"
+
+
+def _easeInOut(t: float) -> float:
+    t = max(0.0, min(1.0, t))
+    return 2 * t * t if t < 0.5 else -1 + (4 - 2 * t) * t
+
+
+def _avg_ramp_speed(start_speed: float, end_speed: float, easing: str, t0_norm: float, t1_norm: float) -> float:
+    """Average speed over normalized sub-interval [t0_norm, t1_norm] of a speed ramp."""
+    if abs(t1_norm - t0_norm) < 1e-9:
+        return start_speed
+    if easing == "ease":
+        N = 20
+        total = sum(
+            start_speed + (end_speed - start_speed) * _easeInOut(
+                t0_norm + (t1_norm - t0_norm) * (k + 0.5) / N
+            )
+            for k in range(N)
+        )
+        return total / N
+    mid = (t0_norm + t1_norm) / 2.0
+    return start_speed + (end_speed - start_speed) * mid
+
+
+def _apply_speed_ramps(clips: list, effect_overlays: list, hidden_lanes: dict) -> list:
+    """Split clips at speed-ramp boundaries and set per-segment effective speeds.
+
+    Each segment's source start is computed from base_speed × timeline_offset (not
+    accumulated), so segments after a ramp snap back to the expected base-speed
+    position — matching preview behaviour where the sync loop seeks back after
+    the ramp ends.
+    """
+    if hidden_lanes.get("speedramp"):
+        return clips
+    ramp_effects = [e for e in effect_overlays if e.get("type") == "speedramp"]
+    if not ramp_effects:
+        return clips
+
+    result = []
+    for clip in clips:
+        clip_tl_start = clip["startTime"]
+        clip_tl_end = clip_tl_start + clip["duration"]
+        orig_source_start = clip.get("sourceStart", 0)
+        orig_source_end = clip.get("sourceEnd", clip.get("duration", 0))
+        base_speed = clip.get("speed", 1.0) or 1.0
+
+        overlapping = [r for r in ramp_effects
+                       if r["startTime"] < clip_tl_end and r["endTime"] > clip_tl_start]
+        if not overlapping:
+            result.append(clip)
+            continue
+
+        boundary_set = {clip_tl_start, clip_tl_end}
+        for r in overlapping:
+            boundary_set.add(max(clip_tl_start, min(clip_tl_end, r["startTime"])))
+            boundary_set.add(max(clip_tl_start, min(clip_tl_end, r["endTime"])))
+        boundaries = sorted(boundary_set)
+
+        for seg_idx in range(len(boundaries) - 1):
+            seg_tl_start = boundaries[seg_idx]
+            seg_tl_end = boundaries[seg_idx + 1]
+            seg_tl_dur = seg_tl_end - seg_tl_start
+            if seg_tl_dur < 1e-6:
+                continue
+
+            # Source position at this segment's start, as if clip played at base_speed.
+            # This is the "snap-back" anchor: non-ramp segments always continue from
+            # where base speed would place them, regardless of how much source the
+            # preceding ramp consumed.
+            base_ss = orig_source_start + base_speed * (seg_tl_start - clip_tl_start)
+            base_ss = max(orig_source_start, min(orig_source_end, base_ss))
+
+            seg_mid = (seg_tl_start + seg_tl_end) / 2.0
+            active_ramp = next(
+                (r for r in overlapping if r["startTime"] <= seg_mid < r["endTime"]),
+                None,
+            )
+
+            if active_ramp:
+                p = active_ramp.get("params", {})
+                start_speed = p.get("startSpeed", 1.0)
+                end_speed = p.get("endSpeed", 1.0)
+                easing = p.get("easing", "linear")
+                ramp_dur = max(1e-6, active_ramp["endTime"] - active_ramp["startTime"])
+                t0_n = max(0.0, (seg_tl_start - active_ramp["startTime"]) / ramp_dur)
+                t1_n = min(1.0, (seg_tl_end - active_ramp["startTime"]) / ramp_dur)
+                avg_speed = _avg_ramp_speed(start_speed, end_speed, easing, t0_n, t1_n)
+            else:
+                avg_speed = base_speed
+
+            seg_source_end = min(orig_source_end, base_ss + avg_speed * seg_tl_dur)
+            if seg_source_end <= base_ss + 1e-3:
+                continue  # degenerate (source exhausted for this ramp segment)
+
+            sub = dict(clip)
+            sub["startTime"] = seg_tl_start
+            sub["duration"] = seg_tl_dur
+            sub["sourceStart"] = base_ss
+            sub["sourceEnd"] = seg_source_end
+            sub["speed"] = avg_speed
+            if seg_idx > 0:
+                sub["fadeIn"] = 0
+            if seg_idx < len(boundaries) - 2:
+                sub["fadeOut"] = 0
+            result.append(sub)
+
+    return result
 
 
 def export(project: dict, uploads_dir: Path, options: dict | None = None, progress_cb=None) -> Path:
@@ -201,6 +351,7 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
     _VALID_PRESETS = {"ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"}
     if preset not in _VALID_PRESETS:
         preset = "fast"
+    encoder_name, encoder_flags = detect_hw_encoder()
     ratio = project.get("aspectRatio", "16:9")
     W, H = CANVAS_SIZES.get(ratio, CANVAS_SIZES["16:9"]).get(resolution, (1920, 1080))
     ratio_filter = f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H}"
@@ -248,6 +399,11 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
             else:
                 print(f"[ffmpeg export] WARNING: file not found for clip {file_id}, skipping")
     clips.sort(key=lambda c: c["startTime"])
+    clips = _apply_speed_ramps(
+        clips,
+        project.get("effectOverlays", []),
+        project.get("hiddenEffectLanes", {}) or {},
+    )
 
     # Pre-process clips that have background blur enabled.
     # Creates temp video-only files; FFmpeg applies remaining effects on top.
@@ -448,20 +604,42 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         for j, eff in enumerate(fade_effects):
             direction = eff.get("params", {}).get("direction", "in")
             st = eff.get("startTime", 0)
-            dur = max(0.01, eff.get("endTime", st) - st)
+            et = max(st + 0.01, eff.get("endTime", st))
+            dur = et - st
             in_lbl = "vpre_fade" if j == 0 else f"vfade{j}"
             out_lbl = f"vfade{j+1}" if j < len(fade_effects) - 1 else "vout"
-            parts.append(f"[{in_lbl}]fade=t={direction}:st={st:.4f}:d={dur:.4f}[{out_lbl}]")
+            # Use an alpha-animated black overlay so the fade is strictly confined to [st, et].
+            # FFmpeg's bare `fade` filter blacks frames outside its window: t=in blacks frames
+            # before st, t=out blacks all frames after et — neither matches the preview.
+            # Instead: split the stream, convert one copy to opaque-black RGBA, animate its
+            # alpha via fade:alpha=1, then overlay with enable='between(t,st,et)'.
+            # direction=in  → black starts opaque at st, fades to transparent by et (fade=t=out on black)
+            # direction=out → black starts transparent at st, fades to opaque by et (fade=t=in on black)
+            bk_fade_t = "out" if direction == "in" else "in"
+            bk = f"bk{j}"
+            parts.append(
+                f"[{in_lbl}]split[{in_lbl}_v][{in_lbl}_bk];"
+                f"[{in_lbl}_bk]drawbox=x=0:y=0:w=iw:h=ih:color=black:t=fill,format=rgba,"
+                f"fade=t={bk_fade_t}:alpha=1:st={st:.4f}:d={dur:.4f}[{bk}];"
+                f"[{in_lbl}_v][{bk}]overlay=format=rgb:enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
+            )
         filter_complex = filter_complex.replace("[vout]", f"[vpre_fade];{';'.join(parts)}", 1)
 
     # Effect overlays (blur)
+    # preview_w: the CSS pixel width the user designed the blur against; scale sigma to export width.
+    # CSS blur() is Gaussian, so all paths use gblur. Region/keyframe blurs crop the
+    # affected rectangle, blur just that patch, and overlay it back — keeping cost tied
+    # to the patch size, not the full frame. Keyframe-animated regions use a fixed-size
+    # crop at a time-varying (`t`) position; feather blends original-vs-blurred on the patch.
+    preview_w = max(1, options.get("preview_width") or 720)
     blur_effects = [e for e in effect_overlays if e.get("type") == "blur"] if not hidden_lanes.get("blur") else []
     if blur_effects:
         parts = []
         for j, eff in enumerate(blur_effects):
             st = eff.get("startTime", 0)
             et = max(st + 0.01, eff.get("endTime", st))
-            r = max(1, round(eff.get("params", {}).get("intensity", 10)))
+            raw_intensity = eff.get("params", {}).get("intensity", 10) or 0
+            sigma = max(0.1, raw_intensity * W / preview_w)
             region = eff.get("params", {}).get("region")
             in_lbl = "vpre_blur" if j == 0 else f"vblur{j}"
             out_lbl = f"vblur{j+1}" if j < len(blur_effects) - 1 else "vout"
@@ -473,50 +651,51 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                 kf_y = [max(0.0, kf["region"]["y"] * H) for kf in kf_with_region]
                 kf_w = [max(2.0, kf["region"]["width"] * W) for kf in kf_with_region]
                 kf_h = [max(2.0, kf["region"]["height"] * H) for kf in kf_with_region]
-                kf_r = [max(1.0, kf["intensity"]) for kf in kf_with_region]
+                kf_r = [max(1.0, kf["intensity"] * W / preview_w) for kf in kf_with_region]
 
-                # Build one segment per keyframe interval so each filter chain uses
-                # a simple 2-point linear expression (~60 chars) rather than a
-                # full N-term summation — the latter causes FFmpeg's crop filter
-                # evaluator to fail when there are many keyframes.
-                segs: list[tuple] = []
-                if kf_times[0] > 1e-6:
-                    v = (kf_x[0], kf_y[0], kf_w[0], kf_h[0], kf_r[0])
-                    segs.append((st, st + kf_times[0]) + v + v)
-                for i in range(len(kf_times) - 1):
-                    segs.append((
-                        st + kf_times[i], st + kf_times[i + 1],
-                        kf_x[i], kf_y[i], kf_w[i], kf_h[i], kf_r[i],
-                        kf_x[i+1], kf_y[i+1], kf_w[i+1], kf_h[i+1], kf_r[i+1],
-                    ))
-                last = len(kf_times) - 1
-                if kf_times[last] < (et - st) - 1e-6:
-                    v = (kf_x[last], kf_y[last], kf_w[last], kf_h[last], kf_r[last])
-                    segs.append((st + kf_times[last], et) + v + v)
+                # Crop a FIXED-size patch (max region box across keyframes) at a
+                # time-varying position, blur just that patch, and overlay it back.
+                # Only the small patch is processed, so cost is tiny regardless of
+                # effect duration. A full-frame blend (per-pixel expression over the
+                # whole 1920×1080 frame, every frame) is ~1000× slower and looks like
+                # a freeze. crop and overlay both accept `t` in position expressions.
+                fw = max(2, min(W, int(max(kf_w) // 2 * 2)))
+                fh = max(2, min(H, int(max(kf_h) // 2 * 2)))
+                avg_r = max(0.1, sum(kf_r) / len(kf_r))
+                xe = _kf_lerp_expr(st, kf_times, kf_x, time_var="t")
+                ye = _kf_lerp_expr(st, kf_times, kf_y, time_var="t")
+                xc = f"max(0,min({W}-{fw},{xe}))"
+                yc = f"max(0,min({H}-{fh},{ye}))"
 
-                cur_in = in_lbl
-                for s, seg in enumerate(segs):
-                    t0a, t1a = seg[0], seg[1]
-                    x0, y0, w0, h0, r0 = seg[2], seg[3], seg[4], seg[5], seg[6]
-                    x1, y1, w1, h1, r1 = seg[7], seg[8], seg[9], seg[10], seg[11]
-                    seg_out = out_lbl if s == len(segs) - 1 else f"vkfs{j}s{s}"
-
-                    ex_e = _seg_lerp_expr(x0, x1, t0a, t1a)
-                    ey_e = _seg_lerp_expr(y0, y1, t0a, t1a)
-                    ew_e = f"trunc(min({W}-({ex_e}),max(2,{_seg_lerp_expr(w0, w1, t0a, t1a)}))/2)*2"
-                    eh_e = f"trunc(min({H}-({ey_e}),max(2,{_seg_lerp_expr(h0, h1, t0a, t1a)}))/2)*2"
-                    er_e = f"max(1,{_seg_lerp_expr(r0, r1, t0a, t1a)})"
-
-                    b  = f"bkfb{j}_{s}"
-                    bs = f"bkfs{j}_{s}"
-                    bc = f"bkfc{j}_{s}"
+                kf_feather = max(0.0, min(0.5,
+                    (kf_with_region[0].get("region") or {}).get("feather", 0) or 0))
+                if kf_feather > 0:
+                    afw = max(1, int(kf_feather * fw))
+                    afh = max(1, int(kf_feather * fh))
+                    # Patch-relative feather mask: 0 at the patch edge (shows the
+                    # original pixels — seamless with the base since they ARE the
+                    # base pixels there) ramping to 1 inward (fully blurred). blend
+                    # runs only over the small patch, so the per-pixel expr is cheap.
+                    mask = (f"min(1,min(min(X/{afw},({fw}-1-X)/{afw}),"
+                            f"min(Y/{afh},({fh}-1-Y)/{afh})))")
                     parts.append(
-                        f"[{cur_in}]split[{b}][{bs}];"
-                        f"[{bs}]crop=w='{ew_e}':h='{eh_e}':x='{ex_e}':y='{ey_e}',"
-                        f"boxblur=luma_radius='{er_e}':luma_power=1[{bc}];"
-                        f"[{b}][{bc}]overlay=x='{ex_e}':y='{ey_e}':enable='between(t,{t0a:.4f},{t1a:.4f})'[{seg_out}]"
+                        f"[{in_lbl}]split[bkfBase{j}][bkfSrc{j}];"
+                        f"[bkfSrc{j}]crop=w={fw}:h={fh}:x='{xc}':y='{yc}',format=gbrp,"
+                        f"split[bkfPo{j}][bkfPb{j}];"
+                        f"[bkfPb{j}]gblur=sigma={avg_r:.2f}[bkfPbl{j}];"
+                        f"[bkfPo{j}][bkfPbl{j}]blend=all_expr='A+(B-A)*({mask})',"
+                        f"format=yuv420p[bkfPatch{j}];"
+                        f"[bkfBase{j}][bkfPatch{j}]overlay=x='{xc}':y='{yc}'"
+                        f":enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
                     )
-                    cur_in = seg_out
+                else:
+                    parts.append(
+                        f"[{in_lbl}]split[bkfBase{j}][bkfSrc{j}];"
+                        f"[bkfSrc{j}]crop=w={fw}:h={fh}:x='{xc}':y='{yc}',"
+                        f"gblur=sigma={avg_r:.2f}[bkfPatch{j}];"
+                        f"[bkfBase{j}][bkfPatch{j}]overlay=x='{xc}':y='{yc}'"
+                        f":enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
+                    )
             elif region:
                 rx = max(0, int(region.get("x", 0) * W))
                 ry = max(0, int(region.get("y", 0) * H))
@@ -524,30 +703,32 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
                 rh = min(H - ry, max(2, int(region.get("height", 1) * H))); rh -= rh % 2
                 feather = max(0.0, min(0.5, region.get("feather", 0) or 0))
                 if feather > 0:
-                    fw = max(1, int(feather * rw))
-                    fh = max(1, int(feather * rh))
-                    # feather via RGBA alpha gradient: pixel alpha ramps from 0 at each edge to 255 at fw/fh inward
-                    alpha_expr = (
-                        f"a='255*min("
-                        f"min(X+0.5,{fw})/{fw},"
-                        f"min(min({rw}-X-0.5,{fw})/{fw},"
-                        f"min(min(Y+0.5,{fh})/{fh},"
-                        f"min({rh}-Y-0.5,{fh})/{fh})))'"
-                    )
+                    afw = max(1, int(feather * rw))
+                    afh = max(1, int(feather * rh))
+                    # Crop the region, blend original-vs-blurred on that small patch
+                    # with a patch-relative feather mask (0 at edge → seamless original,
+                    # 1 inward → fully blurred), then overlay back. Everything runs on
+                    # the small patch, never the full frame, so it stays fast. gbrp
+                    # avoids chroma-subsampling artifacts in the blend coordinates.
+                    mask = (f"min(1,min(min(X/{afw},({rw}-1-X)/{afw}),"
+                            f"min(Y/{afh},({rh}-1-Y)/{afh})))")
                     parts.append(
-                        f"[{in_lbl}]split[base{j}][bsrc{j}];"
-                        f"[bsrc{j}]crop={rw}:{rh}:{rx}:{ry},boxblur=luma_radius={r}:luma_power=1,"
-                        f"format=rgba,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':{alpha_expr}[bcrop{j}];"
-                        f"[base{j}][bcrop{j}]overlay={rx}:{ry}:enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
+                        f"[{in_lbl}]split[bfBase{j}][bfSrc{j}];"
+                        f"[bfSrc{j}]crop={rw}:{rh}:{rx}:{ry},format=gbrp,split[bfPo{j}][bfPb{j}];"
+                        f"[bfPb{j}]gblur=sigma={sigma:.2f}[bfPbl{j}];"
+                        f"[bfPo{j}][bfPbl{j}]blend=all_expr='A+(B-A)*({mask})',"
+                        f"format=yuv420p[bfPatch{j}];"
+                        f"[bfBase{j}][bfPatch{j}]overlay={rx}:{ry}"
+                        f":enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
                     )
                 else:
                     parts.append(
                         f"[{in_lbl}]split[base{j}][bsrc{j}];"
-                        f"[bsrc{j}]crop={rw}:{rh}:{rx}:{ry},boxblur=luma_radius={r}:luma_power=1[bcrop{j}];"
+                        f"[bsrc{j}]crop={rw}:{rh}:{rx}:{ry},gblur=sigma={sigma:.2f}[bcrop{j}];"
                         f"[base{j}][bcrop{j}]overlay={rx}:{ry}:enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]"
                     )
             else:
-                parts.append(f"[{in_lbl}]boxblur=luma_radius={r}:luma_power=1:enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]")
+                parts.append(f"[{in_lbl}]gblur=sigma={sigma:.2f}:enable='between(t,{st:.4f},{et:.4f})'[{out_lbl}]")
         filter_complex = filter_complex.replace("[vout]", f"[vpre_blur];{';'.join(parts)}", 1)
 
     # Effect overlays (color grade)
@@ -726,7 +907,7 @@ def export(project: dict, uploads_dir: Path, options: dict | None = None, progre
         *inputs,
         "-filter_complex", filter_complex,
         "-map", "[vout]", "-map", audio_map,
-        "-c:v", "libx264", "-preset", preset, "-c:a", "aac",
+        "-c:v", encoder_name, *encoder_flags, "-c:a", "aac",
         str(out_path),
     ]
     time_re = re.compile(r"time=(\d+):(\d+):(\d+\.\d+)")

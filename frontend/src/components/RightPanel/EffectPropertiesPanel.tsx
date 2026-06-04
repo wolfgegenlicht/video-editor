@@ -369,7 +369,6 @@ export default function EffectPropertiesPanel() {
           </div>
           {durationSlider("accent-orange-400")}
           <p className="text-[11px] text-[#6b6b78]">{params.startSpeed.toFixed(2)}× → {params.endSpeed.toFixed(2)}× ({direction})</p>
-          <p className="text-[11px] text-amber-500">Preview only (export uses base clip speed).</p>
         </div>
       </div>
     );

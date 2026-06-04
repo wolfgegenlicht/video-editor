@@ -14,6 +14,7 @@ export function makeDefaultCaptionStyle(): CaptionTrackStyle {
     fontWeight: "bold",
     color: "#ffffff",
     letterSpacing: 0,
+    lineHeight: 1.35,
     textAlign: "center",
     textShadow: true,
     outlineWidth: 0,

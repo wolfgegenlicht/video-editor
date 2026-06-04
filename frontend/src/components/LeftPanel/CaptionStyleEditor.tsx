@@ -1,5 +1,4 @@
 import { useProjectStore, makeDefaultCaptionStyle } from "../../store/useProjectStore";
-import CaptionPresetPicker from "./CaptionPresetPicker";
 
 const FONT_FAMILIES = [
   { value: "sans-serif", label: "Sans-serif" },
@@ -19,9 +18,7 @@ export default function CaptionStyleEditor() {
 
   return (
     <div className="flex-1 overflow-y-auto p-3 space-y-4">
-      <CaptionPresetPicker />
-
-      <p className="text-[11px] text-[#6b6b78] font-medium border-t border-black/[0.06] pt-3">Caption Style</p>
+      <p className="text-[11px] text-[#6b6b78] font-medium">Caption Style</p>
 
       {/* Font family */}
       <div>
@@ -102,6 +99,20 @@ export default function CaptionStyleEditor() {
           type="range" min={-2} max={20} step={0.5}
           value={s.letterSpacing}
           onChange={(e) => set("letterSpacing", parseFloat(e.target.value))}
+          className="w-full accent-[#0ea5a0]"
+        />
+      </div>
+
+      {/* Line height */}
+      <div>
+        <label htmlFor="caption-line-height" className="text-[11px] text-[#6b6b78] block mb-1">
+          Line height: {(s.lineHeight ?? 1.35).toFixed(2)}×
+        </label>
+        <input
+          id="caption-line-height"
+          type="range" min={1} max={2} step={0.05}
+          value={s.lineHeight ?? 1.35}
+          onChange={(e) => set("lineHeight", parseFloat(e.target.value))}
           className="w-full accent-[#0ea5a0]"
         />
       </div>

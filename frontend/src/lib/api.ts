@@ -1,4 +1,23 @@
-import type { UploadedFile, Project, AudioEnhanceType, ReframeTrackPoint } from "../types/project";
+import type { UploadedFile, Project, AudioEnhanceType, ReframeTrackPoint, Caption, CaptionTrackStyle, AspectRatio } from "../types/project";
+
+/**
+ * Fetch the caption ASS string from the backend so the preview can render it with
+ * libass (JASSUB) — the SAME generate_ass() the export burns, so preview == export.
+ */
+export async function fetchCaptionAss(
+  captions: Caption[],
+  style: CaptionTrackStyle,
+  aspectRatio: AspectRatio,
+): Promise<string> {
+  const res = await fetch("/captions/ass", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ captions, style, aspectRatio }),
+  });
+  if (!res.ok) throw new Error(`Caption ASS failed: ${res.status}`);
+  const data = await res.json();
+  return data.ass as string;
+}
 
 export interface TranscriptWord {
   text: string;
@@ -80,8 +99,9 @@ export interface ExportOptions {
   resolution: 1080 | 720 | 480;
   burn_captions: boolean;
   preset: string;
-  preview_width: number;
-  caption_line_breaks: Record<string, number[][]>;
+  // Legacy; captions now wrap via libass on both sides (kept optional for the API).
+  preview_width?: number;
+  caption_line_breaks?: Record<string, number[][]>;
 }
 
 export interface ExportJobResponse {
