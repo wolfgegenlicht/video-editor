@@ -59,8 +59,6 @@ export interface Clip {
   brightness?: number;
   contrast?: number;
   saturation?: number;
-  eyeContact?: boolean;
-  eyeContactFileId?: string;
   blurBackground?: boolean;
   blurBackgroundFileId?: string;
   blurBackgroundIntensity?: number;
@@ -194,4 +192,6 @@ export interface Project {
   hiddenEffectLanes?: Partial<Record<EffectType, boolean>>;
   rowLabels?: Record<string, string>;
   captionSourceFileId?: string;
+  // top = front (rendered last) → bottom = back (rendered first / base video)
+  layerOrder?: string[];
 }

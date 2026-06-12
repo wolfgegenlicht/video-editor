@@ -14,8 +14,8 @@ function isAudio(file: { width: number; height: number }) {
 
 function AudioThumbnail() {
   return (
-    <div className="w-full h-full flex items-center justify-center bg-[#f2f2f6]">
-      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#9b9baa" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+    <div className="w-full h-full flex items-center justify-center bg-[var(--label-bg)]">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="var(--txt3)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
         <path d="M9 18V6l10-2v12" />
         <circle cx="6.5" cy="18" r="2.5" />
         <circle cx="16.5" cy="16" r="2.5" />
@@ -27,16 +27,16 @@ function AudioThumbnail() {
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center gap-3 pt-10 pb-4 px-4 text-center">
-      <div className="size-12 rounded-xl bg-[#f2f2f6] flex items-center justify-center">
-        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#9b9baa" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <div className="size-12 rounded-xl bg-[var(--label-bg)] flex items-center justify-center">
+        <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="var(--txt3)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
           <rect x="2" y="5" width="18" height="14" rx="2" />
-          <path d="M9 10l5 2.5L9 15V10z" fill="#9b9baa" stroke="none" />
+          <path d="M9 10l5 2.5L9 15V10z" fill="var(--txt3)" stroke="none" />
           <path d="M7 2h8" />
         </svg>
       </div>
       <div className="space-y-1">
-        <p className="text-[13px] font-medium text-[#6b6b78]">No media yet</p>
-        <p className="text-[11px] text-[#6b6b78] leading-relaxed">
+        <p className="text-[13px] font-medium text-[var(--txt2)]">No media yet</p>
+        <p className="text-[11px] text-[var(--txt2)] leading-relaxed">
           Upload video or audio files,<br />or drag them into this panel.
         </p>
       </div>
@@ -152,12 +152,12 @@ export default function MediaTab() {
       onDrop={onDrop}
     >
       {draggingOver && (
-        <div className="absolute inset-0 border-2 border-[#0ea5a0] border-dashed rounded pointer-events-none z-10 flex flex-col items-center justify-center gap-1.5 bg-[rgba(14,165,160,0.08)]">
-          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="#0ea5a0" strokeWidth="1.5" strokeLinecap="round">
+        <div className="absolute inset-0 border-2 border-[var(--accent)] border-dashed rounded pointer-events-none z-10 flex flex-col items-center justify-center gap-1.5 bg-[var(--accent-soft)]">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeLinecap="round">
             <path d="M11 14V4M7 8l4-4 4 4" />
             <path d="M4 17v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1" />
           </svg>
-          <span className="text-xs font-medium text-[#0d9488]">Drop to upload</span>
+          <span className="text-xs font-medium text-[var(--accent)]">Drop to upload</span>
         </div>
       )}
 
@@ -168,8 +168,8 @@ export default function MediaTab() {
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
           className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg text-xs font-medium
-            border border-dashed border-black/10 text-[#6b6b78]
-            hover:border-[#0ea5a0]/50 hover:text-[#0d9488] hover:bg-[rgba(14,165,160,0.05)]
+            border border-dashed border-[var(--border-strong)] text-[var(--txt2)]
+            hover:border-[var(--accent)]/50 hover:text-[var(--accent)] hover:bg-[rgba(14,165,160,0.05)]
             disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150"
         >
           {uploading ? (
@@ -212,10 +212,10 @@ export default function MediaTab() {
                   draggable
                   onDragStart={(e) => handleDragStart(e, file.id)}
                   className="group relative rounded-lg overflow-hidden cursor-grab active:cursor-grabbing
-                    ring-1 ring-black/[0.08] hover:ring-black/[0.14] bg-white transition-shadow"
+                    ring-1 ring-var(--border) hover:ring-black/[0.14] bg-[var(--panel)] transition-shadow"
                 >
                   {/* Thumbnail */}
-                  <div className="aspect-video w-full bg-[#ebebef] overflow-hidden">
+                  <div className="aspect-video w-full bg-[var(--hover)] overflow-hidden">
                     {audio ? (
                       <AudioThumbnail />
                     ) : (
@@ -236,7 +236,7 @@ export default function MediaTab() {
                       type="button"
                       onClick={() => handleAddToTimeline(file.id)}
                       className="flex items-center justify-center size-7 rounded-full bg-white/90 shadow
-                        text-[#141416] hover:text-[#0d9488] hover:bg-white transition-colors"
+                        text-[var(--txt1)] hover:text-[var(--accent)] hover:bg-[var(--panel)] transition-colors"
                       title="Add to timeline"
                     >
                       <svg width="13" height="13" viewBox="0 0 13 13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -249,7 +249,7 @@ export default function MediaTab() {
                       className={`flex items-center justify-center size-7 rounded-full shadow transition-colors
                         ${armed
                           ? "bg-red-500 text-white hover:bg-red-600"
-                          : "bg-white/90 text-[#6b6b78] hover:text-red-500 hover:bg-white"}`}
+                          : "bg-white/90 text-[var(--txt2)] hover:text-red-500 hover:bg-[var(--panel)]"}`}
                       title={armed ? "Click again to confirm delete" : "Remove file"}
                     >
                       {armed ? (
@@ -281,9 +281,9 @@ export default function MediaTab() {
                   )}
 
                   {/* Filename + duration */}
-                  <div className="px-2 pt-1.5 pb-1.5 bg-white">
-                    <p className="text-[11px] font-medium text-[#141416] truncate leading-tight">{file.originalName}</p>
-                    <p className="text-[11px] text-[#6b6b78] mt-0.5">{formatDuration(file.duration)}</p>
+                  <div className="px-2 pt-1.5 pb-1.5 bg-[var(--panel)]">
+                    <p className="text-[11px] font-medium text-[var(--txt1)] truncate leading-tight">{file.originalName}</p>
+                    <p className="text-[11px] text-[var(--txt2)] mt-0.5">{formatDuration(file.duration)}</p>
                   </div>
                 </div>
               );

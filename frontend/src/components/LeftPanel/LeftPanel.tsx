@@ -10,7 +10,7 @@ interface Props { seek: (t: number) => void }
 
 function TranscriptIcon({ active }: { active: boolean }) {
   return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke={active ? "#0d9488" : "#9b9baa"} strokeWidth="1.6" strokeLinecap="round">
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke={active ? "var(--accent)" : "var(--txt3)"} strokeWidth="1.6" strokeLinecap="round">
       <path d="M4 5h12M4 9h12M4 13h8" />
     </svg>
   );
@@ -48,30 +48,32 @@ export default function LeftPanel({ seek }: Props) {
   }
 
   return (
-    <div className="flex flex-shrink-0 border-r border-black/[0.06]">
+    <div className="flex flex-shrink-0 border-r border-[var(--border)]">
       {/* Vertical icon strip */}
-      <div className="w-[80px] flex flex-col items-center pt-3 p-8 gap-0.5 bg-[#f7f7fa] border-r border-black/[0.06]">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className={`w-[52px] flex flex-col items-center gap-1 py-2.5 px-1 rounded-lg transition-colors cursor-pointer
-            ${open
-              ? "bg-[rgba(14,165,160,0.08)] text-[#0d9488]"
-              : "text-[#6b6b78] hover:bg-[#ebebef] hover:text-[#141416]"}`}
-          title="Transcript"
-        >
-          <TranscriptIcon active={open} />
-          <span className={`text-[11px] font-normal leading-none ${open ? "text-[#0d9488]" : "text-[#6b6b78]"}`}>
+      <div className="w-[48px] flex flex-col items-center pt-3 px-1 gap-0.5 bg-[var(--panel-2)] border-r border-[var(--border)]">
+        <div className="flex flex-col items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className={`w-[36px] h-[36px] flex items-center justify-center rounded-lg transition-colors cursor-pointer
+              ${open
+                ? "bg-[var(--accent-soft)]"
+                : "hover:bg-[var(--hover)]"}`}
+            title="Transcript"
+          >
+            <TranscriptIcon active={open} />
+          </button>
+          <span className={`text-[9px] font-medium leading-none ${open ? "text-[var(--accent)]" : "text-[var(--txt3)]"}`}>
             Transcript
           </span>
-        </button>
+        </div>
       </div>
 
       {/* Expandable transcript content */}
       {open && (
         <div
           ref={panelRef}
-          className="relative flex flex-col bg-white"
+          className="relative flex flex-col bg-[var(--panel)]"
           style={{ width: 280 }}
         >
           {transcriptSelection && (
@@ -103,7 +105,7 @@ export default function LeftPanel({ seek }: Props) {
           {/* Resize handle on right edge */}
           <div
             role="presentation"
-            className="absolute top-0 right-0 bottom-0 w-1 cursor-ew-resize hover:bg-[#0ea5a0] transition-colors"
+            className="absolute top-0 right-0 bottom-0 w-1 cursor-ew-resize hover:bg-[var(--accent)] transition-colors"
             onMouseDown={onResizeMouseDown}
           />
         </div>

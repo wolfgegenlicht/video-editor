@@ -3,6 +3,7 @@ import type JASSUB from "jassub";
 import { useProjectStore } from "../../store/useProjectStore";
 import { fetchCaptionAss } from "../../lib/api";
 import { createJassub } from "../../lib/jassub";
+import { outputToEdit } from "../../lib/speedRamp";
 
 interface Props {
   time: number;
@@ -82,7 +83,10 @@ export default function LibassCaptions({ time }: Props) {
         } else {
           jassubRef.current!.setTrack(ass);
         }
-        jassubRef.current!.setCurrentTime(true, useProjectStore.getState().playheadTime);
+        // The ASS is authored in EDIT space; the store playhead is OUTPUT time.
+        const st = useProjectStore.getState();
+        const ramps = st.project.hiddenEffectLanes?.speedramp ? [] : st.project.effectOverlays;
+        jassubRef.current!.setCurrentTime(true, outputToEdit(st.playheadTime, ramps));
       } catch (e) {
         console.error("[LibassCaptions] failed to load ASS", e);
       } finally {

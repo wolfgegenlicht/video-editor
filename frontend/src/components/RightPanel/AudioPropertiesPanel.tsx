@@ -174,12 +174,12 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
             type="button"
             key={type}
             onClick={() => startJob(type)}
-            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#f7f7fa] transition-colors text-left"
+            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[var(--txt2)] border border-[var(--border-strong)] rounded-lg hover:bg-[var(--panel-2)] transition-colors text-left"
           >
             <span className="mt-0.5 flex-shrink-0"><EnhanceIcon type={type} /></span>
             <span>
-              <span className="block font-medium text-[#141416]">{ENHANCE_LABELS[type]}</span>
-              <span className="block text-[11px] text-[#6b6b78] leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
+              <span className="block font-medium text-[var(--txt1)]">{ENHANCE_LABELS[type]}</span>
+              <span className="block text-[11px] text-[var(--txt2)] leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
             </span>
           </button>
         ))}
@@ -194,23 +194,23 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
     );
     return (
       <div className="space-y-2">
-        <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
+        <div className="py-2 px-3 rounded-lg bg-[var(--label-bg)] border border-[var(--border)] space-y-1.5">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-[#141416]">{ENHANCE_LABELS[activeType]}</span>
-            <span className="text-[11px] text-[#6b6b78] tabular-nums">{pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}</span>
+            <span className="text-xs font-medium text-[var(--txt1)]">{ENHANCE_LABELS[activeType]}</span>
+            <span className="text-[11px] text-[var(--txt2)] tabular-nums">{pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}</span>
           </div>
-          <div className="h-1 w-full rounded-full bg-[#e4e4ea]">
+          <div className="h-1 w-full rounded-full bg-[var(--border-soft)]">
             <div
-              className="h-full rounded-full bg-[#0ea5a0] transition-all duration-500"
+              className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
               style={{ width: `${Math.max(2, pct)}%` }}
             />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-[11px] text-[#6b6b78]">Processing…</span>
+            <span className="text-[11px] text-[var(--txt2)]">Processing…</span>
             <button
               type="button"
               onClick={handleCancel}
-              className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors"
+              className="text-[11px] text-[var(--txt2)] hover:text-[var(--txt1)] transition-colors"
             >
               Cancel
             </button>
@@ -221,12 +221,12 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
             type="button"
             key={type}
             onClick={async () => { await handleCancel(); startJob(type); }}
-            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#f7f7fa] transition-colors text-left"
+            className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[var(--txt2)] border border-[var(--border-strong)] rounded-lg hover:bg-[var(--panel-2)] transition-colors text-left"
           >
             <span className="mt-0.5 flex-shrink-0"><EnhanceIcon type={type} /></span>
             <span>
-              <span className="block font-medium text-[#141416]">{ENHANCE_LABELS[type]}</span>
-              <span className="block text-[11px] text-[#6b6b78] leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
+              <span className="block font-medium text-[var(--txt1)]">{ENHANCE_LABELS[type]}</span>
+              <span className="block text-[11px] text-[var(--txt2)] leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
             </span>
           </button>
         ))}
@@ -237,9 +237,9 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
   // Error state
   if (status === "error") {
     return (
-      <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
+      <div className="py-2 px-3 rounded-lg bg-[var(--label-bg)] border border-[var(--border)] space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-[#141416]">{ENHANCE_LABELS[activeType]}</span>
+          <span className="text-xs font-medium text-[var(--txt1)]">{ENHANCE_LABELS[activeType]}</span>
         </div>
         {errorMsg && (
           <p className="text-[11px] text-amber-500 leading-snug">{errorMsg}</p>
@@ -251,7 +251,7 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
             setClipAudioEnhance(clip.id, activeType, false);
             setErrorMsg(null);
           }}
-          className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors"
+          className="text-[11px] text-[var(--txt2)] hover:text-[var(--txt1)] transition-colors"
         >
           Dismiss
         </button>
@@ -266,33 +266,33 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
   );
   return (
     <div className="space-y-2">
-      <div className="py-2 px-3 rounded-lg bg-[rgba(14,165,160,0.08)] border border-[rgba(14,165,160,0.15)] space-y-1.5">
+      <div className="py-2 px-3 rounded-lg bg-[var(--accent-soft)] border border-[rgba(14,165,160,0.15)] space-y-1.5">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-[#141416]">{ENHANCE_LABELS[activeType]}</span>
+          <span className="text-xs font-medium text-[var(--txt1)]">{ENHANCE_LABELS[activeType]}</span>
           <button
             type="button"
             onClick={isEnabled ? handleToggleOff : handleToggleOn}
             aria-label={`Toggle ${ENHANCE_LABELS[activeType]}`}
             className={[
               "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0 cursor-pointer",
-              isEnabled ? "bg-[#0ea5a0]" : "bg-[#e4e4ea]",
+              isEnabled ? "bg-[var(--accent)]" : "bg-[var(--border-soft)]",
             ].join(" ")}
           >
             <span
               className={[
-                "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+                "inline-block h-3.5 w-3.5 transform rounded-full bg-[var(--panel)] shadow transition-transform",
                 isEnabled ? "translate-x-4" : "translate-x-0.5",
               ].join(" ")}
             />
           </button>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-[11px] text-[#6b6b78]">{ENHANCE_DESCRIPTIONS[activeType]}</span>
+          <span className="text-[11px] text-[var(--txt2)]">{ENHANCE_DESCRIPTIONS[activeType]}</span>
           <button
             type="button"
             onClick={handleReprocess}
             title="Re-process"
-            className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors flex items-center gap-0.5"
+            className="text-[11px] text-[var(--txt2)] hover:text-[var(--txt1)] transition-colors flex items-center gap-0.5"
           >
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
@@ -307,12 +307,12 @@ function AudioEnhanceSection({ clip }: { clip: Clip }) {
           type="button"
           key={type}
           onClick={() => startJob(type)}
-          className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#f7f7fa] transition-colors text-left"
+          className="flex items-start gap-2 w-full px-3 py-2 text-xs text-[var(--txt2)] border border-[var(--border-strong)] rounded-lg hover:bg-[var(--panel-2)] transition-colors text-left"
         >
           <span className="mt-0.5 flex-shrink-0"><EnhanceIcon type={type} /></span>
           <span>
-            <span className="block font-medium text-[#141416]">{ENHANCE_LABELS[type]}</span>
-            <span className="block text-[11px] text-[#6b6b78] leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
+            <span className="block font-medium text-[var(--txt1)]">{ENHANCE_LABELS[type]}</span>
+            <span className="block text-[11px] text-[var(--txt2)] leading-snug mt-0.5">{ENHANCE_DESCRIPTIONS[type]}</span>
           </span>
         </button>
       ))}
@@ -338,7 +338,7 @@ export default function AudioPropertiesPanel() {
   if (!clip) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-xs text-[#6b6b78] text-center">Select an audio clip to edit its properties</p>
+        <p className="text-xs text-[var(--txt2)] text-center">Select an audio clip to edit its properties</p>
       </div>
     );
   }
@@ -357,9 +357,9 @@ export default function AudioPropertiesPanel() {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Clip info */}
-      <div className="px-3 py-2.5 border-b border-black/[0.06]">
-        <p className="text-xs font-medium text-[#141416] truncate">{clipFile?.originalName ?? "Audio Clip"}</p>
-        <p className="text-[11px] text-[#6b6b78]">{clip.duration.toFixed(2)}s</p>
+      <div className="px-3 py-2.5 border-b border-[var(--border)]">
+        <p className="text-xs font-medium text-[var(--txt1)] truncate">{clipFile?.originalName ?? "Audio Clip"}</p>
+        <p className="text-[11px] text-[var(--txt2)]">{clip.duration.toFixed(2)}s</p>
       </div>
 
       {/* Playback */}
@@ -370,6 +370,7 @@ export default function AudioPropertiesPanel() {
           min={0} max={2} step={0.05}
           onChange={(v) => setClipVolume(clip.id, v)}
           format={(v) => `${Math.round(v * 100)}%`}
+          defaultValue={1}
         />
         <SliderRow
           label="Pan"
@@ -377,9 +378,10 @@ export default function AudioPropertiesPanel() {
           min={-1} max={1} step={0.01}
           onChange={(v) => setClipPan(clip.id, v)}
           format={formatPan}
+          defaultValue={0}
         />
         <div>
-          <span className="text-xs text-[#6b6b78] block mb-1.5">Speed</span>
+          <span className="text-xs text-[var(--txt2)] block mb-1.5">Speed</span>
           <div className="flex flex-wrap gap-1">
             {SPEEDS.map((s) => (
               <button
@@ -388,8 +390,8 @@ export default function AudioPropertiesPanel() {
                 onClick={() => setClipSpeed(clip.id, s)}
                 className={`px-2.5 py-1 rounded text-[11px] border transition-colors
                   ${speed === s
-                    ? "bg-[#0ea5a0] text-white border-[#0ea5a0]"
-                    : "border-black/10 text-[#6b6b78] hover:border-black/[0.18] hover:bg-[#ebebef]"}`}
+                    ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                    : "border-[var(--border-strong)] text-[var(--txt2)] hover:border-black/[0.18] hover:bg-[var(--hover)]"}`}
               >
                 {s}×
               </button>
@@ -402,6 +404,7 @@ export default function AudioPropertiesPanel() {
           min={0} max={Math.min(3, clip.duration / 2)} step={0.1}
           onChange={(v) => setClipFade(clip.id, v, fadeOut)}
           format={(v) => v === 0 ? "Off" : `${v.toFixed(1)}s`}
+          defaultValue={0}
         />
         <SliderRow
           label="Fade out"
@@ -409,6 +412,7 @@ export default function AudioPropertiesPanel() {
           min={0} max={Math.min(3, clip.duration / 2)} step={0.1}
           onChange={(v) => setClipFade(clip.id, fadeIn, v)}
           format={(v) => v === 0 ? "Off" : `${v.toFixed(1)}s`}
+          defaultValue={0}
         />
       </Section>
 

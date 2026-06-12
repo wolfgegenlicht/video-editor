@@ -1,3 +1,4 @@
+// frontend/src/App.tsx — DARK + AMBER. Only className/token swaps; logic untouched.
 import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import Header from "./components/Header/Header";
@@ -17,21 +18,21 @@ function Editor() {
   const deselectAll = useProjectStore((s) => s.deselectAll);
   useKeyboardShortcuts(toggle);
   return (
-    <div className="flex flex-col h-screen bg-[#f0f0f4] text-[#141416] overflow-hidden">
+    <div className="flex flex-col h-screen bg-[var(--shell)] text-[var(--txt1)] overflow-hidden">
       <Header />
       <div className="flex flex-1 min-h-0">
-        {/* Floating card — contains the editing area and timeline */}
-        <div className="flex-1 flex flex-col ml-2 mb-2 rounded-xl border border-black/[0.06] bg-white shadow-sm overflow-hidden">
+        {/* Floating card — borderless seam in dark theme: 1px hairline, no shadow */}
+        <div className="flex-1 flex flex-col ml-2 mb-2 rounded-xl border border-[var(--border)] bg-[var(--panel)] overflow-hidden">
           <div className="flex flex-1 min-h-0">
             <LeftPanel seek={seek} />
-            <main className="flex-1 flex items-center justify-center bg-[#f0f0f4] min-w-0" onPointerDown={deselectAll}>
+            {/* Preview area: a touch darker than the shell so the video frame separates */}
+            <main className="flex-1 flex items-center justify-center bg-[var(--preview-bg)] min-w-0" onPointerDown={deselectAll}>
               <VideoPreview videoRef={videoRef} />
             </main>
           </div>
           <AudioTrackPlayer />
           <Timeline toggle={toggle} seek={seek} />
         </div>
-        {/* Right panel — sits outside the card on the recessed shell */}
         <RightPanel />
       </div>
     </div>
@@ -53,15 +54,15 @@ export default function App() {
 
   if (restoring) {
     return (
-      <div className="min-h-screen bg-[#f0f0f4] flex items-center justify-center">
-        <span className="text-[#6b6b78] text-sm">Opening project…</span>
+      <div className="min-h-screen bg-[var(--shell)] flex items-center justify-center">
+        <span className="text-[var(--txt2)] text-sm">Opening project…</span>
       </div>
     );
   }
 
   return (
     <>
-      <Toaster position="bottom-right" toastOptions={{ duration: 4000 }} />
+      <Toaster position="bottom-right" theme="dark" toastOptions={{ duration: 4000 }} />
       {activeProjectId ? <Editor /> : <ProjectPicker />}
     </>
   );

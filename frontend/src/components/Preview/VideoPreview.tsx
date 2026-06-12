@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useProjectStore } from "../../store/useProjectStore";
+import { useProjectStore, getLayerOrder } from "../../store/useProjectStore";
 import { fileUrl, uploadFile } from "../../lib/api";
-import type { Clip, Track, EffectOverlay, ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams, ReframeTrackPoint } from "../../types/project";
+import type { Clip, Track, EffectOverlay, ZoomParams, FadeParams, BlurParams, ColorGradeParams, ReframeTrackPoint } from "../../types/project";
 import CaptionOverlay from "./CaptionOverlay";
 import LibassCaptions from "./LibassCaptions";
 import TextOverlayRenderer from "./TextOverlayRenderer";
@@ -10,11 +10,7 @@ import VideoTransformOverlay from "./VideoTransformOverlay";
 import BlurRegionEditor, { featherMaskStyle } from "./BlurRegionEditor";
 import ZoomAnchorEditor from "./ZoomAnchorEditor";
 import { interpolateBlurAt } from "../../lib/blurKeyframes";
-
-function easeInOut(t: number): number {
-  const c = Math.min(1, Math.max(0, t));
-  return c < 0.5 ? 2 * c * c : -1 + (4 - 2 * c) * c;
-}
+import { easeInOut, outputToEdit, instantaneousSpeed, activeSpeedRampAtEdit } from "../../lib/speedRamp";
 
 function interpolateX(points: ReframeTrackPoint[], t: number): number {
   if (points.length === 0) return 0.5;
@@ -67,7 +63,8 @@ const RATIO_NUMBERS: Record<string, number> = {
 interface VideoLayerProps {
   clip: Clip;
   track: Track;
-  playheadTime: number;
+  editTime: number;            // playhead mapped to EDIT space (source/ramp math live here)
+  ramps: EffectOverlay[];
   isPlaying: boolean;
   isPrimary: boolean;
   muted: boolean;
@@ -79,27 +76,28 @@ interface VideoLayerProps {
   onNativeSizeChange?: (w: number, h: number) => void;
 }
 
-function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalRef, speedRampEffect, onSelect, reframeLeft, reframeVideoWidth, onNativeSizeChange }: VideoLayerProps) {
+function VideoLayer({ clip, editTime, ramps, isPlaying, isPrimary, muted, externalRef, speedRampEffect, onSelect, reframeLeft, reframeVideoWidth, onNativeSizeChange }: VideoLayerProps) {
   const internalRef = useRef<HTMLVideoElement>(null);
   const videoRef = isPrimary && externalRef ? externalRef : internalRef;
   const missingFileIds = useProjectStore((s) => s.missingFileIds);
   const previewOriginalClipId = useProjectStore((s) => s.previewOriginalClipId);
-  const prevPlayheadTimeRef = useRef(playheadTime);
+  const prevPlayheadTimeRef = useRef(editTime);
 
   const ok = (id?: string) => !!id && !missingFileIds.has(id);
   const playbackFileId = previewOriginalClipId === clip.id ? clip.fileId :
     (clip.blurBackground && ok(clip.blurBackgroundFileId)) ? clip.blurBackgroundFileId! :
-    (clip.eyeContact && ok(clip.eyeContactFileId)) ? clip.eyeContactFileId! :
     clip.fileId;
 
-  // Play/pause + initial seek
+  // Play/pause + initial seek. Source position is linear in EDIT time; the ramp
+  // only changes the playback RATE, so seek uses editTime and rate uses the
+  // instantaneous ramp speed (set even mid-ramp to avoid a stale rate).
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     const speed = clip.speed ?? 1;
-    const sourcePos = clip.sourceStart + (playheadTime - clip.startTime) * speed;
+    const sourcePos = clip.sourceStart + (editTime - clip.startTime) * speed;
     video.currentTime = sourcePos;
-    if (!speedRampEffect) video.playbackRate = speed;
+    video.playbackRate = speed * instantaneousSpeed(editTime, ramps);
     video.volume = Math.min(1, clip.volume ?? 1);
     if (isPlaying) {
       video.play().catch(() => {});
@@ -109,39 +107,33 @@ function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalR
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, clip.startTime, playbackFileId]);
 
-  // Scrub sync
+  // Scrub sync (EDIT space). During smooth ramp playback the video element
+  // advances its own currentTime via playbackRate (which integrates to the
+  // correct source position), so we skip re-seeking unless the user jumps.
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const prevPlayhead = prevPlayheadTimeRef.current;
-    prevPlayheadTimeRef.current = playheadTime;
+    const prevEdit = prevPlayheadTimeRef.current;
+    prevPlayheadTimeRef.current = editTime;
 
-    const isSeek = Math.abs(playheadTime - prevPlayhead) > 0.5;
+    const isSeek = Math.abs(editTime - prevEdit) > 0.5;
     if (speedRampEffect && isPlaying && !isSeek) return;
 
     const speed = clip.speed ?? 1;
-    const sourcePos = clip.sourceStart + (playheadTime - clip.startTime) * speed;
+    const sourcePos = clip.sourceStart + (editTime - clip.startTime) * speed;
     const threshold = isPlaying ? 0.3 : 0.05;
     if (Math.abs(video.currentTime - sourcePos) > threshold) {
       video.currentTime = sourcePos;
     }
-  }, [playheadTime, clip, isPlaying, speedRampEffect]);
+  }, [editTime, clip, isPlaying, speedRampEffect]);
 
-  // Speed ramp: update playbackRate continuously
+  // Speed ramp: drive playbackRate from the instantaneous ramp speed (× base).
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (!speedRampEffect) {
-      video.playbackRate = clip.speed ?? 1;
-      return;
-    }
-    const p = speedRampEffect.params as SpeedRampParams;
-    const t = (playheadTime - speedRampEffect.startTime) / (speedRampEffect.endTime - speedRampEffect.startTime);
-    const clamped = Math.max(0, Math.min(1, t));
-    const easedT = p.easing === "ease" ? easeInOut(clamped) : clamped;
-    video.playbackRate = p.startSpeed + (p.endSpeed - p.startSpeed) * easedT;
-  }, [playheadTime, speedRampEffect, clip.speed]);
+    video.playbackRate = (clip.speed ?? 1) * instantaneousSpeed(editTime, ramps);
+  }, [editTime, ramps, speedRampEffect, clip.speed]);
 
   const t = clip.transform;
   const videoStyle: React.CSSProperties = {
@@ -151,7 +143,7 @@ function VideoLayer({ clip, playheadTime, isPlaying, isPrimary, muted, externalR
       : {}),
   };
 
-  const elapsed = playheadTime - clip.startTime;
+  const elapsed = editTime - clip.startTime;
   const remaining = clip.duration - elapsed;
   let fadeOpacity = 0;
   if (clip.fadeIn && elapsed < clip.fadeIn) {
@@ -444,13 +436,18 @@ export default function VideoPreview({ videoRef }: Props) {
 
   // ─── Computed display values ─────────────────────────────────────────────
 
+  // Playhead is OUTPUT time; clips/effects are stored in EDIT time. Map once and
+  // use editTime for every clip/effect lookup and relative-time computation.
+  const ramps = hiddenEffectLanes?.speedramp ? [] : effectOverlays;
+  const editTime = outputToEdit(playheadTime, ramps);
+
   const videoTracks = project.tracks.filter((t) => t.type !== "audio");
   const activeVideoLayers = videoTracks
     .map((track) => ({
       track,
       clip: track.hidden
         ? null
-        : track.clips.find((c) => playheadTime >= c.startTime && playheadTime < c.startTime + c.duration) ?? null,
+        : track.clips.find((c) => editTime >= c.startTime && editTime < c.startTime + c.duration) ?? null,
     }))
     .filter((l): l is { track: Track; clip: Clip } => l.clip !== null);
 
@@ -469,7 +466,7 @@ export default function VideoPreview({ videoRef }: Props) {
   let reframeLeft: number = 0;
   let reframeVideoWidth: number | undefined;
   if (isReframeActive && primaryClip && primaryClip.reframeData && reframeNativeSize) {
-    const sourceT = playheadTime - primaryClip.startTime + primaryClip.sourceStart;
+    const sourceT = editTime - primaryClip.startTime + primaryClip.sourceStart;
     const x_norm = interpolateX(primaryClip.reframeData.trackPoints, sourceT);
     const container = outerRef.current;
     if (container) {
@@ -483,21 +480,21 @@ export default function VideoPreview({ videoRef }: Props) {
   }
 
   const activeEffect = !hiddenEffectLanes?.zoom
-    ? effectOverlays.find((e) => e.type === "zoom" && playheadTime >= e.startTime && playheadTime < e.endTime) ?? null
+    ? effectOverlays.find((e) => e.type === "zoom" && editTime >= e.startTime && editTime < e.endTime) ?? null
     : null;
-  const zoomScale = activeEffect ? computeZoomScale(activeEffect, playheadTime) : 1;
+  const zoomScale = activeEffect ? computeZoomScale(activeEffect, editTime) : 1;
 
   const activeFadeEffect = !hiddenEffectLanes?.fade
-    ? effectOverlays.find((e) => e.type === "fade" && playheadTime >= e.startTime && playheadTime < e.endTime) ?? null
+    ? effectOverlays.find((e) => e.type === "fade" && editTime >= e.startTime && editTime < e.endTime) ?? null
     : null;
   const fadeOverlayOpacity = activeFadeEffect ? (() => {
     const { direction } = activeFadeEffect.params as FadeParams;
-    const progress = (playheadTime - activeFadeEffect.startTime) / (activeFadeEffect.endTime - activeFadeEffect.startTime);
+    const progress = (editTime - activeFadeEffect.startTime) / (activeFadeEffect.endTime - activeFadeEffect.startTime);
     return direction === "in" ? 1 - progress : progress;
   })() : 0;
 
   const activeBlurEffect = !hiddenEffectLanes?.blur
-    ? effectOverlays.find((e) => e.type === "blur" && playheadTime >= e.startTime && playheadTime < e.endTime) ?? null
+    ? effectOverlays.find((e) => e.type === "blur" && editTime >= e.startTime && editTime < e.endTime) ?? null
     : null;
   const selectedBlurEffect = effectOverlays.find(
     (e) => e.id === selectedEffectOverlayId && e.type === "blur"
@@ -509,7 +506,7 @@ export default function VideoPreview({ videoRef }: Props) {
     ? (() => {
         const raw = activeBlurEffect.params as BlurParams;
         return raw.keyframes?.length
-          ? interpolateBlurAt(raw.keyframes, playheadTime - activeBlurEffect.startTime, raw)
+          ? interpolateBlurAt(raw.keyframes, editTime - activeBlurEffect.startTime, raw)
           : raw;
       })()
     : null;
@@ -517,44 +514,60 @@ export default function VideoPreview({ videoRef }: Props) {
   const blurPx = activeBlurEffect && !activeBlurRegion ? (activeBlurParams?.intensity ?? 0) : 0;
 
   const activeColorGrade = !hiddenEffectLanes?.colorgrade
-    ? effectOverlays.find((e) => e.type === "colorgrade" && playheadTime >= e.startTime && playheadTime < e.endTime) ?? null
+    ? effectOverlays.find((e) => e.type === "colorgrade" && editTime >= e.startTime && editTime < e.endTime) ?? null
     : null;
   const colorGradeFilter = activeColorGrade
     ? computeColorGradeFilter((activeColorGrade.params as ColorGradeParams).preset, (activeColorGrade.params as ColorGradeParams).intensity)
     : "";
 
-  const combinedFilter = [blurPx > 0 ? `blur(${blurPx}px)` : "", colorGradeFilter].filter(Boolean).join(" ");
-
-  const activeSpeedRamp = !hiddenEffectLanes?.speedramp
-    ? effectOverlays.find((e) => e.type === "speedramp" && playheadTime >= e.startTime && playheadTime < e.endTime) ?? null
-    : null;
+  const activeSpeedRamp = activeSpeedRampAtEdit(editTime, ramps);
 
   const ax = activeEffect ? ((activeEffect.params as ZoomParams).anchorX ?? 0.5) : 0.5;
   const ay = activeEffect ? ((activeEffect.params as ZoomParams).anchorY ?? 0.5) : 0.5;
-  const zoomWrapperStyle: React.CSSProperties = {
-    ...(zoomScale !== 1 ? { transform: `scale(${zoomScale})`, transformOrigin: `${ax * 100}% ${ay * 100}%` } : {}),
-    ...(combinedFilter ? { filter: combinedFilter } : {}),
-  };
+  // Zoom stays a global geometric transform on the whole composite — not a layered element
+  const zoomWrapperStyle: React.CSSProperties = zoomScale !== 1
+    ? { transform: `scale(${zoomScale})`, transformOrigin: `${ax * 100}% ${ay * 100}%` }
+    : {};
 
   const activeTransition = (clipTransitions ?? []).find(
-    (t) => playheadTime >= t.atTime - t.duration / 2 && playheadTime <= t.atTime + t.duration / 2
+    (t) => editTime >= t.atTime - t.duration / 2 && editTime <= t.atTime + t.duration / 2
   ) ?? null;
   const transitionOverlayOpacity = activeTransition ? (() => {
     const { atTime, duration } = activeTransition;
     const half = duration / 2;
-    if (playheadTime <= atTime) return (playheadTime - (atTime - half)) / half;
-    return 1 - (playheadTime - atTime) / half;
+    if (editTime <= atTime) return (editTime - (atTime - half)) / half;
+    return 1 - (editTime - atTime) / half;
   })() : 0;
 
   const selectedActiveClip = activeVideoLayers.find((l) => l.clip.id === selectedClipId)?.clip ?? null;
 
   // ─── Shared inner canvas renderer ───────────────────────────────────────
+  // Layer order: top = front (rendered last/on top), bottom = back (rendered first).
+  // We iterate layerOrder REVERSED so we paint back→front = DOM order = CSS z-order.
+  // Each row's element uses backdrop-filter (blur, colorgrade) or opacity (fade,
+  // transition) so it only affects what's already painted behind it.
 
   function renderInnerCanvas(allMuted: boolean) {
-    return (
-      <div className="absolute inset-0 bg-black overflow-hidden">
-        {activeVideoLayers.length > 0 ? (
-          <div className="absolute inset-0" style={zoomWrapperStyle}>
+    const layerOrder = getLayerOrder(project);
+    // Track rows are the base. We need to know which track IDs exist so we can
+    // render the video-layers block once, anchored to where tracks appear in the order.
+    const trackIds = new Set(project.tracks.map((t) => t.id));
+    let tracksRendered = false;
+
+    const layerElements = [...layerOrder].reverse().map((key) => {
+      // ── Video tracks (base) ──────────────────────────────────────────
+      if (trackIds.has(key)) {
+        if (tracksRendered) return null; // render once even if multiple track rows
+        tracksRendered = true;
+        if (activeVideoLayers.length === 0) {
+          return files.length === 0 ? (
+            <div key="__empty" className="absolute inset-0 w-full h-full flex items-center justify-center text-[var(--txt2)] text-sm">
+              Upload media to get started
+            </div>
+          ) : null;
+        }
+        return (
+          <div key="__tracks" className="absolute inset-0">
             {[...activeVideoLayers].reverse().map(({ track, clip }) => {
               const isPrimary = track.id === primaryLayer!.track.id;
               return (
@@ -562,7 +575,8 @@ export default function VideoPreview({ videoRef }: Props) {
                   key={track.id}
                   clip={clip}
                   track={track}
-                  playheadTime={playheadTime}
+                  editTime={editTime}
+                  ramps={ramps}
                   isPlaying={isPlaying}
                   isPrimary={isPrimary}
                   muted={allMuted || (isPrimary ? effectiveMuted : true)}
@@ -576,34 +590,83 @@ export default function VideoPreview({ videoRef }: Props) {
               );
             })}
           </div>
-        ) : files.length === 0 ? (
-          <div className="w-full h-full flex items-center justify-center text-[#6b6b78] text-sm">
-            Upload media to get started
-          </div>
-        ) : null}
-        <TextOverlayRenderer time={playheadTime} />
-        <LibassCaptions time={playheadTime} />
-        <CaptionOverlay time={playheadTime} />
-        {activeBlurRegion && activeBlurEffect?.id !== selectedEffectOverlayId && (
+        );
+      }
+
+      // ── Text overlays ─────────────────────────────────────────────────
+      if (key === "text") return <TextOverlayRenderer key="text" time={editTime} />;
+
+      // ── Captions ──────────────────────────────────────────────────────
+      if (key === "captions") return <LibassCaptions key="captions" time={editTime} />;
+
+      // ── Transitions (dissolve dip-to-black) ───────────────────────────
+      if (key === "transitions") {
+        return transitionOverlayOpacity > 0 ? (
+          <div key="transitions" className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: transitionOverlayOpacity }} />
+        ) : null;
+      }
+
+      // ── Effect lanes ──────────────────────────────────────────────────
+      if (key === "fx-fade") {
+        return fadeOverlayOpacity > 0 ? (
+          <div key="fx-fade" className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: fadeOverlayOpacity }} />
+        ) : null;
+      }
+
+      if (key === "fx-blur") {
+        if (!activeBlurEffect || activeBlurEffect.id === selectedEffectOverlayId) return null;
+        if (activeBlurRegion) {
+          // Regional blur
+          return (
+            <div
+              key="fx-blur"
+              className="absolute pointer-events-none"
+              style={{
+                left:   `${activeBlurRegion.x * 100}%`,
+                top:    `${activeBlurRegion.y * 100}%`,
+                width:  `${activeBlurRegion.width * 100}%`,
+                height: `${activeBlurRegion.height * 100}%`,
+                backdropFilter: `blur(${activeBlurParams!.intensity}px)`,
+                WebkitBackdropFilter: `blur(${activeBlurParams!.intensity}px)`,
+                ...featherMaskStyle(activeBlurRegion.feather ?? 0),
+              }}
+            />
+          );
+        }
+        // Full-frame blur via backdrop-filter (only affects what's painted behind)
+        if (blurPx > 0) {
+          return (
+            <div
+              key="fx-blur"
+              className="absolute inset-0 pointer-events-none"
+              style={{ backdropFilter: `blur(${blurPx}px)`, WebkitBackdropFilter: `blur(${blurPx}px)` }}
+            />
+          );
+        }
+        return null;
+      }
+
+      if (key === "fx-colorgrade") {
+        return colorGradeFilter ? (
           <div
-            className="absolute pointer-events-none"
-            style={{
-              left:   `${activeBlurRegion.x * 100}%`,
-              top:    `${activeBlurRegion.y * 100}%`,
-              width:  `${activeBlurRegion.width * 100}%`,
-              height: `${activeBlurRegion.height * 100}%`,
-              backdropFilter: `blur(${activeBlurParams!.intensity}px)`,
-              WebkitBackdropFilter: `blur(${activeBlurParams!.intensity}px)`,
-              ...featherMaskStyle(activeBlurRegion.feather ?? 0),
-            }}
+            key="fx-colorgrade"
+            className="absolute inset-0 pointer-events-none"
+            style={{ backdropFilter: colorGradeFilter, WebkitBackdropFilter: colorGradeFilter }}
           />
-        )}
-        {fadeOverlayOpacity > 0 && (
-          <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: fadeOverlayOpacity }} />
-        )}
-        {transitionOverlayOpacity > 0 && (
-          <div className="absolute inset-0 bg-black pointer-events-none" style={{ opacity: transitionOverlayOpacity }} />
-        )}
+        ) : null;
+      }
+
+      // fx-zoom and fx-speedramp have no visual layer element (zoom is the wrapper transform)
+      return null;
+    });
+
+    return (
+      <div className="absolute inset-0 bg-black overflow-hidden">
+        <div className="absolute inset-0" style={zoomWrapperStyle}>
+          {layerElements}
+        </div>
+        {/* Always-on-top UI affordances — outside the z-stack */}
+        <CaptionOverlay time={editTime} />
       </div>
     );
   }
@@ -678,7 +741,7 @@ export default function VideoPreview({ videoRef }: Props) {
           {viewZoom === 1 && selectedBlurEffect && (() => {
             const sbp = selectedBlurEffect.params as BlurParams;
             const selectedBlurParams = sbp.keyframes?.length
-              ? interpolateBlurAt(sbp.keyframes, playheadTime - selectedBlurEffect.startTime, sbp)
+              ? interpolateBlurAt(sbp.keyframes, editTime - selectedBlurEffect.startTime, sbp)
               : sbp;
             return (
               <BlurRegionEditor

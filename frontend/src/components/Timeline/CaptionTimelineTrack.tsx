@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useProjectStore, getItemStartTime } from "../../store/useProjectStore";
 import { SNAP_PX, findSnap } from "./snapUtils";
+import { editToOutput } from "../../lib/speedRamp";
 
 interface Props {
   zoom: number;
@@ -17,6 +18,7 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height, o
     moveSelectedItemsLive, moveSelectedItems,
     trimCaptionLive, trimCaption,
   } = useProjectStore();
+  const ramps = project.hiddenEffectLanes?.speedramp ? [] : project.effectOverlays ?? [];
 
   useEffect(() => {
     if (!selectedCaptionId) return;
@@ -155,10 +157,11 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height, o
   }
 
   return (
-    <div className="relative border-b border-black/[0.06] bg-white" style={{ width: totalWidth, height }}>
+    <div className="relative border-b border-[var(--border)] bg-[var(--panel)]" style={{ width: totalWidth, height }}>
       {project.captions.map((cap) => {
-        const left = cap.startTime * zoom;
-        const width = Math.max(2, (cap.endTime - cap.startTime) * zoom);
+        const outStart = editToOutput(cap.startTime, ramps);
+        const left = outStart * zoom;
+        const width = Math.max(2, (editToOutput(cap.endTime, ramps) - outStart) * zoom);
         const isSelected = cap.id === selectedCaptionId;
         const isMultiSelected = selectedItemIds.size > 1 && selectedItemIds.has(cap.id);
 
@@ -171,32 +174,32 @@ export default function CaptionTimelineTrack({ zoom, totalWidth, seek, height, o
               flex items-center overflow-hidden px-1
               cursor-grab active:cursor-grabbing
               ${isSelected
-                ? "bg-[rgba(14,165,160,0.22)] border border-[#0ea5a0]/60"
-                : "bg-[rgba(14,165,160,0.12)] border border-[#0ea5a0]/30 hover:bg-[rgba(14,165,160,0.18)]"}
-              ${isMultiSelected ? "ring-2 ring-[#0ea5a0]/50" : ""}`}
+                ? "bg-[rgba(14,165,160,0.22)] border border-[var(--accent)]/60"
+                : "bg-[oklch(70% 0.16 55 / 0.18)] border border-[var(--accent)]/30 hover:bg-[rgba(14,165,160,0.18)]"}
+              ${isMultiSelected ? "ring-2 ring-[var(--accent)]/50" : ""}`}
             style={{ left, width }}
             onMouseDown={(e) => startDrag(e, cap.id, "move")}
             onClick={(e) => {
               if (e.metaKey) return;
               selectCaption(cap.id);
-              seek(cap.startTime);
+              seek(outStart);
             }}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { selectCaption(cap.id); seek(cap.startTime); } }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { selectCaption(cap.id); seek(outStart); } }}
             title="Drag to move · Drag edges to trim"
           >
             {/* Trim left handle */}
             <div
               role="presentation"
-              className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60 rounded-l"
+              className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 bg-[var(--accent)]/30 hover:bg-[var(--accent)]/60 rounded-l"
               onMouseDown={(e) => { e.stopPropagation(); startDrag(e, cap.id, "trim-left"); }}
             />
-            <span className="text-[10px] text-[#0d9488] font-semibold truncate pointer-events-none px-1">
+            <span className="text-[10px] text-[var(--accent)] font-semibold truncate pointer-events-none px-1">
               {cap.text}
             </span>
             {/* Trim right handle */}
             <div
               role="presentation"
-              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60 rounded-r"
+              className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 bg-[var(--accent)]/30 hover:bg-[var(--accent)]/60 rounded-r"
               onMouseDown={(e) => { e.stopPropagation(); startDrag(e, cap.id, "trim-right"); }}
             />
           </div>

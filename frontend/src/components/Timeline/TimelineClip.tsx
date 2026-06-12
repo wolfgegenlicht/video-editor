@@ -7,6 +7,7 @@ import WaveformCanvas from "./WaveformCanvas";
 import { MusicIcon, VolumeXIcon, ScissorsIcon, CopyIcon, AudioLinesIcon, Trash2Icon } from "../Icons";
 
 import { SNAP_PX, findSnap } from "./snapUtils";
+import { editToOutput, outputToEdit } from "../../lib/speedRamp";
 
 interface Props {
   clip: Clip;
@@ -19,6 +20,8 @@ interface Props {
 
 export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeight, onSnapChange }: Props) {
   const { trimClip, trimClipLive, deleteClip, duplicateClip, splitClip, detachAudio, selectClip, toggleItemSelection, moveSelectedItemsLive, moveSelectedItems, files, playheadTime, selectedClipId, selectedItemIds } = useProjectStore();
+  const ramps = useProjectStore((s) => s.project.hiddenEffectLanes?.speedramp ? [] : s.project.effectOverlays ?? []);
+  const editPlayhead = outputToEdit(playheadTime, ramps);
   const isAudioTrack = trackType === "audio";
   const isSelected = selectedClipId === clip.id;
   const isMultiSelected = selectedItemIds.size > 1 && selectedItemIds.has(clip.id);
@@ -32,8 +35,10 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
   const file = files.find((f) => f.id === clip.fileId);
   const label = file?.originalName ?? clip.fileId.slice(0, 8);
 
-  const left = clip.startTime * zoom;
-  const width = Math.max(clip.duration * zoom, 4);
+  // Rendered in OUTPUT space so speed ramps compress and later clips ripple left.
+  const outStart = editToOutput(clip.startTime, ramps);
+  const left = outStart * zoom;
+  const width = Math.max((editToOutput(clip.startTime + clip.duration, ramps) - outStart) * zoom, 4);
 
   function startDrag(e: React.MouseEvent, type: "move" | "trim-left" | "trim-right") {
     if (e.button !== 0) return;
@@ -175,14 +180,14 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
     e.dataTransfer.effectAllowed = "move";
   }
 
-  const playheadInClip = playheadTime > clip.startTime && playheadTime < clip.startTime + clip.duration;
+  const playheadInClip = editPlayhead > clip.startTime && editPlayhead < clip.startTime + clip.duration;
 
   const menuItems = [
     {
       label: "Split at Playhead",
       icon: <ScissorsIcon />,
       disabled: !playheadInClip,
-      onClick: () => splitClip(clip.id, playheadTime),
+      onClick: () => splitClip(clip.id, editPlayhead),
     },
     {
       label: "Duplicate",
@@ -209,17 +214,17 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
         className={`absolute top-1 bottom-1 rounded flex items-center overflow-hidden select-none group cursor-grab active:cursor-grabbing
           ${isAudioTrack
             ? isSelected
-              ? "bg-[#bee8cf] border border-emerald-500/55 ring-1 ring-emerald-500/30"
-              : "bg-[#d1f5e0] border border-emerald-400/35"
+              ? "bg-[var(--audio-sel)] border border-emerald-500/55 ring-1 ring-emerald-500/30"
+              : "bg-[var(--audio)] border border-emerald-400/35"
             : clip.muted
               ? isSelected
-                ? "bg-[#b8ede9] border border-[#0ea5a0]/60 opacity-75"
-                : "bg-[#ccf2ef] border border-[#0ea5a0]/25 opacity-75"
+                ? "bg-[var(--clip-sel)] border border-[var(--accent)]/60 opacity-75"
+                : "bg-[var(--clip)] border border-[var(--accent)]/25 opacity-75"
               : isSelected
-                ? "bg-[#b8ede9] border border-[#0ea5a0]/60 ring-1 ring-[#0ea5a0]/30"
-                : "bg-[#ccf2ef] border border-[#0ea5a0]/25"
+                ? "bg-[var(--clip-sel)] border border-[var(--accent)]/60 ring-1 ring-[var(--accent)]/30"
+                : "bg-[var(--clip)] border border-[var(--accent)]/25"
           }
-          ${isMultiSelected ? "ring-2 ring-[#0ea5a0]/50" : ""}`}
+          ${isMultiSelected ? "ring-2 ring-[var(--accent)]/50" : ""}`}
         style={{ left, width }}
         draggable
         onDragStart={onDragStart}
@@ -234,7 +239,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
         {/* Trim left handle */}
         <div
           role="presentation"
-          className={`absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-400/60 hover:bg-emerald-400" : "bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60"}`}
+          className={`absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-400/60 hover:bg-emerald-400" : "bg-[var(--accent)]/30 hover:bg-[var(--accent)]/60"}`}
           onMouseDown={(e) => startDrag(e, "trim-left")}
         />
         {file && (
@@ -249,7 +254,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
             opacity={isAudioTrack ? 0.65 : 0.40}
           />
         )}
-        <span className={`px-2 text-[11px] font-semibold truncate pointer-events-none flex-1 relative z-10 flex items-center gap-1 ${isAudioTrack ? "text-[#1a5c3a]" : "text-[#1a5c5a]"}`}>
+        <span className={`px-2 text-[11px] font-semibold truncate pointer-events-none flex-1 relative z-10 flex items-center gap-1 ${isAudioTrack ? "text-[var(--audio-text)]" : "text-[var(--clip-text)]"}`}>
           {isAudioTrack && <MusicIcon className="flex-shrink-0" />}
           {!isAudioTrack && clip.muted && <VolumeXIcon className="flex-shrink-0" />}
           {label}
@@ -257,7 +262,7 @@ export default function TimelineClip({ clip, trackId, trackType, zoom, trackHeig
         {/* Trim right handle */}
         <div
           role="presentation"
-          className={`absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-400/60 hover:bg-emerald-400" : "bg-[#0ea5a0]/30 hover:bg-[#0ea5a0]/60"}`}
+          className={`absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize opacity-0 group-hover:opacity-100 z-10 ${isAudioTrack ? "bg-emerald-400/60 hover:bg-emerald-400" : "bg-[var(--accent)]/30 hover:bg-[var(--accent)]/60"}`}
           onMouseDown={(e) => startDrag(e, "trim-right")}
         />
       </div>

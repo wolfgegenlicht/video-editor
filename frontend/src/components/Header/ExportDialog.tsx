@@ -88,29 +88,29 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-xl shadow-xl p-6 w-96 relative border border-black/10">
+      <div className="bg-[var(--panel)] rounded-xl shadow-xl p-6 w-96 relative border border-[var(--border-strong)]">
         {/* Close button */}
         <button
           type="button"
           onClick={onClose}
-          className="absolute top-4 right-4 text-[#6b6b78] hover:text-[#141416] text-lg leading-none cursor-pointer"
+          className="absolute top-4 right-4 text-[var(--txt2)] hover:text-[var(--txt1)] text-lg leading-none cursor-pointer"
           aria-label="Close"
         >
           ✕
         </button>
 
-        <h2 className="text-sm font-semibold text-[#141416] mb-4">Export Video</h2>
+        <h2 className="text-sm font-semibold text-[var(--txt1)] mb-4">Export Video</h2>
 
         {dialogState === "idle" && (
           <div className="space-y-4">
             {/* Resolution */}
             <div>
-              <label htmlFor="export-resolution" className="block text-xs text-[#6b6b78] mb-1">Resolution</label>
+              <label htmlFor="export-resolution" className="block text-xs text-[var(--txt2)] mb-1">Resolution</label>
               <select
                 id="export-resolution"
                 value={resolution}
                 onChange={(e) => setResolution(Number(e.target.value) as 1080 | 720 | 480)}
-                className="w-full text-xs border border-black/10 rounded px-2 py-1.5 bg-[#f2f2f6] text-[#141416]"
+                className="w-full text-xs border border-[var(--border-strong)] rounded px-2 py-1.5 bg-[var(--label-bg)] text-[var(--txt1)]"
               >
                 <option value={1080}>1080p (Full HD)</option>
                 <option value={720}>720p (HD)</option>
@@ -120,14 +120,14 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
 
             {/* Burn captions */}
             <div className="flex items-center justify-between">
-              <span className="text-xs text-[#6b6b78]">Burn captions into video</span>
+              <span className="text-xs text-[var(--txt2)]">Burn captions into video</span>
               <button
                 type="button"
                 aria-label="Toggle burn captions"
                 onClick={() => setBurnCaptions((v) => !v)}
                 disabled={project.captions.length === 0}
                 className={`relative w-9 h-5 rounded-full transition-colors cursor-pointer disabled:opacity-40 ${
-                  burnCaptions ? "bg-[#0ea5a0]" : "bg-black/20"
+                  burnCaptions ? "bg-[var(--accent)]" : "bg-black/20"
                 }`}
               >
                 <span
@@ -140,8 +140,8 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
 
             {/* Encoding speed */}
             <div>
-              <p className="block text-xs text-[#6b6b78] mb-1">Encoding speed</p>
-              <div className="flex rounded overflow-hidden border border-black/10">
+              <p className="block text-xs text-[var(--txt2)] mb-1">Encoding speed</p>
+              <div className="flex rounded overflow-hidden border border-[var(--border-strong)]">
                 {(["Fast", "Balanced", "Small"] as SpeedLabel[]).map((label) => (
                   <button
                     type="button"
@@ -149,15 +149,15 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
                     onClick={() => setSpeed(label)}
                     className={`flex-1 text-xs py-1 cursor-pointer transition-colors ${
                       speed === label
-                        ? "bg-[#0ea5a0] text-white font-semibold"
-                        : "bg-[#f2f2f6] text-[#6b6b78] hover:bg-[#ebebef]"
+                        ? "bg-[var(--accent)] text-white font-semibold"
+                        : "bg-[var(--label-bg)] text-[var(--txt2)] hover:bg-[var(--hover)]"
                     }`}
                   >
                     {label}
                   </button>
                 ))}
               </div>
-              <p className="text-xs text-[#6b6b78] mt-1">
+              <p className="text-xs text-[var(--txt2)] mt-1">
                 {speed === "Fast" && "Fastest encode, larger file"}
                 {speed === "Balanced" && "Good balance of speed and size"}
                 {speed === "Small" && "Smallest file, slowest encode"}
@@ -166,23 +166,23 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
 
             {/* Filename */}
             <div>
-              <label htmlFor="export-filename" className="block text-xs text-[#6b6b78] mb-1">Filename</label>
-              <div className="flex items-center border border-black/10 rounded overflow-hidden">
+              <label htmlFor="export-filename" className="block text-xs text-[var(--txt2)] mb-1">Filename</label>
+              <div className="flex items-center border border-[var(--border-strong)] rounded overflow-hidden">
                 <input
                   id="export-filename"
                   type="text"
                   value={filename}
                   onChange={(e) => setFilename(e.target.value)}
-                  className="flex-1 text-xs px-2 py-1.5 outline-none bg-[#f2f2f6] text-[#141416]"
+                  className="flex-1 text-xs px-2 py-1.5 outline-none bg-[var(--label-bg)] text-[var(--txt1)]"
                 />
-                <span className="text-xs text-[#6b6b78] px-2 bg-white border-l border-black/10 py-1.5">.mp4</span>
+                <span className="text-xs text-[var(--txt2)] px-2 bg-[var(--panel)] border-l border-[var(--border-strong)] py-1.5">.mp4</span>
               </div>
             </div>
 
             <button
               type="button"
               onClick={handleExport}
-              className="w-full py-2 text-xs bg-[#0ea5a0] hover:bg-[#0c9490] text-white rounded-lg font-semibold cursor-pointer transition-colors mt-2"
+              className="w-full py-2 text-xs bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-lg font-semibold cursor-pointer transition-colors mt-2"
             >
               Export
             </button>
@@ -191,25 +191,25 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
 
         {dialogState === "submitting" && (
           <div className="py-4 text-center space-y-3">
-            <div className="size-5 border-2 border-[#0ea5a0] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-xs text-[#6b6b78]">Starting export…</p>
+            <div className="size-5 border-2 border-[var(--accent)] border-t-transparent rounded-full animate-spin mx-auto" />
+            <p className="text-xs text-[var(--txt2)]">Starting export…</p>
           </div>
         )}
 
         {dialogState === "exporting" && (
           <div className="space-y-4">
-            <p className="text-xs text-[#6b6b78]">Exporting your video…</p>
-            <div className="w-full bg-[#f2f2f6] rounded-full h-2 overflow-hidden">
+            <p className="text-xs text-[var(--txt2)]">Exporting your video…</p>
+            <div className="w-full bg-[var(--label-bg)] rounded-full h-2 overflow-hidden">
               <div
-                className="h-2 bg-[#0ea5a0] rounded-full transition-all duration-500"
+                className="h-2 bg-[var(--accent)] rounded-full transition-all duration-500"
                 style={{ width: `${Math.round(progress * 100)}%` }}
               />
             </div>
-            <p className="text-xs text-[#6b6b78] text-center">{Math.round(progress * 100)}%</p>
+            <p className="text-xs text-[var(--txt2)] text-center">{Math.round(progress * 100)}%</p>
             <button
               type="button"
               onClick={handleAbandon}
-              className="w-full py-1.5 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#ebebef] cursor-pointer"
+              className="w-full py-1.5 text-xs text-[var(--txt2)] border border-[var(--border-strong)] rounded-lg hover:bg-[var(--hover)] cursor-pointer"
             >
               Cancel
             </button>
@@ -219,19 +219,19 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
         {dialogState === "done" && (
           <div className="space-y-4 text-center">
             <p className="text-2xl">✓</p>
-            <p className="text-xs text-[#141416] font-medium">Export complete!</p>
-            <p className="text-xs text-[#6b6b78]">Your file downloaded automatically.</p>
+            <p className="text-xs text-[var(--txt1)] font-medium">Export complete!</p>
+            <p className="text-xs text-[var(--txt2)]">Your file downloaded automatically.</p>
             <button
               type="button"
               onClick={() => jobId && downloadExport(jobId, exportedFilename)}
-              className="w-full py-1.5 text-xs text-[#6b6b78] border border-black/10 rounded-lg hover:bg-[#ebebef] cursor-pointer"
+              className="w-full py-1.5 text-xs text-[var(--txt2)] border border-[var(--border-strong)] rounded-lg hover:bg-[var(--hover)] cursor-pointer"
             >
               Download again
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="w-full py-1.5 text-xs bg-[#0ea5a0] hover:bg-[#0c9490] text-white rounded-lg cursor-pointer font-semibold"
+              className="w-full py-1.5 text-xs bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-lg cursor-pointer font-semibold"
             >
               Close
             </button>
@@ -241,11 +241,11 @@ export default function ExportDialog({ onClose }: { onClose: () => void }) {
         {dialogState === "error" && (
           <div className="space-y-4">
             <p className="text-xs text-red-600 font-medium">Export failed</p>
-            <p className="text-xs text-[#6b6b78] break-words">{error}</p>
+            <p className="text-xs text-[var(--txt2)] break-words">{error}</p>
             <button
               type="button"
               onClick={() => { setDialogState("idle"); setError(null); }}
-              className="w-full py-1.5 text-xs bg-[#0ea5a0] hover:bg-[#0c9490] text-white rounded-lg cursor-pointer font-semibold"
+              className="w-full py-1.5 text-xs bg-[var(--accent)] hover:bg-[var(--accent-hover)] text-white rounded-lg cursor-pointer font-semibold"
             >
               Try again
             </button>

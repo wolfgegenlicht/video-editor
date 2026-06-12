@@ -1,28 +1,86 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+/* ============================================================
+   frontend/src/index.css  —  DARK + AMBER redesign
+   Tailwind v4. Palette lives here as CSS variables; components
+   reference them via var(--token). No #000 / #fff anywhere.
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
+
+:root {
+  /* ── Surfaces ─────────────────────────────────────── */
+  --shell:        oklch(14% 0.012 264);   /* app background / chrome   */
+  --panel:        oklch(18.5% 0.012 264); /* white panels become this  */
+  --panel-2:      oklch(16% 0.012 264);   /* icon strips               */
+  --preview-bg:   oklch(11% 0.01 264);    /* <main> behind the video   */
+  --bed:          oklch(12.5% 0.011 264); /* timeline bed              */
+  --label-bg:     oklch(16.5% 0.012 264); /* track labels, inputs      */
+  --hover:        oklch(22% 0.013 264);   /* hover fill                */
+
+  /* ── Hairlines ────────────────────────────────────── */
+  --border:        oklch(100% 0 0 / 0.07);
+  --border-soft:   oklch(100% 0 0 / 0.045);
+  --border-strong: oklch(100% 0 0 / 0.12);
+
+  /* ── Text ─────────────────────────────────────────── */
+  --txt1: oklch(93% 0.005 264);  /* primary  */
+  --txt2: oklch(62% 0.02 264);   /* secondary */
+  --txt3: oklch(50% 0.02 264);   /* tertiary  */
+
+  /* ── Accent — warm amber (replaces teal #0ea5a0) ──── */
+  --accent:       oklch(70% 0.16 55);
+  --accent-hover: oklch(75% 0.15 55);
+  --accent-soft:  oklch(70% 0.16 55 / 0.14);
+  --accent-line:  oklch(70% 0.16 55 / 0.40);
+  --accent-on:    oklch(16% 0.03 55);
+
+  /* ── Clips (video = amber, lighter than the bed) ──── */
+  --clip:        oklch(46% 0.085 55);
+  --clip-sel:    oklch(54% 0.11 55);
+  --clip-border: oklch(64% 0.13 55 / 0.5);
+  --clip-text:   oklch(94% 0.03 75);
+  --wave:        oklch(70% 0.16 55 / 0.55);
+
+  /* ── Audio clips (green, for natural track separation) ── */
+  --audio:        oklch(40% 0.07 165);
+  --audio-sel:    oklch(48% 0.09 165);
+  --audio-border: oklch(60% 0.1 165 / 0.5);
+  --audio-text:   oklch(92% 0.04 165);
+  --wave-audio:   oklch(70% 0.12 165 / 0.6);
+
+  --playhead: oklch(78% 0.16 55);
+
+  /* ── Effect lanes (multi-hue, tuned for dark) ─────── */
+  --fx-zoom:  oklch(64% 0.17 300);
+  --fx-fade:  oklch(74% 0.15 75);
+  --fx-blur:  oklch(66% 0.13 235);
+  --fx-color: oklch(66% 0.16 20);
+  --fx-speed: oklch(67% 0.16 45);
+
+  --danger: oklch(64% 0.20 20);
+}
 
 * {
   box-sizing: border-box;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0,0,0,0.18) transparent;
+  scrollbar-color: oklch(70% 0.16 55 / 0.35) transparent;
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.28); }
+::-webkit-scrollbar-thumb { background: transparent; border-radius: 4px; }
+:hover::-webkit-scrollbar-thumb { background: oklch(70% 0.16 55 / 0.35); }
+::-webkit-scrollbar-thumb:hover { background: oklch(70% 0.16 55 / 0.55); }
 
 body {
   margin: 0;
-  font-family: 'DM Sans', system-ui, sans-serif;
-  background: #f0f0f4;
-  color: #141416;
+  font-family: 'Geist', system-ui, sans-serif;
+  font-feature-settings: "ss01";
+  letter-spacing: 0.005em;
+  background: var(--shell);
+  color: var(--txt1);
+  -webkit-font-smoothing: antialiased;
 }
 
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-.cursor-blink {
-  animation: blink 1s step-end infinite;
-}
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+.cursor-blink { animation: blink 1s step-end infinite; }

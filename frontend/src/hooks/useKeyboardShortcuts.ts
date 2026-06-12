@@ -1,5 +1,12 @@
 import { useEffect } from "react";
 import { useProjectStore, getItemStartTime } from "../store/useProjectStore";
+import { outputToEdit, compiledDuration } from "../lib/speedRamp";
+
+// Playhead is OUTPUT time; clips are EDIT time. Resolve the EDIT-space playhead.
+function editPlayheadOf(project: { effectOverlays?: { type: string; startTime: number; endTime: number; params: unknown }[]; hiddenEffectLanes?: Record<string, boolean> }, playheadTime: number): number {
+  const ramps = project.hiddenEffectLanes?.speedramp ? [] : (project.effectOverlays ?? []);
+  return outputToEdit(playheadTime, ramps as never);
+}
 
 export function useKeyboardShortcuts(toggle: () => void) {
 
@@ -51,11 +58,12 @@ export function useKeyboardShortcuts(toggle: () => void) {
       if (e.code === "KeyS" && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         const { playheadTime, project, splitClip } = useProjectStore.getState();
+        const editPlayhead = editPlayheadOf(project, playheadTime);
         const allClips = project.tracks.flatMap((t) => t.clips);
         const active = allClips.find(
-          (c) => playheadTime > c.startTime && playheadTime < c.startTime + c.duration
+          (c) => editPlayhead > c.startTime && editPlayhead < c.startTime + c.duration
         );
-        if (active) splitClip(active.id, playheadTime);
+        if (active) splitClip(active.id, editPlayhead);
         return;
       }
 
@@ -67,9 +75,10 @@ export function useKeyboardShortcuts(toggle: () => void) {
         } else if (selectedClipId) {
           duplicateClip(selectedClipId);
         } else {
+          const editPlayhead = editPlayheadOf(project, playheadTime);
           const allClips = project.tracks.flatMap((t) => t.clips);
           const active = allClips.find(
-            (c) => playheadTime >= c.startTime && playheadTime < c.startTime + c.duration
+            (c) => editPlayhead >= c.startTime && editPlayhead < c.startTime + c.duration
           );
           if (active) duplicateClip(active.id);
         }
@@ -92,9 +101,9 @@ export function useKeyboardShortcuts(toggle: () => void) {
           return;
         }
 
-        const totalDuration = project.tracks
-          .flatMap((t) => t.clips)
-          .reduce((max, c) => Math.max(max, c.startTime + c.duration), 0);
+        // Clamp to OUTPUT-space duration (the timeline shrinks under speed ramps).
+        const ramps = project.hiddenEffectLanes?.speedramp ? [] : (project.effectOverlays ?? []);
+        const totalDuration = compiledDuration(project.tracks.flatMap((t) => t.clips), ramps);
         const newTime = Math.min(Math.max(0, playheadTime + direction * step), totalDuration);
         if (isPlaying) toggle();
         setPlayhead(newTime);

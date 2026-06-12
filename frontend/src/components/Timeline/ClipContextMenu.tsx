@@ -44,13 +44,13 @@ export default function ClipContextMenu({ x, y, items, onClose }: Props) {
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-white border border-black/10 rounded-xl shadow-lg shadow-black/15 py-1 min-w-[180px]"
+      className="fixed z-50 bg-[var(--panel)] border border-[var(--border)] rounded-xl shadow-[0_8px_30px_oklch(0%_0_0_/_0.5)] py-1 min-w-[180px]"
       style={{ left, top }}
       onContextMenu={(e) => e.preventDefault()}
     >
       {items.map((item, i) =>
         item.label === "---" ? (
-          <div key={i} className="my-1 border-t border-black/[0.06]" />
+          <div key={i} className="my-1 border-t border-[var(--border)]" />
         ) : (
           <button
             type="button"
@@ -60,8 +60,8 @@ export default function ClipContextMenu({ x, y, items, onClose }: Props) {
               ${item.disabled
                 ? "text-[#a0a0ae] cursor-not-allowed"
                 : item.danger
-                  ? "text-[#dc2626] hover:bg-red-50"
-                  : "text-[#141416] hover:bg-[#f7f7fa]"
+                  ? "text-[var(--danger)] hover:bg-[var(--danger)]/10"
+                  : "text-[var(--txt1)] hover:bg-[var(--panel-2)]"
               }`}
             onClick={() => {
               if (!item.disabled) {

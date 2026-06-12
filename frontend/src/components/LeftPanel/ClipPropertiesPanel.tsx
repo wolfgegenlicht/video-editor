@@ -6,226 +6,9 @@ import type { Clip } from "../../types/project";
 import CaptionStyleEditor from "./CaptionStyleEditor";
 import { SPEEDS, Section, SliderRow } from "../properties-helpers";
 
-// Module-level map so in-flight job IDs survive component unmount/remount
-const _pendingJobs = new Map<string, string>(); // clipId → jobId
 const _pendingBlurBgJobs = new Map<string, string>(); // clipId → jobId
 const _pendingReframeJobs = new Map<string, string>(); // clipId → jobId
 const _reframeProcessingStatus = new Map<string, "processing" | "done" | "error">(); // clipId → status
-
-function EyeContactToggle({ clip }: { clip: Clip }) {
-  const { setClipEyeContact, setClipEyeContactFileId, setEyeContactStatus, eyeContactStatus, previewOriginalClipId, setPreviewOriginalClipId } =
-    useProjectStore();
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
-  const [eta, setEta] = useState<number | null>(null);
-  const mountedRef = useRef(true);
-  const cancelledRef = useRef(false);
-  const startedAtRef = useRef(0);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    if (clip.eyeContact && clip.eyeContactFileId && !eyeContactStatus[clip.id]) {
-      setEyeContactStatus(clip.id, "done");
-    }
-    // Re-attach to an in-flight job if user navigated away and back
-    const pendingJobId = _pendingJobs.get(clip.id);
-    if (pendingJobId && eyeContactStatus[clip.id] === "processing") {
-      startedAtRef.current = Date.now();
-      pollJob(clip.id, pendingJobId);
-    }
-    return () => {
-      mountedRef.current = false;
-      setPreviewOriginalClipId(null);
-    };
-  }, [clip.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const status = eyeContactStatus[clip.id];
-  const isComparing = previewOriginalClipId === clip.id;
-  const isProcessing = status === "processing";
-  const isOn = !!clip.eyeContact && (status === "done" || (!!clip.eyeContactFileId && status !== "error"));
-
-  async function pollJob(clipId: string, jobId: string) {
-    cancelledRef.current = false;
-    let polls = 0;
-    const maxPolls = 900; // 30 minutes at 2s intervals
-    try {
-      while (mountedRef.current && !cancelledRef.current && polls < maxPolls) {
-        await new Promise<void>((r) => setTimeout(r, 2000));
-        if (!mountedRef.current || cancelledRef.current) break;
-        polls++;
-        const s = await api.getEyeContactStatus(jobId);
-        console.log("[eye-contact] poll", polls, s);
-        if (s.status === "cancelled") { _pendingJobs.delete(clipId); return; }
-        if (s.progress != null) {
-          setProgress(s.progress);
-          if (s.progress > 0.05) {
-            const elapsed = (Date.now() - startedAtRef.current) / 1000;
-            setEta(Math.round(elapsed / s.progress * (1 - s.progress)));
-          }
-        }
-        if (s.status === "done" && s.correctedFileId) {
-          _pendingJobs.delete(clipId);
-          setClipEyeContactFileId(clipId, s.correctedFileId);
-          setEyeContactStatus(clipId, "done");
-          setProgress(1);
-          setEta(null);
-          toast.success("Eye contact correction done");
-          return;
-        }
-        if (s.status === "error") throw new Error(s.error ?? "Processing failed");
-      }
-      if (polls >= maxPolls) throw new Error("Processing timed out after 30 minutes");
-    } catch (e) {
-      if (mountedRef.current && !cancelledRef.current) {
-        const msg = e instanceof Error ? e.message : "Failed";
-        console.error("[eye-contact] error", msg);
-        _pendingJobs.delete(clipId);
-        setClipEyeContact(clipId, false);
-        setEyeContactStatus(clipId, "error");
-        setErrorMsg(msg);
-        setProgress(0);
-        setEta(null);
-      }
-    }
-  }
-
-  async function handleCancel() {
-    const jobId = _pendingJobs.get(clip.id);
-    cancelledRef.current = true;
-    _pendingJobs.delete(clip.id);
-    setClipEyeContact(clip.id, false);
-    setEyeContactStatus(clip.id, undefined);
-    setProgress(0);
-    setEta(null);
-    if (jobId) api.cancelEyeContactJob(jobId).catch(() => {});
-  }
-
-  async function startJob() {
-    setEyeContactStatus(clip.id, "processing");
-    setProgress(0);
-    setEta(null);
-    startedAtRef.current = Date.now();
-    const { jobId } = await api.startEyeContactJob(clip.fileId).catch((e) => {
-      setClipEyeContact(clip.id, false);
-      setEyeContactStatus(clip.id, "error");
-      setErrorMsg(e instanceof Error ? e.message : "Failed to start job");
-      return { jobId: null as unknown as string };
-    });
-    if (!jobId) return;
-    console.log("[eye-contact] job started", jobId);
-    _pendingJobs.set(clip.id, jobId);
-    pollJob(clip.id, jobId);
-  }
-
-  async function handleToggle() {
-    if (isProcessing) return;
-    setErrorMsg(null);
-    const enabling = !clip.eyeContact;
-    setClipEyeContact(clip.id, enabling);
-    if (!enabling) {
-      setEyeContactStatus(clip.id, undefined);
-      setProgress(0);
-      setEta(null);
-      return;
-    }
-    if (clip.eyeContactFileId) {
-      setEyeContactStatus(clip.id, "done");
-      setProgress(1);
-      return;
-    }
-    await startJob();
-  }
-
-  async function handleReprocess() {
-    if (isProcessing) return;
-    setErrorMsg(null);
-    setClipEyeContactFileId(clip.id, null);
-    await startJob();
-  }
-
-  const pct = Math.round(progress * 100);
-  const etaLabel = eta != null && eta > 0 ? ` · ~${eta}s left` : "";
-
-  return (
-    <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-[#141416]">Eye Contact</p>
-        <button
-          type="button"
-          onClick={handleToggle}
-          disabled={isProcessing}
-          aria-label="Toggle eye contact correction"
-          className={[
-            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
-            isOn ? "bg-[#0ea5a0]" : "bg-[#e4e4ea]",
-            isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-          ].join(" ")}
-        >
-          <span
-            className={[
-              "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
-              isOn ? "translate-x-4" : "translate-x-0.5",
-            ].join(" ")}
-          />
-        </button>
-      </div>
-
-      {isProcessing ? (
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <div className="h-1 flex-1 rounded-full bg-[#e4e4ea] overflow-hidden">
-              <div
-                className="h-full rounded-full bg-[#0ea5a0] transition-all duration-500"
-                style={{ width: `${Math.max(2, pct)}%` }}
-              />
-            </div>
-            <button type="button" onClick={handleCancel} title="Cancel" className="flex-shrink-0 text-[11px] text-[#6b6b78] hover:text-red-500 transition-colors leading-none cursor-pointer">✕</button>
-          </div>
-          <p className="text-[11px] text-[#6b6b78] tabular-nums">
-            {pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}
-          </p>
-        </div>
-      ) : errorMsg ? (
-        <p className="text-[11px] text-amber-500 leading-snug">⚠ {errorMsg}</p>
-      ) : (
-        <div className="space-y-1.5">
-          <p className="text-[11px] text-[#6b6b78]">AI gaze correction</p>
-          {isOn && clip.eyeContactFileId && (
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setPreviewOriginalClipId(isComparing ? null : clip.id)}
-                title={isComparing ? "Show processed" : "Preview original"}
-                className={[
-                  "text-[11px] transition-colors flex items-center gap-0.5",
-                  isComparing ? "text-[#0d9488] font-medium" : "text-[#6b6b78] hover:text-[#141416]",
-                ].join(" ")}
-              >
-                <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M1 8h14M1 8c2-3 4-5 7-5s5 2 7 5M1 8c2 3 4 5 7 5s5-2 7-5" strokeLinecap="round"/>
-                  <circle cx="8" cy="8" r="2" fill="currentColor" stroke="none"/>
-                </svg>
-                {isComparing ? "Processed" : "Original"}
-              </button>
-              <button
-                type="button"
-                onClick={handleReprocess}
-                title="Re-process"
-                className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors flex items-center gap-0.5"
-              >
-                <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
-                  <path d="M11 5h2.5V2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Re-process
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function BlurBackgroundToggle({ clip }: { clip: Clip }) {
   const {
@@ -239,8 +22,6 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
   const mountedRef = useRef(true);
   const cancelledRef = useRef(false);
   const startedAtRef = useRef(0);
-
-  const prevEyeContactFileIdRef = useRef(clip.eyeContactFileId);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -257,18 +38,6 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
       setPreviewOriginalClipId(null);
     };
   }, [clip.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    const prev = prevEyeContactFileIdRef.current;
-    prevEyeContactFileIdRef.current = clip.eyeContactFileId;
-    if (prev === clip.eyeContactFileId) return;
-    if (!clip.blurBackground || !clip.blurBackgroundFileId) return;
-    if (blurBgStatus[clip.id] === "processing") return;
-    // Eye contact source changed — stale blur preview, re-process on new source
-    api.deleteBlurBgFile(clip.blurBackgroundFileId).catch(console.error);
-    setClipBlurBackgroundFileId(clip.id, null);
-    startJob();
-  }, [clip.eyeContactFileId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const status = blurBgStatus[clip.id];
   const isProcessing = status === "processing";
@@ -336,7 +105,7 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
     setProgress(0);
     setEta(null);
     startedAtRef.current = Date.now();
-    const inputFileId = clip.eyeContactFileId ?? clip.fileId;
+    const inputFileId = clip.fileId;
     const intensity = clip.blurBackgroundIntensity ?? 25;
     const { jobId } = await api.startBlurBgJob(inputFileId, intensity).catch((e) => {
       setClipBlurBackground(clip.id, false);
@@ -388,9 +157,9 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
   const etaLabel = eta != null && eta > 0 ? ` · ~${eta}s left` : "";
 
   return (
-    <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
+    <div className="py-2 px-3 rounded-lg bg-[var(--label-bg)] border border-[var(--border)] space-y-1.5">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-[#141416]">Blur Background</p>
+        <p className="text-xs font-medium text-[var(--txt1)]">Blur Background</p>
         <button
           type="button"
           onClick={handleToggle}
@@ -398,13 +167,13 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
           aria-label="Toggle background blur"
           className={[
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
-            isOn ? "bg-[#0ea5a0]" : "bg-[#e4e4ea]",
+            isOn ? "bg-[var(--accent)]" : "bg-[var(--border-soft)]",
             isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
           ].join(" ")}
         >
           <span
             className={[
-              "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+              "inline-block h-3.5 w-3.5 transform rounded-full bg-[var(--panel)] shadow transition-transform",
               isOn ? "translate-x-4" : "translate-x-0.5",
             ].join(" ")}
           />
@@ -426,15 +195,15 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
       {isProcessing ? (
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="h-1 flex-1 rounded-full bg-[#e4e4ea] overflow-hidden">
+            <div className="h-1 flex-1 rounded-full bg-[var(--border-soft)] overflow-hidden">
               <div
-                className="h-full rounded-full bg-[#0ea5a0] transition-all duration-500"
+                className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
                 style={{ width: `${Math.max(2, pct)}%` }}
               />
             </div>
-            <button type="button" onClick={handleCancel} title="Cancel" className="flex-shrink-0 text-[11px] text-[#6b6b78] hover:text-red-500 transition-colors leading-none cursor-pointer">✕</button>
+            <button type="button" onClick={handleCancel} title="Cancel" className="flex-shrink-0 text-[11px] text-[var(--txt2)] hover:text-red-500 transition-colors leading-none cursor-pointer">✕</button>
           </div>
-          <p className="text-[11px] text-[#6b6b78] tabular-nums">
+          <p className="text-[11px] text-[var(--txt2)] tabular-nums">
             {pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}
           </p>
         </div>
@@ -442,7 +211,7 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
         <p className="text-[11px] text-amber-500 leading-snug">⚠ {errorMsg}</p>
       ) : (
         <div className="space-y-1.5">
-          <p className="text-[11px] text-[#6b6b78]">AI background blur · preview applies to playback</p>
+          <p className="text-[11px] text-[var(--txt2)]">AI background blur · preview applies to playback</p>
           {isOn && clip.blurBackgroundFileId && (
             <div className="flex items-center gap-2">
               <button
@@ -451,7 +220,7 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
                 title={isComparing ? "Show processed" : "Preview original"}
                 className={[
                   "text-[11px] transition-colors flex items-center gap-0.5",
-                  isComparing ? "text-[#0d9488] font-medium" : "text-[#6b6b78] hover:text-[#141416]",
+                  isComparing ? "text-[var(--accent)] font-medium" : "text-[var(--txt2)] hover:text-[var(--txt1)]",
                 ].join(" ")}
               >
                 <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -464,7 +233,7 @@ function BlurBackgroundToggle({ clip }: { clip: Clip }) {
                 type="button"
                 onClick={handleReprocess}
                 title="Re-process"
-                className="text-[11px] text-[#6b6b78] hover:text-[#141416] transition-colors flex items-center gap-0.5"
+                className="text-[11px] text-[var(--txt2)] hover:text-[var(--txt1)] transition-colors flex items-center gap-0.5"
               >
                 <svg className="size-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                   <path d="M13.5 8A5.5 5.5 0 1 1 8 2.5c1.8 0 3.4.87 4.4 2.2" strokeLinecap="round"/>
@@ -621,9 +390,9 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
   const etaLabel = eta != null && eta > 0 ? ` · ~${eta}s left` : "";
 
   return (
-    <div className="py-2 px-3 rounded-lg bg-[#f2f2f6] border border-black/[0.06] space-y-1.5">
+    <div className="py-2 px-3 rounded-lg bg-[var(--label-bg)] border border-[var(--border)] space-y-1.5">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-[#141416]">Smart Reframe</p>
+        <p className="text-xs font-medium text-[var(--txt1)]">Smart Reframe</p>
         <button
           type="button"
           onClick={handleToggle}
@@ -631,13 +400,13 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
           aria-label="Toggle smart reframe"
           className={[
             "relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0",
-            isOn ? "bg-[#0ea5a0]" : "bg-[#e4e4ea]",
+            isOn ? "bg-[var(--accent)]" : "bg-[var(--border-soft)]",
             isProcessing ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
           ].join(" ")}
         >
           <span
             className={[
-              "inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform",
+              "inline-block h-3.5 w-3.5 transform rounded-full bg-[var(--panel)] shadow transition-transform",
               isOn ? "translate-x-4" : "translate-x-0.5",
             ].join(" ")}
           />
@@ -646,27 +415,27 @@ function SmartReframeToggle({ clip }: { clip: Clip }) {
 
       {isProcessing ? (
         <div className="space-y-1">
-          <div className="h-1 w-full rounded-full bg-[#e4e4ea] overflow-hidden">
+          <div className="h-1 w-full rounded-full bg-[var(--border-soft)] overflow-hidden">
             <div
-              className="h-full rounded-full bg-[#0ea5a0] transition-all duration-500"
+              className="h-full rounded-full bg-[var(--accent)] transition-all duration-500"
               style={{ width: `${Math.max(2, pct)}%` }}
             />
           </div>
-          <p className="text-[11px] text-[#6b6b78] tabular-nums">
+          <p className="text-[11px] text-[var(--txt2)] tabular-nums">
             {pct > 0 ? `${pct}%${etaLabel}` : "Starting…"}
           </p>
         </div>
       ) : errorMsg ? (
         <p className="text-[11px] text-amber-500 leading-snug">⚠ {errorMsg}</p>
       ) : (
-        <p className="text-[11px] text-[#6b6b78]">Switches project to 9:16</p>
+        <p className="text-[11px] text-[var(--txt2)]">Switches project to 9:16</p>
       )}
 
       {processingStatus === "done" && (
         <button
           type="button"
           onClick={handleReanalyze}
-          className="text-[11px] text-[#6b6b78] underline hover:text-[#141416] transition-colors"
+          className="text-[11px] text-[var(--txt2)] underline hover:text-[var(--txt1)] transition-colors"
         >
           Re-analyze
         </button>
@@ -694,76 +463,79 @@ export default function ClipPropertiesPanel() {
     return (
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         <div>
-          <label htmlFor="overlay-text" className="text-xs text-[#6b6b78] block mb-1">Text</label>
+          <label htmlFor="overlay-text" className="text-xs text-[var(--txt2)] block mb-1">Text</label>
           <textarea
             id="overlay-text"
             value={overlay.text}
             onChange={(e) => updateTextOverlay(overlay.id, { text: e.target.value })}
-            className="w-full text-sm bg-[#f2f2f6] border border-black/10 text-[#141416] rounded p-2 resize-none outline-none focus:ring-1 focus:ring-[#0ea5a0]"
+            className="w-full text-sm bg-[var(--label-bg)] border border-[var(--border-strong)] text-[var(--txt1)] rounded p-2 resize-none outline-none focus:ring-1 focus:ring-[var(--accent)]"
             rows={3}
           />
         </div>
         <div>
-          <label htmlFor="overlay-font-size" className="text-xs text-[#6b6b78] block mb-1">
+          <label htmlFor="overlay-font-size" className="text-xs text-[var(--txt2)] block mb-1">
             Font Size: {overlay.fontSize}px
           </label>
           <input id="overlay-font-size" type="range" min={12} max={120} step={2} value={overlay.fontSize}
             aria-label="Font size"
             onChange={(e) => updateTextOverlay(overlay.id, { fontSize: parseInt(e.target.value) })}
-            className="w-full accent-[#0ea5a0]" />
+            onDoubleClick={() => updateTextOverlay(overlay.id, { fontSize: 32 })}
+            className="w-full accent-[var(--accent)]" />
         </div>
         <div>
-          <label htmlFor="overlay-color" className="text-xs text-[#6b6b78] block mb-1">Color</label>
+          <label htmlFor="overlay-color" className="text-xs text-[var(--txt2)] block mb-1">Color</label>
           <input id="overlay-color" type="color" value={overlay.color}
             onChange={(e) => updateTextOverlay(overlay.id, { color: e.target.value })}
-            className="w-full h-8 rounded border border-black/10 cursor-pointer" />
+            className="w-full h-8 rounded border border-[var(--border-strong)] cursor-pointer" />
         </div>
         <div>
-          <p className="text-xs text-[#6b6b78] mb-1">Weight</p>
+          <p className="text-xs text-[var(--txt2)] mb-1">Weight</p>
           <div className="flex gap-2">
             {(["normal", "bold"] as const).map((w) => (
               <button type="button" key={w} onClick={() => updateTextOverlay(overlay.id, { fontWeight: w })}
                 className={`flex-1 py-1 rounded text-xs border transition-colors
-                  ${overlay.fontWeight === w ? "bg-[#0ea5a0] text-white border-[#0ea5a0]" : "border-black/10 text-[#6b6b78] hover:bg-[#ebebef]"}`}>
+                  ${overlay.fontWeight === w ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--border-strong)] text-[var(--txt2)] hover:bg-[var(--hover)]"}`}>
                 {w}
               </button>
             ))}
           </div>
         </div>
         <div>
-          <label htmlFor="overlay-x" className="text-xs text-[#6b6b78] block mb-1">Position X: {overlay.x.toFixed(0)}%</label>
+          <label htmlFor="overlay-x" className="text-xs text-[var(--txt2)] block mb-1">Position X: {overlay.x.toFixed(0)}%</label>
           <input id="overlay-x" type="range" min={0} max={100} value={overlay.x}
             aria-label="Position X"
             onChange={(e) => updateTextOverlay(overlay.id, { x: parseInt(e.target.value) })}
-            className="w-full accent-[#0ea5a0]" />
+            onDoubleClick={() => updateTextOverlay(overlay.id, { x: 50 })}
+            className="w-full accent-[var(--accent)]" />
         </div>
         <div>
-          <label htmlFor="overlay-y" className="text-xs text-[#6b6b78] block mb-1">Position Y: {overlay.y.toFixed(0)}%</label>
+          <label htmlFor="overlay-y" className="text-xs text-[var(--txt2)] block mb-1">Position Y: {overlay.y.toFixed(0)}%</label>
           <input id="overlay-y" type="range" min={0} max={100} value={overlay.y}
             aria-label="Position Y"
             onChange={(e) => updateTextOverlay(overlay.id, { y: parseInt(e.target.value) })}
-            className="w-full accent-[#0ea5a0]" />
+            onDoubleClick={() => updateTextOverlay(overlay.id, { y: 50 })}
+            className="w-full accent-[var(--accent)]" />
         </div>
         <div>
-          <label htmlFor="overlay-duration" className="text-xs text-[#6b6b78] block mb-1">
+          <label htmlFor="overlay-duration" className="text-xs text-[var(--txt2)] block mb-1">
             Duration: {(overlay.endTime - overlay.startTime).toFixed(1)}s
           </label>
           <input id="overlay-duration" type="range" min={0.5} max={30} step={0.5} value={overlay.endTime - overlay.startTime}
             aria-label="Duration"
             onChange={(e) => updateTextOverlay(overlay.id, { endTime: overlay.startTime + parseFloat(e.target.value) })}
-            className="w-full accent-[#0ea5a0]" />
+            className="w-full accent-[var(--accent)]" />
         </div>
         <div>
-          <p className="text-xs text-[#6b6b78] mb-1">Background</p>
+          <p className="text-xs text-[var(--txt2)] mb-1">Background</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => updateTextOverlay(overlay.id, { background: "transparent" })}
               className={`flex-1 py-1 rounded text-xs border transition-colors
-                ${overlay.background === "transparent" ? "bg-[#0ea5a0] text-white border-[#0ea5a0]" : "border-black/10 text-[#6b6b78] hover:bg-[#ebebef]"}`}>
+                ${overlay.background === "transparent" ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--border-strong)] text-[var(--txt2)] hover:bg-[var(--hover)]"}`}>
               None
             </button>
             <input type="color" aria-label="Background color" value={overlay.background === "transparent" ? "#000000" : overlay.background}
               onChange={(e) => updateTextOverlay(overlay.id, { background: e.target.value })}
-              className="flex-1 h-8 rounded border border-black/10 cursor-pointer" title="Background color" />
+              className="flex-1 h-8 rounded border border-[var(--border-strong)] cursor-pointer" title="Background color" />
           </div>
         </div>
       </div>
@@ -777,7 +549,7 @@ export default function ClipPropertiesPanel() {
   if (!clip) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-xs text-[#6b6b78] text-center">Select a clip, caption, or text overlay to edit its properties</p>
+        <p className="text-xs text-[var(--txt2)] text-center">Select a clip, caption, or text overlay to edit its properties</p>
       </div>
     );
   }
@@ -801,15 +573,15 @@ export default function ClipPropertiesPanel() {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Clip info */}
-      <div className="px-3 py-2.5 border-b border-black/[0.06]">
-        <p className="text-xs font-medium text-[#141416] truncate">{clipFile?.originalName ?? "Clip"}</p>
-        <p className="text-[11px] text-[#6b6b78]">{clip.duration.toFixed(2)}s</p>
+      <div className="px-3 py-2.5 border-b border-[var(--border)]">
+        <p className="text-xs font-medium text-[var(--txt1)] truncate">{clipFile?.originalName ?? "Clip"}</p>
+        <p className="text-[11px] text-[var(--txt2)]">{clip.duration.toFixed(2)}s</p>
       </div>
 
       {/* Playback */}
       <Section title="Playback">
         <div>
-          <span className="text-xs text-[#6b6b78] block mb-1.5">Speed</span>
+          <span className="text-xs text-[var(--txt2)] block mb-1.5">Speed</span>
           <div className="flex flex-wrap gap-1">
             {SPEEDS.map((s) => (
               <button
@@ -818,8 +590,8 @@ export default function ClipPropertiesPanel() {
                 onClick={() => setClipSpeed(clip.id, s)}
                 className={`px-2.5 py-1 rounded text-[11px] border transition-colors
                   ${speed === s
-                    ? "bg-[#0ea5a0] text-white border-[#0ea5a0]"
-                    : "border-black/10 text-[#6b6b78] hover:border-black/[0.18] hover:bg-[#ebebef]"}`}
+                    ? "bg-[var(--accent)] text-white border-[var(--accent)]"
+                    : "border-[var(--border-strong)] text-[var(--txt2)] hover:border-black/[0.18] hover:bg-[var(--hover)]"}`}
               >
                 {s}×
               </button>
@@ -832,6 +604,7 @@ export default function ClipPropertiesPanel() {
           min={0} max={1} step={0.05}
           onChange={(v) => setClipVolume(clip.id, v)}
           format={(v) => `${Math.round(v * 100)}%`}
+          defaultValue={1}
         />
       </Section>
 
@@ -843,6 +616,7 @@ export default function ClipPropertiesPanel() {
           min={0} max={Math.min(3, clip.duration / 2)} step={0.1}
           onChange={(v) => setClipFade(clip.id, v, fadeOut)}
           format={(v) => v === 0 ? "Off" : `${v.toFixed(1)}s`}
+          defaultValue={0}
         />
         <SliderRow
           label="Fade out"
@@ -850,6 +624,7 @@ export default function ClipPropertiesPanel() {
           min={0} max={Math.min(3, clip.duration / 2)} step={0.1}
           onChange={(v) => setClipFade(clip.id, fadeIn, v)}
           format={(v) => v === 0 ? "Off" : `${v.toFixed(1)}s`}
+          defaultValue={0}
         />
       </Section>
 
@@ -861,6 +636,7 @@ export default function ClipPropertiesPanel() {
           min={0} max={2} step={0.05}
           onChange={(v) => setClipAdjustment(clip.id, "brightness", v)}
           format={(v) => v === 1 ? "Default" : v < 1 ? `-${Math.round((1 - v) * 100)}%` : `+${Math.round((v - 1) * 100)}%`}
+          defaultValue={1}
         />
         <SliderRow
           label="Contrast"
@@ -868,6 +644,7 @@ export default function ClipPropertiesPanel() {
           min={0} max={2} step={0.05}
           onChange={(v) => setClipAdjustment(clip.id, "contrast", v)}
           format={(v) => v === 1 ? "Default" : v < 1 ? `-${Math.round((1 - v) * 100)}%` : `+${Math.round((v - 1) * 100)}%`}
+          defaultValue={1}
         />
         <SliderRow
           label="Saturation"
@@ -875,6 +652,7 @@ export default function ClipPropertiesPanel() {
           min={0} max={2} step={0.05}
           onChange={(v) => setClipAdjustment(clip.id, "saturation", v)}
           format={(v) => v === 1 ? "Default" : v === 0 ? "B&W" : v < 1 ? `-${Math.round((1 - v) * 100)}%` : `+${Math.round((v - 1) * 100)}%`}
+          defaultValue={1}
         />
         {(brightness !== 1 || contrast !== 1 || saturation !== 1) && (
           <button
@@ -884,7 +662,7 @@ export default function ClipPropertiesPanel() {
               setClipAdjustment(clip.id, "contrast", 1);
               setClipAdjustment(clip.id, "saturation", 1);
             }}
-            className="text-[11px] text-[#6b6b78] border border-black/10 rounded px-2 py-0.5 hover:bg-[#ebebef] hover:text-[#141416] transition-colors"
+            className="text-[11px] text-[var(--txt2)] border border-[var(--border-strong)] rounded px-2 py-0.5 hover:bg-[var(--hover)] hover:text-[var(--txt1)] transition-colors"
           >
             Reset adjustments
           </button>
@@ -895,26 +673,28 @@ export default function ClipPropertiesPanel() {
       <Section title="Transform">
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-xs text-[#6b6b78]">X offset</span>
-            <span className="text-[11px] text-[#6b6b78] tabular-nums">{tx.toFixed(1)}%</span>
+            <span className="text-xs text-[var(--txt2)]">X offset</span>
+            <span className="text-[11px] text-[var(--txt2)] tabular-nums">{tx.toFixed(1)}%</span>
           </div>
           <input
             aria-label="X offset"
             type="range" min={-200} max={200} step={1} value={tx}
             onChange={(e) => setClipTransform(clip.id, { x: parseFloat(e.target.value) })}
-            className="w-full accent-[#0ea5a0] h-1"
+            onDoubleClick={() => setClipTransform(clip.id, { x: 0 })}
+            className="w-full accent-[var(--accent)] h-1"
           />
         </div>
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-xs text-[#6b6b78]">Y offset</span>
-            <span className="text-[11px] text-[#6b6b78] tabular-nums">{ty.toFixed(1)}%</span>
+            <span className="text-xs text-[var(--txt2)]">Y offset</span>
+            <span className="text-[11px] text-[var(--txt2)] tabular-nums">{ty.toFixed(1)}%</span>
           </div>
           <input
             aria-label="Y offset"
             type="range" min={-200} max={200} step={1} value={ty}
             onChange={(e) => setClipTransform(clip.id, { y: parseFloat(e.target.value) })}
-            className="w-full accent-[#0ea5a0] h-1"
+            onDoubleClick={() => setClipTransform(clip.id, { y: 0 })}
+            className="w-full accent-[var(--accent)] h-1"
           />
         </div>
         {tScale === 1 && (tx !== 0 || ty !== 0) && (
@@ -922,33 +702,35 @@ export default function ClipPropertiesPanel() {
         )}
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-xs text-[#6b6b78]">Scale</span>
-            <span className="text-[11px] text-[#6b6b78] tabular-nums">{Math.round(tScale * 100)}%</span>
+            <span className="text-xs text-[var(--txt2)]">Scale</span>
+            <span className="text-[11px] text-[var(--txt2)] tabular-nums">{Math.round(tScale * 100)}%</span>
           </div>
           <input
             aria-label="Scale"
             type="range" min={100} max={500} step={1} value={Math.round(tScale * 100)}
             onChange={(e) => setClipTransform(clip.id, { scale: parseInt(e.target.value) / 100 })}
-            className="w-full accent-[#0ea5a0] h-1"
+            onDoubleClick={() => setClipTransform(clip.id, { scale: 1 })}
+            className="w-full accent-[var(--accent)] h-1"
           />
         </div>
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-xs text-[#6b6b78]">Rotation</span>
-            <span className="text-[11px] text-[#6b6b78] tabular-nums">{tRotation.toFixed(1)}°</span>
+            <span className="text-xs text-[var(--txt2)]">Rotation</span>
+            <span className="text-[11px] text-[var(--txt2)] tabular-nums">{tRotation.toFixed(1)}°</span>
           </div>
           <input
             aria-label="Rotation"
             type="range" min={-180} max={180} step={1} value={tRotation}
             onChange={(e) => setClipTransform(clip.id, { rotation: parseFloat(e.target.value) })}
-            className="w-full accent-[#0ea5a0] h-1"
+            onDoubleClick={() => setClipTransform(clip.id, { rotation: 0 })}
+            className="w-full accent-[var(--accent)] h-1"
           />
         </div>
         {hasTransform && (
           <button
             type="button"
             onClick={() => setClipTransform(clip.id, { x: 0, y: 0, scale: 1, rotation: 0 })}
-            className="text-[11px] text-[#6b6b78] border border-black/10 rounded px-2 py-0.5 hover:bg-[#ebebef] hover:text-[#141416] transition-colors"
+            className="text-[11px] text-[var(--txt2)] border border-[var(--border-strong)] rounded px-2 py-0.5 hover:bg-[var(--hover)] hover:text-[var(--txt1)] transition-colors"
           >
             Reset transform
           </button>
@@ -957,8 +739,7 @@ export default function ClipPropertiesPanel() {
 
       {/* Effects */}
       <div className="px-3 py-3 space-y-2">
-        <p className="text-[11px] font-bold text-[#6b6b78]">Effects</p>
-        <EyeContactToggle clip={clip} />
+        <p className="text-[11px] font-bold text-[var(--txt2)]">Effects</p>
         <BlurBackgroundToggle clip={clip} />
         <SmartReframeToggle clip={clip} />
       </div>

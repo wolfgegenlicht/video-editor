@@ -1,9 +1,10 @@
 import { useProjectStore } from "../../store/useProjectStore";
+import { editToOutput, outputToEdit } from "../../lib/speedRamp";
 import type { ZoomParams, FadeParams, BlurParams, ColorGradeParams, SpeedRampParams, BlurKeyframe } from "../../types/project";
 import type { BlurRegion } from "../../types/project";
 import { interpolateBlurAt } from "../../lib/blurKeyframes";
 
-function SliderRow({ label, value, min, max, step, onChange, format, accentClass = "accent-violet-400" }: {
+function SliderRow({ label, value, min, max, step, onChange, format, accentClass = "accent-violet-400", defaultValue }: {
   label: string;
   value: number;
   min: number;
@@ -12,12 +13,13 @@ function SliderRow({ label, value, min, max, step, onChange, format, accentClass
   onChange: (v: number) => void;
   format?: (v: number) => string;
   accentClass?: string;
+  defaultValue?: number;
 }) {
   return (
     <div>
       <div className="flex justify-between items-baseline mb-1">
-        <span className="text-xs text-[#6b6b78]">{label}</span>
-        <span className="text-[11px] text-[#6b6b78] tabular-nums">{format ? format(value) : value}</span>
+        <span className="text-xs text-[var(--txt2)]">{label}</span>
+        <span className="text-[11px] text-[var(--txt2)] tabular-nums">{format ? format(value) : value}</span>
       </div>
       <input
         type="range"
@@ -27,6 +29,7 @@ function SliderRow({ label, value, min, max, step, onChange, format, accentClass
         step={step}
         value={value}
         onChange={(e) => onChange(parseFloat(e.target.value))}
+        onDoubleClick={defaultValue !== undefined ? () => onChange(defaultValue) : undefined}
         className={`w-full ${accentClass} h-1`}
       />
     </div>
@@ -34,7 +37,7 @@ function SliderRow({ label, value, min, max, step, onChange, format, accentClass
 }
 
 function SectionHeader({ label }: { label: string }) {
-  return <p className="text-[11px] font-bold text-[#6b6b78]">{label}</p>;
+  return <p className="text-[11px] font-bold text-[var(--txt2)]">{label}</p>;
 }
 
 function fmtTime(s: number): string {
@@ -58,6 +61,9 @@ export default function EffectPropertiesPanel() {
 
   if (!effect) return null;
 
+  // Keyframes/effects are EDIT time; the playhead is OUTPUT time.
+  const ramps = project.hiddenEffectLanes?.speedramp ? [] : project.effectOverlays ?? [];
+  const editPlayhead = outputToEdit(playheadTime, ramps);
   const duration = effect.endTime - effect.startTime;
 
   function durationSlider(accentClass: string) {
@@ -105,7 +111,7 @@ export default function EffectPropertiesPanel() {
   if (effect.type === "blur") {
     const params = effect.params as BlurParams;
     const keyframes = params.keyframes ?? [];
-    const relTime = playheadTime - effect.startTime;
+    const relTime = editPlayhead - effect.startTime;
     const activeKfIdx = keyframes.findIndex((k) => Math.abs(k.time - relTime) < 0.05);
     const effectiveParams = keyframes.length
       ? interpolateBlurAt(keyframes, relTime, params)
@@ -154,7 +160,7 @@ export default function EffectPropertiesPanel() {
           {/* ── Keyframes section (regional blurs only) ── */}
           {region && <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <p className="text-[11px] font-bold text-[#6b6b78]">
+              <p className="text-[11px] font-bold text-[var(--txt2)]">
                 KEYFRAMES{keyframes.length > 0 ? ` (${keyframes.length})` : ""}
               </p>
               <button
@@ -179,18 +185,18 @@ export default function EffectPropertiesPanel() {
                         className={`flex items-center gap-1.5 px-2 py-1 rounded text-[11px] cursor-pointer
                           ${isActive
                             ? "bg-sky-500/10 border border-sky-500/20"
-                            : "hover:bg-[#f7f7fa]"}`}
-                        onClick={() => setPlayhead(effect!.startTime + kf.time)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setPlayhead(effect!.startTime + kf.time); }}
+                            : "hover:bg-[var(--panel-2)]"}`}
+                        onClick={() => setPlayhead(editToOutput(effect!.startTime + kf.time, ramps))}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setPlayhead(editToOutput(effect!.startTime + kf.time, ramps)); }}
                       >
-                        <span className={`w-8 tabular-nums ${isActive ? "text-sky-500 font-semibold" : "text-[#6b6b78]"}`}>
+                        <span className={`w-8 tabular-nums ${isActive ? "text-sky-500 font-semibold" : "text-[var(--txt2)]"}`}>
                           {fmtTime(effect!.startTime + kf.time)}{isActive ? " ◆" : ""}
                         </span>
-                        <span className="flex-1 text-[#6b6b78] truncate">{kfSummary(kf)}</span>
+                        <span className="flex-1 text-[var(--txt2)] truncate">{kfSummary(kf)}</span>
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); deleteBlurKeyframe(effect!.id, i); }}
-                          className="text-[#6b6b78] hover:text-red-500 transition-colors leading-none px-0.5 cursor-pointer"
+                          className="text-[var(--txt2)] hover:text-red-500 transition-colors leading-none px-0.5 cursor-pointer"
                         >
                           ×
                         </button>
@@ -205,20 +211,20 @@ export default function EffectPropertiesPanel() {
                     type="button"
                     onClick={() => {
                       const prev = [...keyframes].reverse().find((k) => k.time < relTime - 0.05);
-                      if (prev) setPlayhead(effect!.startTime + prev.time);
+                      if (prev) setPlayhead(editToOutput(effect!.startTime + prev.time, ramps));
                     }}
-                    className="text-[11px] px-2.5 py-0.5 rounded border border-black/10 bg-[#f2f2f6] text-[#6b6b78] hover:bg-[#ebebef] transition-colors cursor-pointer"
+                    className="text-[11px] px-2.5 py-0.5 rounded border border-[var(--border-strong)] bg-[var(--label-bg)] text-[var(--txt2)] hover:bg-[var(--hover)] transition-colors cursor-pointer"
                   >◀</button>
-                  <span className="text-[11px] text-[#6b6b78]">
+                  <span className="text-[11px] text-[var(--txt2)]">
                     {activeKfIdx >= 0 ? `${activeKfIdx + 1} / ${keyframes.length}` : `- / ${keyframes.length}`}
                   </span>
                   <button
                     type="button"
                     onClick={() => {
                       const next = keyframes.find((k) => k.time > relTime + 0.05);
-                      if (next) setPlayhead(effect!.startTime + next.time);
+                      if (next) setPlayhead(editToOutput(effect!.startTime + next.time, ramps));
                     }}
-                    className="text-[11px] px-2.5 py-0.5 rounded border border-black/10 bg-[#f2f2f6] text-[#6b6b78] hover:bg-[#ebebef] transition-colors cursor-pointer"
+                    className="text-[11px] px-2.5 py-0.5 rounded border border-[var(--border-strong)] bg-[var(--label-bg)] text-[var(--txt2)] hover:bg-[var(--hover)] transition-colors cursor-pointer"
                   >▶</button>
                 </div>
               </>
@@ -233,6 +239,7 @@ export default function EffectPropertiesPanel() {
             onChange={onIntensityChange}
             format={(v) => `${v.toFixed(1)}px`}
             accentClass="accent-sky-500"
+            defaultValue={0}
           />
           {region ? (
             <>
@@ -278,7 +285,7 @@ export default function EffectPropertiesPanel() {
               />
             </>
           ) : (
-            <p className="text-[11px] text-[#6b6b78]">Click the blur in the timeline to position the blur region in the preview.</p>
+            <p className="text-[11px] text-[var(--txt2)]">Click the blur in the timeline to position the blur region in the preview.</p>
           )}
           {durationSlider("accent-sky-500")}
         </div>
@@ -321,6 +328,7 @@ export default function EffectPropertiesPanel() {
             onChange={(v) => updateEffectOverlayParams(effect.id, { intensity: v })}
             format={(v) => `${Math.round(v * 100)}%`}
             accentClass="accent-rose-500"
+            defaultValue={1}
           />
           {durationSlider("accent-rose-500")}
         </div>
@@ -343,6 +351,7 @@ export default function EffectPropertiesPanel() {
             onChange={(v) => updateEffectOverlayParams(effect.id, { startSpeed: v })}
             format={(v) => `${v.toFixed(2)}×`}
             accentClass="accent-orange-400"
+            defaultValue={1}
           />
           <SliderRow
             label="End Speed"
@@ -351,6 +360,7 @@ export default function EffectPropertiesPanel() {
             onChange={(v) => updateEffectOverlayParams(effect.id, { endSpeed: v })}
             format={(v) => `${v.toFixed(2)}×`}
             accentClass="accent-orange-400"
+            defaultValue={1}
           />
           <div className="flex gap-2">
             {(["linear", "ease"] as const).map((easing) => (
@@ -368,7 +378,7 @@ export default function EffectPropertiesPanel() {
             ))}
           </div>
           {durationSlider("accent-orange-400")}
-          <p className="text-[11px] text-[#6b6b78]">{params.startSpeed.toFixed(2)}× → {params.endSpeed.toFixed(2)}× ({direction})</p>
+          <p className="text-[11px] text-[var(--txt2)]">{params.startSpeed.toFixed(2)}× → {params.endSpeed.toFixed(2)}× ({direction})</p>
         </div>
       </div>
     );
@@ -392,6 +402,7 @@ export default function EffectPropertiesPanel() {
           min={1} max={3} step={0.05}
           onChange={(v) => update({ scale: v })}
           format={(v) => `${v.toFixed(2)}×`}
+          defaultValue={1}
         />
         <SliderRow
           label="Focus X"
@@ -399,6 +410,7 @@ export default function EffectPropertiesPanel() {
           min={0} max={1} step={0.01}
           onChange={(v) => update({ anchorX: v })}
           format={(v) => `${Math.round(v * 100)}%`}
+          defaultValue={0.5}
         />
         <SliderRow
           label="Focus Y"
@@ -406,6 +418,7 @@ export default function EffectPropertiesPanel() {
           min={0} max={1} step={0.01}
           onChange={(v) => update({ anchorY: v })}
           format={(v) => `${Math.round(v * 100)}%`}
+          defaultValue={0.5}
         />
         <SliderRow
           label="Zoom In"
@@ -413,6 +426,7 @@ export default function EffectPropertiesPanel() {
           min={0} max={maxRamp} step={0.05}
           onChange={(v) => update({ rampIn: Math.min(v, maxRamp - params.rampOut) })}
           format={(v) => `${v.toFixed(2)}s`}
+          defaultValue={0}
         />
         <SliderRow
           label="Zoom Out"
@@ -420,8 +434,9 @@ export default function EffectPropertiesPanel() {
           min={0} max={maxRamp} step={0.05}
           onChange={(v) => update({ rampOut: Math.min(v, maxRamp - params.rampIn) })}
           format={(v) => `${v.toFixed(2)}s`}
+          defaultValue={0}
         />
-        <p className="text-[11px] text-[#6b6b78]">
+        <p className="text-[11px] text-[var(--txt2)]">
           Hold: {Math.max(0, duration - params.rampIn - params.rampOut).toFixed(2)}s
         </p>
       </div>

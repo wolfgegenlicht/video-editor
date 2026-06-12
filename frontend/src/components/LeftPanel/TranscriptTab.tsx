@@ -3,6 +3,7 @@ import { useProjectStore } from "../../store/useProjectStore";
 import { transcribeFile, detectSilences } from "../../lib/api";
 import { v4 as uuid } from "uuid";
 import type { Caption, CaptionWord } from "../../types/project";
+import { editToOutput, outputToEdit } from "../../lib/speedRamp";
 
 interface Props { seek: (t: number) => void }
 
@@ -39,7 +40,7 @@ function SilenceBadge({
 }) {
   const dur = (silence.end - silence.start).toFixed(1);
   return (
-    <span className="inline-flex items-center gap-0.5 mx-0.5 px-1 py-px bg-[#f2f2f6] text-[#6b6b78] text-[11px] rounded align-middle select-none">
+    <span className="inline-flex items-center gap-0.5 mx-0.5 px-1 py-px bg-[var(--label-bg)] text-[var(--txt2)] text-[11px] rounded align-middle select-none">
       {dur}s
       <button
         type="button"
@@ -59,6 +60,11 @@ export default function TranscriptTab({ seek }: Props) {
     transcriptSelection, setTranscriptSelection,
     cutWord, deleteTimeRange,
   } = useProjectStore();
+
+  // Captions/words are EDIT time; the playhead and seek() are OUTPUT time.
+  const ramps = project.hiddenEffectLanes?.speedramp ? [] : project.effectOverlays ?? [];
+  const editTime = outputToEdit(playheadTime, ramps);
+  const seekEdit = (t: number) => seek(editToOutput(t, ramps));
 
   const [loading, setLoading] = useState(false);
   const [editKey, setEditKey] = useState<string | null>(null);
@@ -260,7 +266,7 @@ export default function TranscriptTab({ seek }: Props) {
     }
 
     setCursorPosition(newPos);
-    seek(flat[newFlatIdx].word.start);
+    seekEdit(flat[newFlatIdx].word.start);
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -342,7 +348,7 @@ export default function TranscriptTab({ seek }: Props) {
     }
 
     setCursorPosition({ captionId: cap.id, wordIdx: i });
-    seek(w.start);
+    seekEdit(w.start);
   }
 
   const sel = transcriptSelection;
@@ -350,12 +356,12 @@ export default function TranscriptTab({ seek }: Props) {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="px-4 pt-3 pb-2 border-b border-black/[0.06] flex-shrink-0 space-y-2">
+      <div className="px-4 pt-3 pb-2 border-b border-[var(--border)] flex-shrink-0 space-y-2">
         <button
           type="button"
           onClick={handleTranscribe}
           disabled={loading}
-          className="w-full py-1.5 text-xs text-[#6b6b78] border border-black/10 rounded hover:border-black/[0.18] hover:text-[#141416] disabled:opacity-50 transition-colors bg-[#f2f2f6]"
+          className="w-full py-1.5 text-xs text-[var(--txt2)] border border-[var(--border-strong)] rounded hover:border-black/[0.18] hover:text-[var(--txt1)] disabled:opacity-50 transition-colors bg-[var(--label-bg)]"
         >
           {loading ? "Transcribing…" : project.captions.length > 0 ? "Re-transcribe" : "Auto-Transcribe"}
         </button>
@@ -368,7 +374,7 @@ export default function TranscriptTab({ seek }: Props) {
               className={`flex-1 py-1 text-[11px] border rounded transition-colors ${
                 fillerMode
                   ? "bg-orange-500/15 border-orange-500/30 text-orange-400"
-                  : "border-black/10 text-[#6b6b78] hover:border-orange-500/30 hover:text-orange-400 bg-[#f2f2f6]"
+                  : "border-[var(--border-strong)] text-[var(--txt2)] hover:border-orange-500/30 hover:text-orange-400 bg-[var(--label-bg)]"
               }`}
             >
               ✂ Fillers
@@ -379,8 +385,8 @@ export default function TranscriptTab({ seek }: Props) {
               disabled={silenceLoading || !project.captionSourceFileId}
               className={`flex-1 py-1 text-[11px] border rounded transition-colors disabled:opacity-40 ${
                 silencePending.length > 0
-                  ? "bg-[#f2f2f6] border-black/10 text-[#6b6b78]"
-                  : "border-black/10 text-[#6b6b78] hover:border-black/[0.18] hover:text-[#141416] bg-[#f2f2f6]"
+                  ? "bg-[var(--label-bg)] border-[var(--border-strong)] text-[var(--txt2)]"
+                  : "border-[var(--border-strong)] text-[var(--txt2)] hover:border-black/[0.18] hover:text-[var(--txt1)] bg-[var(--label-bg)]"
               }`}
             >
               {silenceLoading ? "Detecting…" : "⏱ Silences"}
@@ -414,14 +420,14 @@ export default function TranscriptTab({ seek }: Props) {
 
       {/* Silence action bar */}
       {silencePending.length > 0 && (
-        <div className="flex items-center px-3 py-1.5 border-b border-black/[0.06] bg-[#f2f2f6] flex-shrink-0 gap-2">
-          <span className="text-[11px] text-[#6b6b78] flex-1 font-medium">
+        <div className="flex items-center px-3 py-1.5 border-b border-[var(--border)] bg-[var(--label-bg)] flex-shrink-0 gap-2">
+          <span className="text-[11px] text-[var(--txt2)] flex-1 font-medium">
             ⏱ {silencePending.length} silence{silencePending.length !== 1 ? "s" : ""} detected
           </span>
           <button
             type="button"
             onClick={() => setSilencePending([])}
-            className="text-[11px] text-[#6b6b78] hover:text-[#141416] cursor-pointer transition-colors"
+            className="text-[11px] text-[var(--txt2)] hover:text-[var(--txt1)] cursor-pointer transition-colors"
           >
             Dismiss
           </button>
@@ -438,14 +444,14 @@ export default function TranscriptTab({ seek }: Props) {
       <div className="flex-1 overflow-y-auto min-h-0">
         {project.captions.length === 0 && (
           <div className="px-6 pt-10 text-center">
-            <p className="text-sm text-[#6b6b78]">No transcript yet.</p>
-            <p className="text-xs text-[#6b6b78] mt-1">Click Auto-Transcribe to generate one.</p>
+            <p className="text-sm text-[var(--txt2)]">No transcript yet.</p>
+            <p className="text-xs text-[var(--txt2)] mt-1">Click Auto-Transcribe to generate one.</p>
           </div>
         )}
 
         <div
           ref={containerRef}
-          className="px-4 pt-10 pb-5 text-[16px] leading-relaxed text-[#141416] outline-none"
+          className="px-4 pt-10 pb-5 text-[16px] leading-relaxed text-[var(--txt1)] outline-none"
           tabIndex={0}
           onKeyDown={handleKeyDown}
         >
@@ -455,9 +461,9 @@ export default function TranscriptTab({ seek }: Props) {
             const pauseGap = prevCap ? cap.startTime - prevCap.endTime : 0;
 
             let activeWordIdx = -1;
-            if (playheadTime >= cap.startTime && playheadTime < cap.endTime) {
+            if (editTime >= cap.startTime && editTime < cap.endTime) {
               for (let i = 0; i < words.length; i++) {
-                if (playheadTime >= words[i].start) activeWordIdx = i;
+                if (editTime >= words[i].start) activeWordIdx = i;
                 else break;
               }
             }
@@ -507,7 +513,7 @@ export default function TranscriptTab({ seek }: Props) {
                           setCursorPosition(null);
                         }
                       }}
-                      className="inline-block text-[16px] outline-none bg-[#f2f2f6] border border-black/10 text-[#141416] rounded px-0.5 w-28 align-baseline"
+                      className="inline-block text-[16px] outline-none bg-[var(--label-bg)] border border-[var(--border-strong)] text-[var(--txt1)] rounded px-0.5 w-28 align-baseline"
                     />
                     {" "}
                   </React.Fragment>
@@ -517,7 +523,7 @@ export default function TranscriptTab({ seek }: Props) {
               return (
                 <React.Fragment key={key}>
                   {showCursorBefore && (
-                    <span className="inline-block w-[1.5px] h-[1.1em] bg-[#141416] cursor-blink align-text-bottom mx-px" />
+                    <span className="inline-block w-[1.5px] h-[1.1em] bg-[var(--txt1)] cursor-blink align-text-bottom mx-px" />
                   )}
                   <span
                     role="button"
@@ -526,12 +532,12 @@ export default function TranscriptTab({ seek }: Props) {
                       ${isFiller && !isSelected
                         ? "bg-orange-500/15 text-orange-400 hover:bg-orange-500/25"
                         : isSelected
-                        ? "bg-blue-500/15 text-blue-700"
+                        ? "bg-[oklch(66%_0.14_245_/_0.18)] text-[oklch(72%_0.12_245)]"
                         : isActive
-                        ? "bg-[rgba(14,165,160,0.12)] text-[#0d9488]"
+                        ? "bg-[oklch(70% 0.16 55 / 0.18)] text-[var(--accent)]"
                         : isPast
-                        ? "text-[#6b6b78] hover:bg-black/[0.04]"
-                        : "text-[#141416] hover:bg-black/[0.04]"}`}
+                        ? "text-[var(--txt2)] hover:bg-[var(--hover)]"
+                        : "text-[var(--txt1)] hover:bg-[var(--hover)]"}`}
                     onMouseDown={(e) => onWordMouseDown(e, w)}
                     onMouseEnter={() => onWordMouseEnter(w)}
                     onClick={() => onWordClick(cap, w, i)}
@@ -577,7 +583,7 @@ export default function TranscriptTab({ seek }: Props) {
                       >
                         <button
                           type="button"
-                          className="flex items-center gap-1 bg-white border border-black/10 rounded-md shadow-lg px-2.5 py-1 text-[11px] font-medium text-[#141416] hover:bg-[#ebebef] whitespace-nowrap select-none"
+                          className="flex items-center gap-1 bg-[var(--panel)] border border-[var(--border-strong)] rounded-md shadow-lg px-2.5 py-1 text-[11px] font-medium text-[var(--txt1)] hover:bg-[var(--hover)] whitespace-nowrap select-none"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditKey(key);
@@ -590,7 +596,7 @@ export default function TranscriptTab({ seek }: Props) {
                     )}
                   </span>
                   {isCursor && !editKey && (
-                    <span className="inline-block w-[1.5px] h-[1.1em] bg-[#141416] cursor-blink align-text-bottom mx-px" />
+                    <span className="inline-block w-[1.5px] h-[1.1em] bg-[var(--txt1)] cursor-blink align-text-bottom mx-px" />
                   )}
                   {postWordSilences.map((s) => (
                     <SilenceBadge key={s.start} silence={s} onDismiss={() => dismissSilence(s.start)} />
@@ -602,9 +608,9 @@ export default function TranscriptTab({ seek }: Props) {
               <span
                 role="button"
                 tabIndex={-1}
-                className="cursor-pointer hover:bg-black/[0.04] rounded-sm px-[1px]"
-                onClick={() => seek(cap.startTime)}
-                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") seek(cap.startTime); }}
+                className="cursor-pointer hover:bg-[var(--hover)] rounded-sm px-[1px]"
+                onClick={() => seekEdit(cap.startTime)}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") seekEdit(cap.startTime); }}
               >
                 {cap.text}
               </span>
@@ -630,8 +636,8 @@ export default function TranscriptTab({ seek }: Props) {
                   <button
                     key={`ts-${cap.id}`}
                     type="button"
-                    className="text-[10px] font-mono text-[#6b6b78] hover:text-[#0d9488] transition-colors mr-1 align-baseline select-none"
-                    onClick={() => seek(cap.startTime)}
+                    className="text-[10px] font-mono text-[var(--txt2)] hover:text-[var(--accent)] transition-colors mr-1 align-baseline select-none"
+                    onClick={() => seekEdit(cap.startTime)}
                     tabIndex={-1}
                   >
                     {formatTime(cap.startTime)}

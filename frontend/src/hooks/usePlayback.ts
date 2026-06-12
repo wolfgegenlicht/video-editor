@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect } from "react";
 import { useProjectStore } from "../store/useProjectStore";
+import { compiledDuration } from "../lib/speedRamp";
 
 export function usePlayback() {
   const setPlayhead = useProjectStore((s) => s.setPlayhead);
@@ -18,7 +19,21 @@ export function usePlayback() {
     function tick() {
       if (!playingRef.current) return;
       const elapsed = (performance.now() - playStartWallRef.current) / 1000;
-      setPlayhead(playStartTimeRef.current + elapsed);
+      const next = playStartTimeRef.current + elapsed;
+      // Stop at the compiled (output-space) end so playback doesn't run past the
+      // last frame into empty time after speed ramps have shortened the timeline.
+      const proj = useProjectStore.getState().project;
+      const total = compiledDuration(
+        proj.tracks.flatMap((t) => t.clips),
+        proj.hiddenEffectLanes?.speedramp ? [] : proj.effectOverlays ?? []
+      );
+      if (next >= total) {
+        setPlayhead(total);
+        playingRef.current = false;
+        setIsPlaying(false);
+        return;
+      }
+      setPlayhead(next);
       rafRef.current = requestAnimationFrame(tick);
     }
     rafRef.current = requestAnimationFrame(tick);

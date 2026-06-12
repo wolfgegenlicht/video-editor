@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import { fileUrl } from "../../lib/api";
+import { outputToEdit, instantaneousSpeed, activeSpeedRampAtEdit } from "../../lib/speedRamp";
 
 // One AudioContext shared across the whole app (browsers limit the number)
 let _ac: AudioContext | null = null;
@@ -22,20 +23,26 @@ export default function AudioTrackPlayer() {
   const gainRef = useRef<GainNode | null>(null);
   const pannerRef = useRef<StereoPannerNode | null>(null);
 
+  // Playhead is OUTPUT time; clips/ramps are EDIT time. Map once.
+  const ramps = project.hiddenEffectLanes?.speedramp ? [] : project.effectOverlays ?? [];
+  const editTime = outputToEdit(playheadTime, ramps);
+
   const audioTracks = project.tracks.filter((t) => t.type === "audio");
   const activeTrack = audioTracks.find((t) =>
-    t.clips.some((c) => playheadTime >= c.startTime && playheadTime < c.startTime + c.duration)
+    t.clips.some((c) => editTime >= c.startTime && editTime < c.startTime + c.duration)
   );
   const activeClip = activeTrack?.muted
     ? null
     : activeTrack?.clips.find(
-        (c) => playheadTime >= c.startTime && playheadTime < c.startTime + c.duration
+        (c) => editTime >= c.startTime && editTime < c.startTime + c.duration
       ) ?? null;
 
   // Use enhanced file when enabled, fall back to original
   const srcFileId = (activeClip?.audioEnhanceEnabled && activeClip?.audioEnhanceFileId)
     ? activeClip.audioEnhanceFileId
     : activeClip?.fileId;
+
+  const activeSpeedRamp = activeSpeedRampAtEdit(editTime, ramps);
 
   // Build the Web Audio graph once per audio element (recreated when srcFileId changes via key=).
   // WeakMap prevents the StrictMode double-invoke from calling createMediaElementSource twice
@@ -77,9 +84,9 @@ export default function AudioTrackPlayer() {
       return;
     }
     const speed = activeClip.speed ?? 1;
-    const sourcePos = activeClip.sourceStart + (playheadTime - activeClip.startTime) * speed;
+    const sourcePos = activeClip.sourceStart + (editTime - activeClip.startTime) * speed;
     audio.currentTime = sourcePos;
-    audio.playbackRate = speed;
+    audio.playbackRate = speed * instantaneousSpeed(editTime, ramps);
     if (isPlaying) {
       getAC().resume().then(() => audio.play()).catch(() => {});
     } else {
@@ -98,19 +105,25 @@ export default function AudioTrackPlayer() {
     if (pannerRef.current) pannerRef.current.pan.value = activeClip?.pan ?? 0;
   }, [activeClip?.pan]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reactively update playback speed
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.playbackRate = activeClip?.speed ?? 1;
-  }, [activeClip?.speed]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Scrubbing: keep position in sync when not playing
+  // Reactively drive playback speed from the instantaneous ramp speed (× base).
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !activeClip || isPlaying) return;
+    if (!audio || !activeClip) return;
+    audio.playbackRate = (activeClip.speed ?? 1) * instantaneousSpeed(editTime, ramps);
+  }, [editTime, ramps, activeSpeedRamp, activeClip?.speed]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep audio in sync (EDIT space). Source position is linear in editTime; the
+  // ramp only changes the rate. During smooth ramp playback let the element run
+  // freely (playbackRate integrates to the right position); otherwise resync.
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio || !activeClip) return;
+    if (activeSpeedRamp && isPlaying) return;
     const speed = activeClip.speed ?? 1;
-    const sourcePos = activeClip.sourceStart + (playheadTime - activeClip.startTime) * speed;
-    if (Math.abs(audio.currentTime - sourcePos) > 0.05) audio.currentTime = sourcePos;
-  }, [playheadTime, activeClip, isPlaying]);
+    const sourcePos = activeClip.sourceStart + (editTime - activeClip.startTime) * speed;
+    const threshold = isPlaying ? 0.3 : 0.05;
+    if (Math.abs(audio.currentTime - sourcePos) > threshold) audio.currentTime = sourcePos;
+  }, [editTime, activeClip, isPlaying, activeSpeedRamp]);
 
   if (!activeClip || !srcFileId) return null;
 

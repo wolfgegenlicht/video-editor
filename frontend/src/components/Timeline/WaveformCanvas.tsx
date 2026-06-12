@@ -32,7 +32,7 @@ export default function WaveformCanvas({ fileId, fileDuration, sourceStart, sour
     const endIdx = Math.ceil((sourceEnd / fileDuration) * totalSamples);
     const visibleSamples = Math.max(1, endIdx - startIdx);
 
-    ctx.fillStyle = `rgba(14,165,160,${opacity})`;
+    ctx.fillStyle = `oklch(70% 0.16 55 / ${opacity})`;
     for (let x = 0; x < W; x++) {
       const sIdx = startIdx + Math.floor((x / W) * visibleSamples);
       const amp = waveform[Math.min(sIdx, totalSamples - 1)] ?? 0;

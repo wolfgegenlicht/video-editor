@@ -10,3 +10,5 @@ opencv-python
 deepfilternet
 soundfile
 mediapipe
+torch
+huggingface_hub

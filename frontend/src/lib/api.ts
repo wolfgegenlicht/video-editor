@@ -44,13 +44,6 @@ export interface ProjectData {
   missingFileIds?: string[];
 }
 
-export interface EyeContactStatusResponse {
-  status: "processing" | "done" | "error" | "cancelled";
-  correctedFileId?: string;
-  progress?: number;
-  error?: string;
-}
-
 export interface ReframeStatusResponse {
   status: "processing" | "done" | "error";
   progress?: number;
@@ -197,31 +190,6 @@ export async function renameProject(id: string, name: string): Promise<void> {
 export async function deleteProject(id: string): Promise<void> {
   const res = await fetch(`/projects/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(`Delete project failed: ${res.status}`);
-}
-
-export async function startEyeContactJob(fileId: string): Promise<{ jobId: string }> {
-  const res = await fetch("/eye-contact/process", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ fileId }),
-  });
-  if (!res.ok) throw new Error(`Eye contact job failed: ${res.status}`);
-  return res.json();
-}
-
-export async function getEyeContactStatus(jobId: string): Promise<EyeContactStatusResponse> {
-  const res = await fetch(`/eye-contact/status/${jobId}`);
-  if (!res.ok) throw new Error(`Eye contact status check failed: ${res.status}`);
-  return res.json();
-}
-
-export async function deleteEyeContactFile(fileId: string): Promise<void> {
-  const res = await fetch(`/eye-contact/files/${fileId}`, { method: "DELETE" });
-  if (!res.ok) throw new Error(`Delete eye contact file failed: ${res.status}`);
-}
-
-export async function cancelEyeContactJob(jobId: string): Promise<void> {
-  await fetch(`/eye-contact/jobs/${jobId}`, { method: "DELETE" });
 }
 
 export interface BlurBgStatusResponse {

@@ -9,7 +9,7 @@ function backendProxy() {
     enforce: "pre" as const,
     configureServer(server: any) {
       server.middlewares.use((req: any, res: any, next: any) => {
-        const API_PATHS = ["/upload", "/files", "/transcribe", "/export", "/projects", "/eye-contact", "/enhance-audio", "/blur-bg", "/fonts", "/face-restore", "/portrait-relight", "/silence-detect", "/reframe", "/captions"];
+        const API_PATHS = ["/upload", "/files", "/transcribe", "/export", "/projects", "/enhance-audio", "/blur-bg", "/fonts", "/face-restore", "/portrait-relight", "/silence-detect", "/reframe", "/captions"];
         const matches = API_PATHS.some(
           (p) => req.url === p || req.url?.startsWith(p + "/") || req.url?.startsWith(p + "?")
         );

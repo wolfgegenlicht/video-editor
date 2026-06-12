@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useProjectStore } from "../../store/useProjectStore";
 import type { BlurRegion, BlurParams } from "../../types/project";
 import { interpolateBlurAt } from "../../lib/blurKeyframes";
+import { outputToEdit } from "../../lib/speedRamp";
 
 interface Props {
   effectId: string;
@@ -55,7 +56,9 @@ export default function BlurRegionEditor({ effectId, effectStartTime, intensity,
     if (!effect) return;
     const bp = effect.params as BlurParams;
     if (bp.keyframes?.length) {
-      const relTime = Math.max(0, playheadTime - effectStartTime);
+      // playhead is OUTPUT time; keyframe offsets are EDIT-relative to the effect.
+      const ramps = project.hiddenEffectLanes?.speedramp ? [] : project.effectOverlays ?? [];
+      const relTime = Math.max(0, outputToEdit(playheadTime, ramps) - effectStartTime);
       const effective = interpolateBlurAt(bp.keyframes, relTime, bp);
       addOrUpdateBlurKeyframe(effectId, { time: relTime, intensity: effective.intensity, region: r });
     } else {
@@ -149,7 +152,7 @@ export default function BlurRegionEditor({ effectId, effectStartTime, intensity,
     width:  `${width * 100}%`,
     height: `${height * 100}%`,
   };
-  const handleClass = "absolute size-3 bg-white border border-gray-500 rounded-sm shadow pointer-events-auto";
+  const handleClass = "absolute size-3 bg-[var(--panel)] border border-gray-500 rounded-sm shadow pointer-events-auto";
 
   return (
     <>

@@ -1,5 +1,6 @@
 import { useProjectStore, getItemStartTime } from "../../store/useProjectStore";
 import { SNAP_PX, findSnap } from "./snapUtils";
+import { editToOutput } from "../../lib/speedRamp";
 
 interface Props { zoom: number; totalWidth: number; height: number; onSnapChange?: (time: number | null) => void }
 
@@ -7,6 +8,7 @@ export default function TextOverlayTrack({ zoom, totalWidth, height, onSnapChang
   const { project, selectOverlay, selectedOverlayId, selectedItemIds, toggleItemSelection,
           moveSelectedItemsLive, moveSelectedItems, trimTextOverlayLive, updateTextOverlay } = useProjectStore();
   const overlays = project.textOverlays;
+  const ramps = project.hiddenEffectLanes?.speedramp ? [] : project.effectOverlays ?? [];
 
   function startDrag(
     e: React.MouseEvent,
@@ -107,13 +109,14 @@ export default function TextOverlayTrack({ zoom, totalWidth, height, onSnapChang
   return (
     <div
       role="presentation"
-      className="border-b border-black/[0.06] relative bg-white"
+      className="border-b border-[var(--border)] relative bg-[var(--panel)]"
       style={{ width: totalWidth, height }}
       onMouseDown={() => selectOverlay(null)}
     >
       {overlays.map((o) => {
-        const left = o.startTime * zoom;
-        const width = Math.max((o.endTime - o.startTime) * zoom, 8);
+        const oStart = editToOutput(o.startTime, ramps);
+        const left = oStart * zoom;
+        const width = Math.max((editToOutput(o.endTime, ramps) - oStart) * zoom, 8);
         const isSelected = selectedOverlayId === o.id;
         const isMultiSelected = selectedItemIds.size > 1 && selectedItemIds.has(o.id);
         return (

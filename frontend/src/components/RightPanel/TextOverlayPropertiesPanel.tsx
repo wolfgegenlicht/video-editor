@@ -21,7 +21,7 @@ const PILL_PRESETS: Array<{ label: string; background: string; color: string; fo
   { label: "Purple",   background: "#7c3aed", color: "#ffffff", fontWeight: "bold" },
   { label: "Navy",     background: "#1a1a2e", color: "#ffffff", fontWeight: "bold" },
   { label: "White",    background: "#ffffff", color: "#111111", fontWeight: "bold" },
-  { label: "Teal",     background: "#0d9488", color: "#ffffff", fontWeight: "bold" },
+  { label: "Teal",     background: "var(--accent)", color: "#ffffff", fontWeight: "bold" },
   { label: "Amber",    background: "#d97706", color: "#ffffff", fontWeight: "bold" },
   { label: "Crimson",  background: "#dc2626", color: "#ffffff", fontWeight: "bold" },
   { label: "Sky",      background: "#0284c7", color: "#ffffff", fontWeight: "bold" },
@@ -47,12 +47,12 @@ export default function TextOverlayPropertiesPanel() {
           value={overlay.text}
           onChange={(e) => update({ text: e.target.value })}
           rows={3}
-          className="w-full text-[12px] border border-black/[0.1] rounded-md px-2 py-1.5 resize-none outline-none focus:border-[#0ea5a0] bg-white text-[#141416]"
+          className="w-full text-[12px] border border-black/[0.1] rounded-md px-2 py-1.5 resize-none outline-none focus:border-[var(--accent)] bg-[var(--panel)] text-[var(--txt1)]"
         />
       </Section>
       {overlay.shape && (
         <>
-          <div className="border-t border-black/[0.06]" />
+          <div className="border-t border-[var(--border)]" />
           <Section title="Shape">
             <div className="flex gap-1.5 flex-wrap mb-2">
               {SHAPES.map((s) => (
@@ -62,8 +62,8 @@ export default function TextOverlayPropertiesPanel() {
                   onClick={() => update({ shape: s.value, cornerRadius: DEFAULT_RADIUS_PCT[s.value] })}
                   className={`px-2 py-1 rounded-md border text-[11px] font-medium cursor-pointer transition-colors ${
                     overlay.shape === s.value
-                      ? "border-[#0d9488] bg-[#0d9488]/10 text-[#0d9488]"
-                      : "border-black/[0.1] bg-white text-[#6b6b78] hover:text-[#141416]"
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]"
+                      : "border-black/[0.1] bg-[var(--panel)] text-[var(--txt2)] hover:text-[var(--txt1)]"
                   }`}
                 >
                   {s.label}
@@ -81,7 +81,7 @@ export default function TextOverlayPropertiesPanel() {
             />
             {overlay.shape === "accent" && (
               <div className="mt-2">
-                <p className="text-xs text-[#6b6b78] mb-1">Accent color</p>
+                <p className="text-xs text-[var(--txt2)] mb-1">Accent color</p>
                 <input
                   type="color"
                   aria-label="Accent color"
@@ -92,7 +92,7 @@ export default function TextOverlayPropertiesPanel() {
               </div>
             )}
           </Section>
-          <div className="border-t border-black/[0.06]" />
+          <div className="border-t border-[var(--border)]" />
           <Section title="Templates">
             <div className="flex gap-2 flex-wrap">
               {PILL_PRESETS.map((p) => (
@@ -105,7 +105,7 @@ export default function TextOverlayPropertiesPanel() {
                     background: p.background,
                     borderColor: overlay.background === p.background ? "#fff" : "transparent",
                     boxShadow: overlay.background === p.background
-                      ? "0 0 0 1px #0d9488"
+                      ? "0 0 0 1px var(--accent)"
                       : "0 0 0 1px rgba(0,0,0,0.15)",
                   }}
                 />
@@ -114,15 +114,15 @@ export default function TextOverlayPropertiesPanel() {
           </Section>
         </>
       )}
-      <div className="border-t border-black/[0.06]" />
+      <div className="border-t border-[var(--border)]" />
       <Section title="Style">
         <div>
-          <label htmlFor="overlay-font" className="text-[11px] text-[#6b6b78] block mb-1">Font</label>
+          <label htmlFor="overlay-font" className="text-[11px] text-[var(--txt2)] block mb-1">Font</label>
           <select
             id="overlay-font"
             value={overlay.fontFamily ?? "sans-serif"}
             onChange={(e) => update({ fontFamily: e.target.value })}
-            className="w-full text-xs bg-[#f2f2f6] border border-black/10 text-[#141416] rounded p-1.5 outline-none focus:ring-1 focus:ring-[#0ea5a0]"
+            className="w-full text-xs bg-[var(--label-bg)] border border-[var(--border-strong)] text-[var(--txt1)] rounded p-1.5 outline-none focus:ring-1 focus:ring-[var(--accent)]"
           >
             {OVERLAY_FONTS.map((f) => (
               <option key={f.value} value={f.value}>{f.label}</option>
@@ -139,7 +139,7 @@ export default function TextOverlayPropertiesPanel() {
           format={(v) => `${v}px`}
         />
         <div>
-          <p className="text-xs text-[#6b6b78] mb-1">Background color</p>
+          <p className="text-xs text-[var(--txt2)] mb-1">Background color</p>
           <input
             type="color"
             aria-label="Background color"
@@ -149,7 +149,7 @@ export default function TextOverlayPropertiesPanel() {
           />
         </div>
         <div>
-          <p className="text-xs text-[#6b6b78] mb-1">Text color</p>
+          <p className="text-xs text-[var(--txt2)] mb-1">Text color</p>
           <input
             type="color"
             aria-label="Text color"
@@ -161,7 +161,7 @@ export default function TextOverlayPropertiesPanel() {
       </Section>
       {overlay.shape && (
         <>
-          <div className="border-t border-black/[0.06]" />
+          <div className="border-t border-[var(--border)]" />
           <Section title="Padding">
             <SliderRow
               label="Horizontal"
@@ -184,7 +184,7 @@ export default function TextOverlayPropertiesPanel() {
           </Section>
         </>
       )}
-      <div className="border-t border-black/[0.06]" />
+      <div className="border-t border-[var(--border)]" />
       <Section title="Position">
         <SliderRow
           label="X"
@@ -207,7 +207,7 @@ export default function TextOverlayPropertiesPanel() {
       </Section>
       {overlay.shape && (
         <>
-          <div className="border-t border-black/[0.06]" />
+          <div className="border-t border-[var(--border)]" />
           <Section title="Animation">
             <SliderRow
               label="Animate duration"

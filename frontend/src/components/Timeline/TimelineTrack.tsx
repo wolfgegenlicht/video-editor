@@ -1,6 +1,7 @@
 import type { EffectType, Track } from "../../types/project";
 import { useProjectStore } from "../../store/useProjectStore";
 import TimelineClip from "./TimelineClip";
+import { outputToEdit } from "../../lib/speedRamp";
 
 interface Props { track: Track; zoom: number; height: number; onSnapChange?: (time: number | null) => void }
 
@@ -30,7 +31,10 @@ export default function TimelineTrack({ track, zoom, height, onSnapChange }: Pro
     const effectType = e.dataTransfer.getData("effectType");
     const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const dropTime = Math.max(0, x / zoom);
+    // Pointer is in OUTPUT pixels; store positions in EDIT time.
+    const { project } = useProjectStore.getState();
+    const ramps = project.hiddenEffectLanes?.speedramp ? [] : project.effectOverlays ?? [];
+    const dropTime = Math.max(0, outputToEdit(x / zoom, ramps));
 
     if (clipId) {
       moveClip(clipId, track.id, dropTime);
@@ -87,7 +91,7 @@ export default function TimelineTrack({ track, zoom, height, onSnapChange }: Pro
   return (
     <div
       role="presentation"
-      className="border-b border-black/[0.06] relative bg-white hover:bg-[#f7f7fa]"
+      className="border-b border-[var(--border)] relative bg-[var(--bed)] hover:bg-[var(--hover)]"
       style={{ height }}
       onDragOver={onDragOver}
       onDrop={onDrop}

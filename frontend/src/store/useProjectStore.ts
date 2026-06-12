@@ -1,7 +1,47 @@
 import { create } from "zustand";
 import { v4 as uuid } from "uuid";
 import type { Project, Track, Clip, Caption, AspectRatio, CaptionTrackStyle, TrackType, UploadedFile, TextOverlay, ClipTransform, EffectOverlay, ZoomParams, FadeParams, BlurParams, BlurKeyframe, ColorGradeParams, SpeedRampParams, ClipTransition, EffectType, AudioEnhanceType, ReframeData } from "../types/project";
-import { saveProject, deleteEyeContactFile, deleteBlurBgFile } from "../lib/api";
+
+// Canonical top→front … bottom→back default order for non-track rows
+const _LAYER_EFFECT_ORDER: EffectType[] = ["zoom", "fade", "blur", "colorgrade", "speedramp"];
+
+export function buildDefaultLayerOrder(project: Project): string[] {
+  const keys: string[] = [];
+  if (project.textOverlays.length > 0) keys.push("text");
+  if (project.captions.length > 0) keys.push("captions");
+  for (const t of _LAYER_EFFECT_ORDER) {
+    if (project.effectOverlays.some((e) => e.type === t)) keys.push(`fx-${t}`);
+  }
+  if ((project.clipTransitions ?? []).length > 0) keys.push("transitions");
+  for (const t of project.tracks) keys.push(t.id);
+  return keys;
+}
+
+export function getLayerOrder(project: Project): string[] {
+  const defaults = buildDefaultLayerOrder(project);
+  const stored = project.layerOrder;
+  if (!stored || stored.length === 0) return defaults;
+
+  const validSet = new Set(defaults);
+  const filtered = stored.filter((k) => validSet.has(k));
+  const storedSet = new Set(filtered);
+  const missing = defaults.filter((k) => !storedSet.has(k));
+
+  if (missing.length === 0) return filtered;
+
+  // Insert each missing key at its natural relative position from the defaults
+  const result = [...filtered];
+  for (const key of missing) {
+    const di = defaults.indexOf(key);
+    let insertAt = result.length;
+    for (let i = 0; i < result.length; i++) {
+      if (defaults.indexOf(result[i]) > di) { insertAt = i; break; }
+    }
+    result.splice(insertAt, 0, key);
+  }
+  return result;
+}
+import { saveProject, deleteBlurBgFile } from "../lib/api";
 import type { ProjectData } from "../lib/api";
 
 const STORAGE_KEY = "video-editor-project";
@@ -63,7 +103,6 @@ interface ProjectStore {
   rightPanelTab: "properties" | "media" | "effects" | null;
   selectedEffectOverlayId: string | null;
   transcriptSelection: { startTime: number; endTime: number } | null;
-  eyeContactStatus: Record<string, "processing" | "done" | "error">;
   blurBgStatus: Record<string, "processing" | "done" | "error">;
   previewOriginalClipId: string | null;
   audioEnhanceStatus: Record<string, "processing" | "done" | "error">;
@@ -107,6 +146,7 @@ interface ProjectStore {
   deleteTrack: (trackId: string) => void;
   duplicateTrack: (trackId: string) => void;
   reorderTrack: (trackId: string, toIndex: number) => void;
+  reorderLayer: (rowKey: string, toIndex: number) => void;
 
   setClipSpeed: (clipId: string, speed: number) => void;
   setClipVolume: (clipId: string, volume: number) => void;
@@ -115,10 +155,7 @@ interface ProjectStore {
   setClipBlurBackground: (clipId: string, enabled: boolean) => void;
   setClipTransform: (clipId: string, transform: Partial<ClipTransform>) => void;
   setClipTransformLive: (clipId: string, transform: Partial<ClipTransform>) => void;
-  setClipEyeContact: (clipId: string, enabled: boolean) => void;
-  setClipEyeContactFileId: (clipId: string, fileId: string | null) => void;
   setClipReframeData: (clipId: string, data: ReframeData | null) => void;
-  setEyeContactStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   setClipBlurBackgroundFileId: (clipId: string, fileId: string | null) => void;
   setBlurBgStatus: (clipId: string, status: "processing" | "done" | "error" | undefined) => void;
   setPreviewOriginalClipId: (clipId: string | null) => void;
@@ -244,7 +281,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
   selectedTransitionId: null,
   rightPanelTab: null,
   transcriptSelection: null,
-  eyeContactStatus: {},
   blurBgStatus: {},
   previewOriginalClipId: null,
   audioEnhanceStatus: {},
@@ -413,8 +449,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       duration: splitOffset,
       sourceStart: clip.sourceStart,
       sourceEnd: clip.sourceStart + sourceSplitOffset,
-      eyeContact: undefined,
-      eyeContactFileId: undefined,
       blurBackground: undefined,
       blurBackgroundFileId: undefined,
       reframe: undefined,
@@ -427,8 +461,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       duration: clip.duration - splitOffset,
       sourceStart: clip.sourceStart + sourceSplitOffset,
       sourceEnd: clip.sourceEnd,
-      eyeContact: undefined,
-      eyeContactFileId: undefined,
       blurBackground: undefined,
       blurBackgroundFileId: undefined,
       reframe: undefined,
@@ -448,7 +480,7 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     const found = findClip(p, clipId);
     if (!found) return p;
     const { track, clip } = found;
-    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration, eyeContact: undefined, eyeContactFileId: undefined, blurBackground: undefined, blurBackgroundFileId: undefined, reframe: undefined, reframeData: undefined };
+    const dupe: Clip = { ...clip, id: uuid(), startTime: clip.startTime + clip.duration, blurBackground: undefined, blurBackgroundFileId: undefined, reframe: undefined, reframeData: undefined };
     return {
       ...p,
       tracks: p.tracks.map((t) =>
@@ -461,9 +493,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
 
   deleteClip: (clipId) => {
     const found = findClip(get().project, clipId);
-    if (found?.clip.eyeContactFileId) {
-      deleteEyeContactFile(found.clip.eyeContactFileId).catch(console.error);
-    }
     if (found?.clip.blurBackgroundFileId) {
       deleteBlurBgFile(found.clip.blurBackgroundFileId).catch(console.error);
     }
@@ -482,9 +511,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       return updates;
     });
     set((s) => {
-      const { [clipId]: _, ...rest } = s.eyeContactStatus;
       const { [clipId]: _bb, ...restBb } = s.blurBgStatus;
-      return { eyeContactStatus: rest, blurBgStatus: restBb };
+      return { blurBgStatus: restBb };
     });
   },
 
@@ -511,6 +539,20 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     const insertAt = toIndex > fromIdx ? toIndex - 1 : toIndex;
     newTracks.splice(insertAt, 0, p.tracks[fromIdx]);
     return { ...p, tracks: newTracks };
+  }),
+
+  reorderLayer: (rowKey, toIndex) => withHistory(set, get, (p) => {
+    const currentOrder = getLayerOrder(p);
+    const fromIdx = currentOrder.indexOf(rowKey);
+    if (fromIdx === -1) return p;
+    const newOrder = [...currentOrder];
+    newOrder.splice(fromIdx, 1);
+    const insertAt = toIndex > fromIdx ? toIndex - 1 : toIndex;
+    newOrder.splice(insertAt, 0, rowKey);
+    // Keep project.tracks in sync with the new visual order of track rows
+    const trackKeys = newOrder.filter((k) => p.tracks.some((t) => t.id === k));
+    const newTracks = trackKeys.map((k) => p.tracks.find((t) => t.id === k)!);
+    return { ...p, layerOrder: newOrder, tracks: newTracks };
   }),
 
   deleteTrack: (trackId) => {
@@ -673,14 +715,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
     },
   })),
 
-  setClipEyeContact: (clipId, eyeContact) => withHistory(set, get, (p) => ({
-    ...p,
-    tracks: p.tracks.map((t) => ({
-      ...t,
-      clips: t.clips.map((c) => c.id === clipId ? { ...c, eyeContact } : c),
-    })),
-  })),
-
   setClipReframeData: (clipId, data) => withHistory(set, get, (p) => ({
     ...p,
     tracks: p.tracks.map((t) => ({
@@ -694,30 +728,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => {
       ),
     })),
   })),
-
-  setClipEyeContactFileId: (clipId, fileId) => {
-    const eyeContactFileId = fileId ?? undefined;
-    set((s) => ({
-      project: {
-        ...s.project,
-        tracks: s.project.tracks.map((t) => ({
-          ...t,
-          clips: t.clips.map((c) => (c.id === clipId ? { ...c, eyeContactFileId } : c)),
-        })),
-      },
-    }));
-    const { project, activeProjectId } = get();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
-    if (activeProjectId) _scheduleSave(activeProjectId, project);
-  },
-
-  setEyeContactStatus: (clipId, status) => set((s) => {
-    if (status === undefined) {
-      const { [clipId]: _, ...rest } = s.eyeContactStatus;
-      return { eyeContactStatus: rest };
-    }
-    return { eyeContactStatus: { ...s.eyeContactStatus, [clipId]: status } };
-  }),
 
   setClipBlurBackgroundFileId: (clipId, fileId) => {
     const blurBackgroundFileId = fileId ?? undefined;

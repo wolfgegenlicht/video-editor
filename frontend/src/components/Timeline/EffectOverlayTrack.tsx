@@ -2,6 +2,15 @@ import { useState } from "react";
 import { useProjectStore, getItemStartTime } from "../../store/useProjectStore";
 import type { EffectOverlay, EffectType, FadeParams, ColorGradeParams, SpeedRampParams, BlurParams } from "../../types/project";
 import { SNAP_PX, findSnap } from "./snapUtils";
+import { editToOutput, outputToEdit } from "../../lib/speedRamp";
+
+// Effect blocks are positioned in OUTPUT space so a speed ramp visibly
+// compresses and later content ripples left. Conversions exclude the speedramp
+// being interacted with so its own compression doesn't fold back on its drag.
+function rampsExcluding(all: EffectOverlay[], hidden: boolean, exceptId?: string): EffectOverlay[] {
+  if (hidden) return [];
+  return all.filter((e) => e.type === "speedramp" && e.id !== exceptId);
+}
 
 const EFFECT_DURATION: Record<EffectType, number> = {
   zoom: 3,
@@ -20,11 +29,11 @@ const EFFECT_DEFAULT_PARAMS: Record<EffectType, object> = {
 };
 
 const BG_COLORS: Record<EffectType, string> = {
-  zoom: "bg-white",
-  fade: "bg-white",
-  blur: "bg-white",
-  colorgrade: "bg-white",
-  speedramp: "bg-white",
+  zoom: "bg-[var(--panel)]",
+  fade: "bg-[var(--panel)]",
+  blur: "bg-[var(--panel)]",
+  colorgrade: "bg-[var(--panel)]",
+  speedramp: "bg-[var(--panel)]",
 };
 
 interface Props {
@@ -49,7 +58,8 @@ export default function EffectOverlayTrack({ effectType, zoom, totalWidth, heigh
     const droppedType = e.dataTransfer.getData("effectType");
     if (droppedType !== effectType) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const startTime = Math.max(0, (e.clientX - rect.left) / zoom);
+    const ramps = rampsExcluding(effectOverlays, !!hidden);
+    const startTime = Math.max(0, outputToEdit((e.clientX - rect.left) / zoom, ramps));
     addEffectOverlay({
       type: effectType,
       startTime,
@@ -60,7 +70,7 @@ export default function EffectOverlayTrack({ effectType, zoom, totalWidth, heigh
 
   return (
     <div
-      className={`border-b border-black/[0.06] relative ${BG_COLORS[effectType]} ${hidden ? "opacity-40" : ""}`}
+      className={`border-b border-[var(--border)] relative ${BG_COLORS[effectType]} ${hidden ? "opacity-40" : ""}`}
       style={{ width: totalWidth, height }}
       role="presentation"
       onDragOver={(e) => e.preventDefault()}
@@ -171,9 +181,17 @@ function EffectBlock({
   const { moveEffectOverlayLive, moveEffectOverlay, selectedItemIds, toggleItemSelection, moveSelectedItemsLive, moveSelectedItems, moveBlurKeyframe } = useProjectStore();
   const playheadTime = useProjectStore((s) => s.playheadTime);
   const setPlayhead = useProjectStore((s) => s.setPlayhead);
+  const allOverlays = useProjectStore((s) => s.project.effectOverlays);
+  const speedrampHidden = useProjectStore((s) => !!s.project.hiddenEffectLanes?.speedramp);
+  // Position the block in OUTPUT space using ALL speed ramps INCLUDING this one,
+  // so a speedramp block compresses to the exact output region it speeds up
+  // (otherwise its own window stays uncompressed and overhangs the rippled clip).
+  const ramps = rampsExcluding(allOverlays, speedrampHidden);
+  const editPlayhead = outputToEdit(playheadTime, ramps);
   const [kfDrag, setKfDrag] = useState<{ index: number; time: number } | null>(null);
-  const left = effect.startTime * zoom;
-  const width = Math.max((effect.endTime - effect.startTime) * zoom, 8);
+  const outStart = editToOutput(effect.startTime, ramps);
+  const left = outStart * zoom;
+  const width = Math.max((editToOutput(effect.endTime, ramps) - outStart) * zoom, 8);
   const theme = getTheme(effect.type);
   const isMultiSelected = selectedItemIds.size > 1 && selectedItemIds.has(effect.id);
   const isFade = effect.type === "fade";
@@ -284,7 +302,7 @@ function EffectBlock({
     <div
       role="button"
       tabIndex={0}
-      className={`absolute top-1 bottom-1 rounded flex items-center overflow-hidden select-none group cursor-grab active:cursor-grabbing ${selected ? theme.selected : theme.base} ${isMultiSelected ? "ring-2 ring-[#0ea5a0]/50" : ""}`}
+      className={`absolute top-1 bottom-1 rounded flex items-center overflow-hidden select-none group cursor-grab active:cursor-grabbing ${selected ? theme.selected : theme.base} ${isMultiSelected ? "ring-2 ring-[var(--accent)]/50" : ""}`}
       style={{ left, width }}
       onMouseDown={(e) => startDrag(e, "move")}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { onSelect(); } }}
@@ -308,7 +326,7 @@ function EffectBlock({
         ((effect.params as BlurParams).keyframes ?? []).map((kf, i) => {
           const displayTime = kfDrag?.index === i ? kfDrag.time : kf.time;
           const kfLeft = Math.max(4, Math.min(width - 4, displayTime * zoom));
-          const isActive = Math.abs(playheadTime - effect.startTime - kf.time) < 0.05;
+          const isActive = Math.abs(editPlayhead - effect.startTime - kf.time) < 0.05;
           return (
             <div
               key={i}
@@ -344,7 +362,7 @@ function EffectBlock({
                     moveBlurKeyframe(effect.id, i, lastTime);
                   } else {
                     onSelect();
-                    setPlayhead(effect.startTime + origTime);
+                    setPlayhead(editToOutput(effect.startTime + origTime, ramps));
                   }
                 }
                 document.addEventListener("mousemove", onMouseMove);

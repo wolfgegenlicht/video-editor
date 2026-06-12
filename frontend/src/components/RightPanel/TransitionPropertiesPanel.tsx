@@ -9,11 +9,11 @@ export default function TransitionPropertiesPanel() {
   return (
     <div className="flex-1 overflow-y-auto">
       <div className="px-3 pt-3 pb-4 space-y-3">
-        <p className="text-[11px] font-bold text-[#6b6b78]">Cross Dissolve</p>
+        <p className="text-[11px] font-bold text-[var(--txt2)]">Cross Dissolve</p>
         <div>
           <div className="flex justify-between items-baseline mb-1">
-            <span className="text-xs text-[#6b6b78]">Duration</span>
-            <span className="text-[11px] text-[#6b6b78] tabular-nums">{transition.duration.toFixed(2)}s</span>
+            <span className="text-xs text-[var(--txt2)]">Duration</span>
+            <span className="text-[11px] text-[var(--txt2)] tabular-nums">{transition.duration.toFixed(2)}s</span>
           </div>
           <input
             type="range"
@@ -23,10 +23,11 @@ export default function TransitionPropertiesPanel() {
             step={0.05}
             value={transition.duration}
             onChange={(e) => updateClipTransition(transition.id, { duration: parseFloat(e.target.value) })}
-            className="w-full accent-[#0ea5a0] h-1"
+            onDoubleClick={() => updateClipTransition(transition.id, { duration: 0.5 })}
+            className="w-full accent-[var(--accent)] h-1"
           />
         </div>
-        <p className="text-[11px] text-[#6b6b78]">
+        <p className="text-[11px] text-[var(--txt2)]">
           Position: {transition.atTime.toFixed(2)}s ({(transition.duration / 2).toFixed(2)}s each side)
         </p>
         <button

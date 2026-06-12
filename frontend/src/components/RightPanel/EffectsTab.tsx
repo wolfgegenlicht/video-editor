@@ -1,4 +1,5 @@
 import { useProjectStore } from "../../store/useProjectStore";
+import { outputToEdit } from "../../lib/speedRamp";
 
 export default function EffectsTab() {
   const { addEffectOverlay, addClipTransition, playheadTime, project, setDraggingEffectType } = useProjectStore();
@@ -14,16 +15,19 @@ export default function EffectsTab() {
   }
 
   function handleDoubleClick(effectType: string) {
+    // Effects are stored in EDIT time; the playhead is OUTPUT time.
+    const ramps = project.hiddenEffectLanes?.speedramp ? [] : project.effectOverlays ?? [];
+    const at = outputToEdit(playheadTime, ramps);
     if (effectType === "zoom") {
-      addEffectOverlay({ type: "zoom", startTime: playheadTime, endTime: playheadTime + 3, params: { scale: 1.5, rampIn: 0.3, rampOut: 0.3 } });
+      addEffectOverlay({ type: "zoom", startTime: at, endTime: at + 3, params: { scale: 1.5, rampIn: 0.3, rampOut: 0.3 } });
     } else if (effectType === "fade") {
-      addEffectOverlay({ type: "fade", startTime: playheadTime, endTime: playheadTime + 1, params: { direction: "in" } });
+      addEffectOverlay({ type: "fade", startTime: at, endTime: at + 1, params: { direction: "in" } });
     } else if (effectType === "blur") {
-      addEffectOverlay({ type: "blur", startTime: playheadTime, endTime: playheadTime + 3, params: { intensity: 10 } });
+      addEffectOverlay({ type: "blur", startTime: at, endTime: at + 3, params: { intensity: 10 } });
     } else if (effectType === "colorgrade") {
-      addEffectOverlay({ type: "colorgrade", startTime: playheadTime, endTime: playheadTime + 3, params: { preset: "warm", intensity: 0.8 } });
+      addEffectOverlay({ type: "colorgrade", startTime: at, endTime: at + 3, params: { preset: "warm", intensity: 0.8 } });
     } else if (effectType === "speedramp") {
-      addEffectOverlay({ type: "speedramp", startTime: playheadTime, endTime: playheadTime + 2, params: { startSpeed: 1, endSpeed: 0.5, easing: "ease" } });
+      addEffectOverlay({ type: "speedramp", startTime: at, endTime: at + 2, params: { startSpeed: 1, endSpeed: 0.5, easing: "ease" } });
     } else if (effectType === "dissolve") {
       const videoTracks = project.tracks.filter((t) => t.type !== "audio");
       let nearest: { trackId: string; atTime: number; dist: number } | null = null;
@@ -31,7 +35,7 @@ export default function EffectsTab() {
         const sorted = [...track.clips].sort((a, b) => a.startTime - b.startTime);
         for (let i = 0; i < sorted.length - 1; i++) {
           const boundary = sorted[i].startTime + sorted[i].duration;
-          const dist = Math.abs(boundary - playheadTime);
+          const dist = Math.abs(boundary - at);
           if (!nearest || dist < nearest.dist) nearest = { trackId: track.id, atTime: boundary, dist };
         }
       }
@@ -46,8 +50,8 @@ export default function EffectsTab() {
 
   return (
     <div className="flex-1 overflow-y-auto p-3 space-y-4">
-      <p className="text-[11px] font-bold text-[#6b6b78]">Video Effects</p>
-      <p className="text-[11px] text-[#6b6b78]">Drag or double-click to add to the timeline.</p>
+      <p className="text-[11px] font-bold text-[var(--txt2)]">Video Effects</p>
+      <p className="text-[11px] text-[var(--txt2)]">Drag or double-click to add to the timeline.</p>
 
       <EffectCard
         effectType="zoom" label="Zoom" desc="Zooms in, holds, zooms out"
@@ -116,8 +120,8 @@ export default function EffectsTab() {
         }
       />
 
-      <p className="text-[11px] font-bold text-[#6b6b78] pt-2">Transitions</p>
-      <p className="text-[11px] text-[#6b6b78]">Double-click with playhead near a clip boundary.</p>
+      <p className="text-[11px] font-bold text-[var(--txt2)] pt-2">Transitions</p>
+      <p className="text-[11px] text-[var(--txt2)]">Double-click with playhead near a clip boundary.</p>
 
       <EffectCard
         effectType="dissolve" label="Cross Dissolve" desc="Dip to black between clips"
@@ -127,12 +131,12 @@ export default function EffectsTab() {
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none" strokeLinecap="round">
             <defs>
               <linearGradient id="dissolve-l" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#0d9488" stopOpacity="1"/>
-                <stop offset="100%" stopColor="#0d9488" stopOpacity="0"/>
+                <stop offset="0%" stopColor="var(--accent)" stopOpacity="1"/>
+                <stop offset="100%" stopColor="var(--accent)" stopOpacity="0"/>
               </linearGradient>
               <linearGradient id="dissolve-r" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#0d9488" stopOpacity="0"/>
-                <stop offset="100%" stopColor="#0d9488" stopOpacity="1"/>
+                <stop offset="0%" stopColor="var(--accent)" stopOpacity="0"/>
+                <stop offset="100%" stopColor="var(--accent)" stopOpacity="1"/>
               </linearGradient>
             </defs>
             <rect x="1" y="5" width="7" height="8" rx="1" fill="url(#dissolve-l)"/>
@@ -147,12 +151,12 @@ export default function EffectsTab() {
 type CardColor = "violet" | "amber" | "sky" | "rose" | "orange" | "teal";
 
 const COLOR_CLASSES: Record<CardColor, { border: string; bg: string; hover: string; title: string; desc: string }> = {
-  violet: { border: "border-violet-200", bg: "bg-violet-50", hover: "hover:bg-violet-100", title: "text-violet-700", desc: "text-violet-500" },
-  amber:  { border: "border-amber-200",  bg: "bg-amber-50",  hover: "hover:bg-amber-100",  title: "text-amber-700",  desc: "text-amber-500"  },
-  sky:    { border: "border-sky-200",    bg: "bg-sky-50",    hover: "hover:bg-sky-100",    title: "text-sky-700",    desc: "text-sky-500"    },
-  rose:   { border: "border-rose-200",   bg: "bg-rose-50",   hover: "hover:bg-rose-100",   title: "text-rose-700",   desc: "text-rose-500"   },
-  orange: { border: "border-orange-200", bg: "bg-orange-50", hover: "hover:bg-orange-100", title: "text-orange-700", desc: "text-orange-500" },
-  teal:   { border: "border-teal-200",   bg: "bg-teal-50",   hover: "hover:bg-teal-100",   title: "text-teal-700",   desc: "text-teal-500"   },
+  violet: { border: "border-[var(--border)]", bg: "bg-[var(--panel-2)]", hover: "hover:bg-[var(--hover)]", title: "text-[var(--txt1)]", desc: "text-[var(--txt2)]" },
+  amber:  { border: "border-[var(--border)]", bg: "bg-[var(--panel-2)]", hover: "hover:bg-[var(--hover)]", title: "text-[var(--txt1)]", desc: "text-[var(--txt2)]" },
+  sky:    { border: "border-[var(--border)]", bg: "bg-[var(--panel-2)]", hover: "hover:bg-[var(--hover)]", title: "text-[var(--txt1)]", desc: "text-[var(--txt2)]" },
+  rose:   { border: "border-[var(--border)]", bg: "bg-[var(--panel-2)]", hover: "hover:bg-[var(--hover)]", title: "text-[var(--txt1)]", desc: "text-[var(--txt2)]" },
+  orange: { border: "border-[var(--border)]", bg: "bg-[var(--panel-2)]", hover: "hover:bg-[var(--hover)]", title: "text-[var(--txt1)]", desc: "text-[var(--txt2)]" },
+  teal:   { border: "border-[var(--border)]", bg: "bg-[var(--panel-2)]", hover: "hover:bg-[var(--hover)]", title: "text-[var(--txt1)]", desc: "text-[var(--txt2)]" },
 };
 
 function EffectCard({ effectType, label, desc, color, icon, draggable = true, onDragStart, onDragEnd, onDoubleClick }: {

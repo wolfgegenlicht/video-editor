@@ -1,5 +1,6 @@
 import { useProjectStore } from "../../store/useProjectStore";
 import TransitionHandle from "./TransitionHandle";
+import { outputToEdit } from "../../lib/speedRamp";
 
 interface Props {
   zoom: number;
@@ -17,7 +18,8 @@ export default function TransitionsTrack({ zoom, totalWidth, height }: Props) {
     if (e.dataTransfer.getData("effectType") !== "dissolve") return;
 
     const rect = e.currentTarget.getBoundingClientRect();
-    const dropTime = Math.max(0, (e.clientX - rect.left) / zoom);
+    const ramps = project.hiddenEffectLanes?.speedramp ? [] : project.effectOverlays ?? [];
+    const dropTime = Math.max(0, outputToEdit((e.clientX - rect.left) / zoom, ramps));
 
     const videoTracks = project.tracks.filter((t) => t.type !== "audio");
     let nearest: { trackId: string; atTime: number; dist: number } | null = null;
@@ -48,7 +50,7 @@ export default function TransitionsTrack({ zoom, totalWidth, height }: Props) {
   return (
     <div
       role="presentation"
-      className="border-b border-black/[0.06] relative bg-white"
+      className="border-b border-[var(--border)] relative bg-[var(--panel)]"
       style={{ width: totalWidth, height }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
