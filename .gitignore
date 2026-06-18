@@ -11,3 +11,18 @@ CodeFormer/weights/**/*.pth
 *.jpeg
 .playwright-mcp/
 .superpowers/
+
+# IDE & tool directories
+.claude/
+frontend/.agents/
+frontend/.codestudio/
+frontend/.continue/
+frontend/.factory/
+frontend/.kiro/
+frontend/.windsurf/
+frontend/skills/
+
+# Test results
+backend/test-results/
+frontend/test-results/
+backend/services/portrait_relighting_src
